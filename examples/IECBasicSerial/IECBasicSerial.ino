@@ -20,7 +20,7 @@
 #include <Arduino.h>
 #include <IECDevice.h>
 
-#define DEVICE_NUMBER 6
+#define DEVICE_NUMBER 4
 
 #define PIN_ATN   3
 #define PIN_CLK   4
@@ -37,41 +37,42 @@ class IECBasicSerial : public IECDevice
  public:
   IECBasicSerial() : IECDevice(PIN_ATN, PIN_CLK, PIN_DATA) {}
 
-  virtual int8_t canRead(byte channel);
-  virtual byte   read(byte channel);
+  virtual int8_t canRead();
+  virtual byte   read();
 
-  virtual int8_t canWrite(byte channel);
-  virtual void   write(byte channel, byte data);
+  virtual int8_t canWrite();
+  virtual void   write(byte data);
 };
 
 
-int8_t IECBasicSerial::canWrite(byte channel)
+int8_t IECBasicSerial::canWrite()
 {
-  // Return -1 if we can't write right now which will cause this to be
-  // called again until we eiher return 0 or 1.
+  // Return -1 if we can't receive IEC bus data right now which will cause this
+  // to be called again until we are ready and return 1.
   // Alternatively we could just wait within this function until we are ready.
   return Serial.availableForWrite()>0 ? 1 : -1;
 }
 
 
-void IECBasicSerial::write(byte secondary, byte data)
+void IECBasicSerial::write(byte data)
 { 
   // write() will only be called if canWrite() returned >0.
   Serial.write(data);
 }
 
 
-int8_t IECBasicSerial::canRead(byte channel)
+int8_t IECBasicSerial::canRead()
 {
-  // Return 0 if we have nothing to read. If we returned -1 then the bus
-  // would be blocked until we have something to read, which would prevent
-  // us from receiving data.
+  // Return 0 if we have nothing to send. This will indicate a "nothing to send"
+  // (error) condition on the bus. If we returned -1 instead then canRead()
+  // would be called repeatedly, blocking the bus, until we have something to send.
+  // That would prevent us from receiving incoming data on the bus.
   byte n = Serial.available();
   return n>1 ? 2 : n;
 }
 
 
-byte IECBasicSerial::read(byte secondary)
+byte IECBasicSerial::read()
 { 
   // read() will only be called if canRead() returned >0.
   return Serial.read();

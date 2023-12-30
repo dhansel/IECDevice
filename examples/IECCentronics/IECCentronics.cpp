@@ -80,7 +80,7 @@ Fuse bytes (Arduino standard): LOW=0xFF, HIGH=0xDA, EXTENDED=0xFD
 #define PIN_SR_DATA    9 // hardcoded to PINB1  in readShiftRegister() and printerBusy()
 #define PIN_LEDRDY    13
 
-#define DEBUG     0
+#define DEBUG     2
 
 
 #if DEBUG>0
@@ -314,18 +314,26 @@ void IECCentronics::sendByte(byte data)
 }
 
 
-void IECCentronics::listen(byte channel)
+void IECCentronics::talk(byte secondary)
 {
-  if( channel==15 )
-    m_cmdBufferLen = 0;
-  else
-    m_converters[m_mode]->setChannel(channel);
+  m_channel = secondary & 0x0F;
 }
 
 
-void IECCentronics::unlisten(byte channel)
+void IECCentronics::listen(byte secondary)
 {
-  if( channel==15 )
+  m_channel = secondary & 0x0F;
+
+  if( m_channel==15 )
+    m_cmdBufferLen = 0;
+  else
+    m_converters[m_mode]->setChannel(m_channel);
+}
+
+
+void IECCentronics::unlisten()
+{
+  if( m_channel==15 )
     {
       // execute command
       if( m_cmdBufferLen>0 )
@@ -339,13 +347,13 @@ void IECCentronics::unlisten(byte channel)
 }
 
 
-int8_t IECCentronics::canWrite(byte channel)
+int8_t IECCentronics::canWrite()
 {
   return m_receive.full() ? -1 : 1;
 }
 
 
-void IECCentronics::write(byte channel, byte data)
+void IECCentronics::write(byte data)
 {
   m_receive.enqueue(data);
 
@@ -353,9 +361,9 @@ void IECCentronics::write(byte channel, byte data)
 }
 
 
-int8_t IECCentronics::canRead(byte channel)
+int8_t IECCentronics::canRead()
 {
-  if( channel==15 )
+  if( m_channel==15 )
     {
       if( m_statusBufferPtr==m_statusBufferLen )
         {
@@ -372,7 +380,7 @@ int8_t IECCentronics::canRead(byte channel)
 }
 
 
-byte IECCentronics::read(byte channel)
+byte IECCentronics::read()
 {
   return m_statusBuffer[m_statusBufferPtr++];
 }

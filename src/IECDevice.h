@@ -28,7 +28,7 @@ class IECDevice
   // (e.g. 2 or 3 on the Arduino UNO), if not then make sure the task() function
   // gets called at least once evey millisecond, otherwise "device not present" 
   // errors may result
-  IECDevice(byte pinATN, byte pinCLK, byte pinDATA, byte pinRESET = 0xFF);
+  IECDevice(byte pinATN, byte pinCLK, byte pinDATA, byte pinRESET = 0xFF, byte pinCTRL = 0xFF);
 
   // must be called once at startup before the first call to "task", devnr
   // is the IEC bus device number that this device should react to
@@ -42,32 +42,21 @@ class IECDevice
   void task();
 
  protected:
-  // called when bus master sends OPEN command
-  // data received by "write" after this (and terminated by
-  // the next UNLISTEN command) identifies the file name of
-  // the file to be opened. 
-  // open() must return within 1 millisecond
-  virtual void open(byte channel)   {}
-
-  // called when bus master sends CLOSE command
-  // close() must return within 1 millisecond
-  virtual void close(byte channel)  {}
-
   // called when bus master sends TALK command
   // talk() must return within 1 millisecond
-  virtual void talk(byte channel)   {}
+  virtual void talk(byte secondary)   {}
 
   // called when bus master sends LISTEN command
   // listen() must return within 1 millisecond
-  virtual void listen(byte channel) {}
+  virtual void listen(byte secondary) {}
 
   // called when bus master sends UNTALK command
   // untalk() must return within 1 millisecond
-  virtual void untalk(byte channel) {}
+  virtual void untalk() {}
 
   // called when bus master sends UNLISTEN command
   // unlisten() must return within 1 millisecond
-  virtual void unlisten(byte channel) {}
+  virtual void unlisten() {}
 
   // called before a write() call to determine whether the device
   // is ready to receive data.
@@ -76,7 +65,7 @@ class IECDevice
   //  <0 if more time is needed before data can be accepted (call again later), blocks IEC bus
   //   0 if no data can be accepted (error)
   //  >0 if at least one byte of data can be accepted
-  virtual int8_t canWrite(byte channel) { return 0; }
+  virtual int8_t canWrite() { return 0; }
 
   // called before a read() call to see how many bytes are available to read
   // canRead() is allowed to take an indefinite amount of time
@@ -85,20 +74,24 @@ class IECDevice
   //   0 if no data is available to read (error)
   //   1 if one byte of data is available
   //  >1 if more than one byte of data is available
-  virtual int8_t canRead(byte channel) { return 0; }
+  virtual int8_t canRead() { return 0; }
 
   // called when the device received data
   // write() will only be called if the last call to canWrite() returned >0
   // write() must return within 1 millisecond
-  virtual void write(byte channel, byte data) {}
+  virtual void write(byte data) {}
 
   // called when the device is sending data
   // read() will only be called if the last call to canRead() returned >0
   // read() is allowed to take an indefinite amount of time
-  virtual byte read(byte channel) { return 0; }
+  virtual byte read() { return 0; }
 
   // called on falling edge of RESET line
   virtual void reset() {}
+
+  byte m_devnr;
+  int  m_atnInterrupt;
+  byte m_pinATN, m_pinCLK, m_pinDATA, m_pinRESET, m_pinCTRL;
 
  private:
   inline bool readPinATN();
@@ -107,22 +100,19 @@ class IECDevice
   inline bool readPinRESET();
   inline void writePinCLK(bool v);
   inline void writePinDATA(bool v);
+  void writePinCTRL(bool v);
 
   void microTask();
   void atnRequest();
-
-  byte m_devnr;
-  byte m_pinATN, m_pinCLK, m_pinDATA, m_pinRESET;
 
   volatile uint8_t *m_regATNread, *m_regRESETread;
   volatile uint8_t *m_regCLKread, *m_regCLKwrite, *m_regCLKmode;
   volatile uint8_t *m_regDATAread, *m_regDATAwrite, *m_regDATAmode;
   uint8_t m_bitATN, m_bitCLK, m_bitDATA, m_bitRESET;
-  int m_atnInterrupt;
 
   volatile unsigned long m_timeout;
   volatile bool m_inMicroTask;
-  volatile byte m_state, m_flags, m_primary, m_secondary, m_secondary_prev;
+  volatile byte m_state, m_flags, m_primary, m_secondary;
   int8_t m_numData;
   byte m_data;
   bool m_prevReset;

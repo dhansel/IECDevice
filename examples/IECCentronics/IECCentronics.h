@@ -62,11 +62,12 @@ class IECCentronics : public IECDevice
 
  protected:
   virtual void   listen(byte secondary);
-  virtual void   unlisten(byte secondary);
-  virtual int8_t canWrite(byte channel);
-  virtual void   write(byte channel, byte data);
-  virtual int8_t canRead(byte channel);
-  virtual byte   read(byte channel);
+  virtual void   talk(byte secondary);
+  virtual void   unlisten();
+  virtual int8_t canWrite();
+  virtual void   write(byte data);
+  virtual int8_t canRead();
+  virtual byte   read();
 
  private:
   void printerReadySig();
@@ -76,7 +77,7 @@ class IECCentronics : public IECDevice
   bool printerReady();
   void handleInputMPS801();
 
-  byte m_mode;
+  byte m_mode, m_channel;
   Converter *m_converters[8];
 
   byte m_cmdBufferLen, m_cmdBufferPtr, m_statusBufferLen, m_statusBufferPtr;

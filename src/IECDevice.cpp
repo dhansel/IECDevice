@@ -22,6 +22,13 @@
 
 #include "IECDevice.h"
 
+// RP2040 digitalPinToPort() has issues and the RP2040 is
+// fast enough anyways to just use digitalRead/digitalWrite
+#if defined(ARDUINO_ARCH_RP2040) && defined(digitalPinToPort)
+#undef digitalPinToPort
+#endif
+
+// compiler should optimize code for performance (not memory)
 #pragma GCC optimize ("-O2")
 
 enum {
@@ -51,6 +58,7 @@ inline void IECDevice::writePinCLK(bool v)
 {
   // emulate open collector behavior: switch pin to INPUT for HIGH
   // switch pin to output for LOW
+#ifdef digitalPinToPort
   if( v ) 
     { 
       *m_regCLKmode  &= ~m_bitCLK; // switch to INPUT mode
@@ -61,6 +69,17 @@ inline void IECDevice::writePinCLK(bool v)
       *m_regCLKwrite &= ~m_bitCLK; // set to output "0"
       *m_regCLKmode  |=  m_bitCLK; // switch to OUTPUT mode
     }
+#else
+  if( v )
+    {
+      pinMode(m_pinCLK, INPUT_PULLUP);
+    }
+  else
+    {
+      digitalWrite(m_pinCLK, LOW);
+      pinMode(m_pinCLK, OUTPUT);
+    }
+#endif
 }
 
 
@@ -68,6 +87,7 @@ inline void IECDevice::writePinDATA(bool v)
 {
   // emulate open collector behavior: switch pin to INPUT for HIGH
   // switch pin to output for LOW
+#ifdef digitalPinToPort
   if( v ) 
     { 
       *m_regDATAmode  &= ~m_bitDATA; // switch to INPUT mode
@@ -78,35 +98,69 @@ inline void IECDevice::writePinDATA(bool v)
       *m_regDATAwrite &= ~m_bitDATA; // set to output "0"
       *m_regDATAmode  |=  m_bitDATA; // switch to OUTPUT 1mode
     }
+#else
+  if( v )
+    {
+      pinMode(m_pinDATA, INPUT_PULLUP);
+    }
+  else
+    {
+      digitalWrite(m_pinDATA, LOW);
+      pinMode(m_pinDATA, OUTPUT);
+    }
+#endif
+}
+
+
+inline void IECDevice::writePinCTRL(bool v)
+{
+  if( m_pinCTRL!=0xFF )
+    digitalWrite(m_pinCTRL, v);
 }
 
 
 inline bool IECDevice::readPinATN()
 {
+#ifdef digitalPinToPort
   return (*m_regATNread & m_bitATN)!=0;
+#else
+  return digitalRead(m_pinATN);
+#endif
 }
 
 
 inline bool IECDevice::readPinCLK()
 {
+#ifdef digitalPinToPort
   return (*m_regCLKread & m_bitCLK)!=0;
+#else
+  return digitalRead(m_pinCLK);
+#endif
 }
 
 
 inline bool IECDevice::readPinDATA()
 {
+#ifdef digitalPinToPort
   return (*m_regDATAread & m_bitDATA)!=0;
+#else
+  return digitalRead(m_pinDATA);
+#endif
 }
 
 
 inline bool IECDevice::readPinRESET()
 {
   if( m_pinRESET==0xFF ) return true;
+#ifdef digitalPinToPort
   return (*m_regRESETread & m_bitRESET)!=0;
+#else
+  return digitalRead(m_pinRESET);
+#endif
 }
 
 
-IECDevice::IECDevice(byte pinATN, byte pinCLK, byte pinDATA, byte pinRESET)
+IECDevice::IECDevice(byte pinATN, byte pinCLK, byte pinDATA, byte pinRESET, byte pinCTRL)
 {
   m_devnr = 0;
   m_flags = 0;
@@ -116,6 +170,9 @@ IECDevice::IECDevice(byte pinATN, byte pinCLK, byte pinDATA, byte pinRESET)
   m_pinCLK       = pinCLK;
   m_pinDATA      = pinDATA;
   m_pinRESET     = pinRESET;
+  m_pinCTRL      = pinCTRL;
+
+#ifdef digitalPinToPort
   m_bitRESET     = digitalPinToBitMask(pinRESET);
   m_regRESETread = portInputRegister(digitalPinToPort(pinRESET));
   m_bitATN       = digitalPinToBitMask(pinATN);
@@ -128,7 +185,14 @@ IECDevice::IECDevice(byte pinATN, byte pinCLK, byte pinDATA, byte pinRESET)
   m_regDATAread  = portInputRegister(digitalPinToPort(pinDATA));
   m_regDATAwrite = portOutputRegister(digitalPinToPort(pinDATA));
   m_regDATAmode  = portModeRegister(digitalPinToPort(pinDATA));
+#endif
+
+  // attachInterrupt on RP2040 has issues
+#if defined(ARDUINO_ARCH_MBED_RP2040) || defined(ARDUINO_ARCH_RP2040)
+  m_atnInterrupt = NOT_AN_INTERRUPT;
+#else
   m_atnInterrupt = digitalPinToInterrupt(m_pinATN);
+#endif
 }
 
 
@@ -137,15 +201,18 @@ void IECDevice::begin(byte devnr)
   pinMode(m_pinATN,   INPUT_PULLUP);
   pinMode(m_pinCLK,   INPUT_PULLUP);
   pinMode(m_pinDATA,  INPUT_PULLUP);
+  pinMode(m_pinCTRL,  OUTPUT);
   if( m_pinRESET<0xFF ) pinMode(m_pinRESET, INPUT_PULLUP);
   m_flags = 0;
   m_devnr = devnr;
 
+  // allow ATN to pull DATA low in hardware
+  writePinCTRL(LOW);
+
   // if the ATN pin is capable of interrupts then use interrupts to detect 
   // ATN requests, otherwise we'll poll the ATN pin in function microTask().
   s_iecdevice = this;
-  if( m_atnInterrupt!=NOT_AN_INTERRUPT )
-    attachInterrupt(m_atnInterrupt, atnInterruptFcn, FALLING);
+  if( m_atnInterrupt!=NOT_AN_INTERRUPT ) attachInterrupt(m_atnInterrupt, atnInterruptFcn, FALLING);
 }
 
 
@@ -164,7 +231,6 @@ void IECDevice::atnRequest()
   m_state = P_PRE2;
   m_flags |= P_ATN;
   m_primary = 0;
-  m_secondary_prev = m_secondary;
   m_secondary = 0;
 
   // ignore anything for 100us after ATN falling edge
@@ -173,9 +239,12 @@ void IECDevice::atnRequest()
   // release CLK (in case we were holding it LOW before)
   writePinCLK(HIGH);
   
-  /* set DATA=0 ("I am here").  If nobody on the bus does this within 1ms,
-     busmaster will assume that "Device not present" */
+  // set DATA=0 ("I am here").  If nobody on the bus does this within 1ms,
+  // busmaster will assume that "Device not present" 
   writePinDATA(LOW);
+
+  // disable the hardware that allows ATN to pull DATA low
+  writePinCTRL(HIGH);
 }
 
 
@@ -188,9 +257,10 @@ void IECDevice::microTask()
           m_prevReset = false; 
           m_flags = 0;
 
-          // release CLK and DATA
+          // release CLK and DATA, allow ATN to pull DATA low in hardware
           writePinCLK(HIGH);
           writePinDATA(HIGH);
+          writePinCTRL(LOW);
           reset(); 
         }
       return;
@@ -198,30 +268,21 @@ void IECDevice::microTask()
   else
     m_prevReset = true;
   
-  byte channel = m_secondary & 0x0F;
-
   if (!(m_flags & P_ATN) && !readPinATN() ) {
     /* falling edge on ATN (bus master addressing all devices) */
     atnRequest();
   } else if ((m_flags & P_ATN) && readPinATN()) {
     /* rising edge on ATN (bus master finished addressing all devices) */
     m_flags &= ~P_ATN;
+
+    // allow ATN to pull DATA low in hardware
+    writePinCTRL(LOW);
     
     if ((m_primary == 0x20 + m_devnr) || (m_primary == 0x40 + m_devnr)) {
       
-      if ((m_secondary & 0xF0) == 0xE0) {
-        close(channel);
-      } else if ((m_secondary & 0xf0) == 0xf0) {
-        /* open() can not actually open the file (since we
-           don't have a filename yet) but just set things up so that
-           the characters passed to write() before the next
-           call to unlisten() will be interpreted as the filename. */
-        open(channel);
-      }
-      
       if (m_primary == 0x20 + m_devnr) {
         /* we were told to listen */
-        listen(channel);
+        listen(m_secondary);
         m_flags &= ~P_TALKING;
         m_flags |= P_LISTENING;
         m_state = P_PRE2;
@@ -230,7 +291,7 @@ void IECDevice::microTask()
         writePinDATA(LOW);
       } else if (m_primary == 0x40 + m_devnr) {
         /* we were told to talk */
-        talk(channel);
+        talk(m_secondary);
         m_flags &= ~P_LISTENING;
         m_flags |= P_TALKING;
         m_state = P_PRE0;
@@ -239,10 +300,10 @@ void IECDevice::microTask()
     } else if ((m_primary == 0x3f) && (m_flags & P_LISTENING)) {
       /* all devices were told to stop listening */
       m_flags &= ~P_LISTENING;
-      unlisten(m_secondary_prev & 0x0F);
+      unlisten();
     } else if (m_primary == 0x5f && (m_flags & P_TALKING)) {
       /* all devices were told to stop talking */
-      untalk(m_secondary_prev & 0x0F);
+      untalk();
       m_flags &= ~P_TALKING;
     }
 
@@ -259,14 +320,17 @@ void IECDevice::microTask()
     switch (m_state) {
     case P_PRE2: 
       {
-        /* ceck if we can write on the channel (also gives devices a chance to
-           execute time-consuming tasks while bus master waits for ready-for-data */
+        /* check if we can write (also gives devices a chance to
+           execute time-consuming tasks while bus master waits for ready-for-data) */
         m_inMicroTask = false;
-        m_numData = canWrite(channel);
+        m_numData = canWrite();
         m_inMicroTask = true;
 
-        /* wait for rising edge on CLK ("ready-to-send") */
-        if( (m_flags & P_ATN) && (micros()<m_timeout) ) {
+        /* waiting for rising edge on CLK ("ready-to-send") */
+        if( !(m_flags & P_ATN) && !readPinATN() ) {
+          /* a falling edge on ATN happened while we were stuck in "canWrite" */
+          atnRequest();
+        } else if( (m_flags & P_ATN) && (micros()<m_timeout) ) {
           /* ignore anything that happens during first 100us after falling
              edge on ATN (other devices may have been sending and need
              some time to set CLK=1) */
@@ -367,14 +431,16 @@ void IECDevice::microTask()
               /* Acknowledge frame by setting DATA=0 */
               writePinDATA(LOW);
 
-              /* repeat from P_PRE2 (we know that CLK=0 so
+              /* after we've received the secondary address we
+                 just wait for ATN to be released, otherwise
+                 repeat from P_PRE2 (we know that CLK=0 so
                  no need to go to P_PRE1) */
-              m_state = P_PRE2;
+              m_state = m_secondary==0 ? P_PRE2 : P_DONE0;
             }
           } else if (m_flags & P_LISTENING) {
             if( m_numData>0 ) {
               /* pass received byte on to the higher level */
-              write(channel, m_data);
+              write(m_data);
 
               /* acknowledge the frame by pulling DATA low */
               writePinDATA(LOW);
@@ -415,30 +481,35 @@ void IECDevice::microTask()
     case P_PRE1:
       /* wait until timeout has passed */
       if (micros() >= m_timeout ) {
-
+        /* check if we can read (also gives devices a chance to
+           execute time-consuming tasks while bus master waits for ready-to-send) */
         m_inMicroTask = false;
-        m_numData = canRead(channel);
+        m_numData = canRead();
         m_inMicroTask = true;
 
         /* if canRead() returned -1 then exit and try again later
            if ATN was asserted during canRead() then exit (ATN will be handled on next invocation)
            otherwise proceed and signal "ready-to-send" */
-        if( (m_flags & P_ATN)==0 && (m_numData>=0) ) {
-          /* signal "ready-to-send" (CLK=1) */
+        if( !readPinATN() ) {
+          /* a falling edge on ATN happened while we were stuck in "canRead" */
+          atnRequest();
+        } else if( (m_flags & P_ATN)==0 && (m_numData>=0) ) {
           if( readPinDATA() )
             {
               // undocumented case? "ready to receive" (DATA=1) already asserted before we
               // assert "ready to send" (CLK=1) => special handling in P_PRE2
-              // observed when reading disk status (channel 15, in "COPY 190" only?)
+              // observed when reading disk status (e.g. in "COPY190")
               // see code in 1541 ROM disassembly $E919-$E923a
               writePinCLK(HIGH);
               m_state = P_PRE2;
             }
           else
             {
-              // wait for "ready-to-receive"
+              // signal "ready-to-send" (CLK=1)
               writePinCLK(HIGH);
               m_state = P_READY;
+
+              // wait for "ready-to-receive"
               m_timeout = micros() + 100;
             }
         }
@@ -464,6 +535,7 @@ void IECDevice::microTask()
           /* Go on to send first bit. */
           m_state = P_BIT0;
           m_timeout = micros() + 40;
+          m_data = read();
         }
       }
       break;
@@ -486,7 +558,7 @@ void IECDevice::microTask()
                Go on to send first bit. */
             m_state = P_BIT0;
             m_timeout = micros() + 40;
-            m_data = read(channel);
+            m_data = read();
           }
         }
       }
@@ -504,7 +576,7 @@ void IECDevice::microTask()
            Go on to send first bit */
         m_state = P_BIT0;
         m_timeout = micros() + 40;
-        m_data = read(channel);
+        m_data = read();
       }
       break;
     case P_BIT0:
@@ -576,7 +648,6 @@ void IECDevice::microTask()
         } else {
           /* There is at least one more byte to send
              Start over from P_PRE1 */
-          //m_timeout = micros()+((m_secondary&0x0F==0x0F) ? 500 : 100);
           m_timeout = micros()+200;
           m_state = P_PRE1;
         }
@@ -631,5 +702,5 @@ void IECDevice::task()
 
   // if ATN is low and we don't have P_ATN then we missed the falling edge,
   // make sure to process it before we leave
-  if( !readPinATN() && !(m_flags & P_ATN) ) { noInterrupts(); atnRequest(); interrupts(); }
+  if( m_atnInterrupt!=NOT_AN_INTERRUPT && !readPinATN() && !(m_flags & P_ATN) ) { noInterrupts(); atnRequest(); interrupts(); }
 }

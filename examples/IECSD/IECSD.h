@@ -1,13 +1,13 @@
 #ifndef IECSD_H
 #define IECSD_H
 
-#include <IECDevice.h>
+#include <IECFileDevice.h>
 #include <SPI.h>
-#include <SD.h>
+#include <SdFat.h>
 
 #define IECSD_BUFSIZE 64
 
-class IECSD : public IECDevice
+class IECSD : public IECFileDevice
 {
  public: 
   IECSD(byte pinATN, byte pinCLK, byte pinDATA, byte pinRESET, byte pinChipSelect, byte pinLED);
@@ -15,38 +15,32 @@ class IECSD : public IECDevice
   void task();
 
  protected:
-  virtual void open(byte secondary);
-  virtual void close(byte secondary);
-  virtual void listen(byte secondary);
-  virtual void unlisten(byte secondary);
+  virtual void open(byte channel, const char *name);
+  virtual bool write(byte channel, byte data);
+  virtual bool read(byte channel, byte *data);
+  virtual void close(byte channel);
+  virtual void getStatus(char *buffer, byte bufferSize);
+  virtual void execute(const char *command, byte len);
   virtual void reset();
 
-  virtual int8_t canWrite(byte channel);
-  virtual void   write(byte channel, byte data);
-  virtual int8_t canRead(byte channel);
-  virtual byte   read(byte channel);
-
  private:
-  void sdTask();
-  void setStatus();
+  byte openFile(byte channel, const char *name);
+  byte openDir();
+  bool readDir(byte *data);
+  bool isMatch(const char *name, const char *pattern);
+  void toPETSCII(byte *name);
+  void fromPETSCII(byte *name);
 
-  enum 
-    {
-      CMD_NONE = 0,
-      CMD_READDIR,
-      CMD_READFILE,
-      CMD_WRITEFILE,
-      CMD_CLOSEFILE,
-      CMD_COMMAND
-    };
+  const char *findFile(const char *name);
 
-  File m_file, m_dir;
+  SdFat m_sd;
+  SdFile m_file, m_dir;
   bool m_fileWrite;
 
-  bool m_opening, m_writing;
-  byte m_curCmd, m_pinLED, m_pinChipSelect, m_errorCode, m_scratched;
-  byte m_dataBufferLen, m_dataBufferPtr, m_statusBufferLen, m_statusBufferPtr;
-  char m_dataBuffer[IECSD_BUFSIZE], m_statusBuffer[IECSD_BUFSIZE];
+  bool m_writing;
+  byte m_pinLED, m_pinChipSelect, m_errorCode, m_scratched;
+  byte m_dirBufferLen, m_dirBufferPtr;
+  char m_dirBuffer[IECSD_BUFSIZE];
 };
 
 #endif
