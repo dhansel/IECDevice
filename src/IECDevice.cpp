@@ -334,7 +334,6 @@ IECDevice::IECDevice(byte pinATN, byte pinCLK, byte pinDATA, byte pinRESET, byte
 void IECDevice::begin(byte devnr)
 {
   JDEBUGI();
-  pinMode(15, OUTPUT);
 
   pinMode(m_pinATN,   INPUT_PULLUP);
   pinMode(m_pinCLK,   INPUT_PULLUP);
@@ -363,10 +362,8 @@ void IECDevice::enableJiffyDosSupport(byte *buffer, byte bufferSize)
 
 void IECDevice::atnInterruptFcn() 
 { 
-  digitalWriteFast(15, HIGH);
   if( s_iecdevice && !s_iecdevice->m_inTask & ((s_iecdevice->m_flags & P_ATN)==0) )
     s_iecdevice->atnRequest(); 
-  digitalWriteFast(15, LOW);
 }
 
 
@@ -890,28 +887,18 @@ void IECDevice::atnRequest()
   m_primary = 0;
   m_secondary = 0;
 
-  digitalWriteFast(15, LOW);
-
   // ignore anything for 100us after ATN falling edge
   m_timeoutStart = micros();
 
-  digitalWriteFast(15, HIGH);
-  
   // release CLK (in case we were holding it LOW before)
   writePinCLK(HIGH);
   
-  digitalWriteFast(15, LOW);
-
   // set DATA=0 ("I am here").  If nobody on the bus does this within 1ms,
   // busmaster will assume that "Device not present" 
   writePinDATA(LOW);
 
-  digitalWriteFast(15, HIGH);
-
   // disable the hardware that allows ATN to pull DATA low
   writePinCTRL(HIGH);
-
-  digitalWriteFast(15, LOW);
 }
 
 
