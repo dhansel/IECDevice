@@ -16,7 +16,6 @@
 // Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301  USA
 // -----------------------------------------------------------------------------
 
-
 #include "IECSD.h"
 
 #define E_OK          0
@@ -33,6 +32,11 @@
 
 #define SHOW_LOWERCASE 0
 
+#ifndef min
+#define min(a,b) ((a)<(b) ? (a) : (b))
+#endif
+
+
 IECSD::IECSD(byte pinATN, byte pinCLK, byte pinDATA, byte pinRESET, byte pinChipSelect, byte pinLED) :
   IECFileDevice(pinATN, pinCLK, pinDATA, pinRESET, 0xFF)
 {
@@ -44,23 +48,32 @@ IECSD::IECSD(byte pinATN, byte pinCLK, byte pinDATA, byte pinRESET, byte pinChip
 void IECSD::begin(byte devnr)
 {
   IECFileDevice::begin(devnr);
-  pinMode(m_pinLED, OUTPUT);
+  if( m_pinLED<0xFF ) pinMode(m_pinLED, OUTPUT);
   m_errorCode = E_SPLASH;
+  if( !checkCard() ) m_errorCode = E_NOTREADY;
+}
 
-  if( !m_sd.begin(m_pinChipSelect, SD_SCK_MHZ(50)) )
-    m_errorCode = E_NOTREADY;
+
+bool IECSD::checkCard()
+{
+  if( !m_cardOk ) m_cardOk = m_sd.begin(m_pinChipSelect, SD_SCK_MHZ(1));
+  return m_cardOk;
 }
 
 
 void IECSD::task()
 {
-  static unsigned long nextblink = 0;
-  if( m_errorCode==E_OK || m_errorCode==E_SPLASH || m_errorCode==E_SCRATCHED )
-    digitalWrite(m_pinLED, m_dir || m_file);
-  else if( millis()>nextblink )
+  // handle status LED
+  if( m_pinLED<0xFF )
     {
-      digitalWrite(m_pinLED, !digitalRead(m_pinLED));
-      nextblink += 500;
+      static unsigned long nextblink = 0;
+      if( m_errorCode==E_OK || m_errorCode==E_SPLASH || m_errorCode==E_SCRATCHED )
+        digitalWrite(m_pinLED, m_dir || m_file);
+      else if( millis()>nextblink )
+        {
+          digitalWrite(m_pinLED, !digitalRead(m_pinLED));
+          nextblink += 500;
+        }
     }
 
   // handle IEC serial bus communication, the open/read/write/close/execute 
@@ -130,10 +143,10 @@ byte IECSD::openDir()
       strcpy(m_dirBuffer+m_dirBufferLen, " 00 2A");
       m_dirBufferLen += strlen(m_dirBuffer+m_dirBufferLen);
       m_dirBuffer[m_dirBufferLen++] = 0;
-      m_errorCode = E_OK;
+      res = E_OK;
     }
   else
-    m_errorCode = E_NOTREADY;
+    res = E_NOTREADY;
   
   return res;
 }
@@ -161,7 +174,9 @@ bool IECSD::readDir(byte *data)
 
           m_dirBuffer[m_dirBufferLen++] = '"';
           size_t n = f.getName(m_dirBuffer+m_dirBufferLen, 16);
+#if SDFAT_FILE_TYPE == 1
           if( n==0 ) n = f.getSFN(m_dirBuffer+m_dirBufferLen, 16);
+#endif
           toPETSCII((byte *) m_dirBuffer+m_dirBufferLen);
 
           m_dirBufferLen += n;
@@ -177,7 +192,7 @@ bool IECSD::readDir(byte *data)
         }
       else
         {
-          uint32_t free = min(65535, m_sd.bytesPerSector() * m_sd.sectorsPerCluster() * m_sd.clusterCount() / 254);
+          uint32_t free = min(65535, /*m_sd.bytesPerSector() **/ m_sd.bytesPerCluster() * m_sd.clusterCount() / 254);
           m_dirBuffer[m_dirBufferLen++] = 1;
           m_dirBuffer[m_dirBufferLen++] = 1;
           m_dirBuffer[m_dirBufferLen++] = free&255;
@@ -275,7 +290,12 @@ byte IECSD::openFile(byte channel, const char *constName)
         {
           if( name[0]==':' ) name++;
 
-          if( !m_file.open(name, O_RDONLY) && !m_file.openExistingSFN(name) )
+          if( !m_file.open(name, O_RDONLY)
+#if SDFAT_FILE_TYPE == 1
+              && !m_file.openExistingSFN(name) 
+#endif
+              )
+
             {
               const char *fn = findFile(name);
               if( fn ) m_file.open(fn, O_RDONLY);
@@ -314,7 +334,9 @@ byte IECSD::openFile(byte channel, const char *constName)
 
 void IECSD::open(byte channel, const char *name)
 {
-  if( channel==0 && name[0]=='$' )
+  if( !checkCard() )
+    m_errorCode = E_NOTREADY;
+  else if( channel==0 && name[0]=='$' )
     m_errorCode = openDir();
   else if ( !m_file )
     m_errorCode = openFile(channel, name);
@@ -323,15 +345,18 @@ void IECSD::open(byte channel, const char *name)
       // we can only have one file open at a time
       m_errorCode = E_TOOMANY;
     }
+
+  // clear the status buffer so getStatus() is called again next time the buffer is queried
+  clearStatus();
 }
 
 
-bool IECSD::read(byte channel, byte *data)
+byte IECSD::read(byte channel, byte *buffer, byte bufferSize)
 {
   if( m_file.isOpen() )
-    return m_file.read(data, 1)==1;
+    return m_file.read(buffer, bufferSize);
   else
-    return readDir(data);
+    return readDir(buffer) ? 1 : 0;
 }
 
 
@@ -428,7 +453,10 @@ void IECSD::reset()
 {
   IECFileDevice::reset();
 
+  m_cardOk = false;
   m_errorCode = E_SPLASH;
+  if( !checkCard() ) m_errorCode = E_NOTREADY;
+
   m_file.close();
   m_dir.close();
   digitalWrite(m_pinLED, LOW);

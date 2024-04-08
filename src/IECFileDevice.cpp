@@ -114,6 +114,9 @@ void IECFileDevice::begin(byte devnr)
 #endif
   
   IECDevice::begin(devnr);
+#if JIFFY_BUFFER_SIZE>0
+  IECDevice::enableJiffyDosSupport(m_jiffyBuffer, JIFFY_BUFFER_SIZE);
+#endif
   m_statusBufferPtr = 0;
   m_statusBufferLen = 0;
   memset(m_dataBufferLen, 0, 15);
@@ -152,9 +155,11 @@ int8_t IECFileDevice::canRead()
   else if( m_dataBufferLen[m_channel]<0 )
     {
       // first canRead() call after open()
-      if( !read(m_channel, &(m_dataBuffer[m_channel][0])) )
+      if( !read(m_channel, &(m_dataBuffer[m_channel][0]), 1) )
+        {
         m_dataBufferLen[m_channel] = 0;
-      else if( !read(m_channel, &(m_dataBuffer[m_channel][1])) )
+        }
+      else if( !read(m_channel, &(m_dataBuffer[m_channel][1]), 1) )
         {
           m_dataBufferLen[m_channel] = 1;
 #if DEBUG==1
@@ -173,7 +178,26 @@ int8_t IECFileDevice::canRead()
       return m_dataBufferLen[m_channel];
     }
   else
-    return m_dataBufferLen[m_channel];
+    {
+      return m_dataBufferLen[m_channel];
+    }
+}
+
+
+byte IECFileDevice::peek() 
+{
+  byte data;
+
+  if( m_channel==15 )
+    data = m_statusBuffer[m_statusBufferPtr];
+  else 
+    data = m_dataBuffer[m_channel][0];
+
+#if DEBUG>1
+  Serial.write('P'); print_hex(data);
+#endif
+
+  return data;
 }
 
 
@@ -201,6 +225,34 @@ byte IECFileDevice::read()
 #endif
 
   return data;
+}
+
+
+byte IECFileDevice::read(byte *buffer, byte bufferSize)
+{
+  byte res = 0;
+
+  // get data from our own 2-byte buffer (if any)
+  // properly deal with the case where bufferSize==1
+  while( m_dataBufferLen[m_channel]>0 && res<bufferSize )
+    {
+      buffer[res++] = m_dataBuffer[m_channel][0];
+      m_dataBuffer[m_channel][0] = m_dataBuffer[m_channel][1];
+      m_dataBufferLen[m_channel]--;
+    }
+
+  // get data from higher class
+  while( res<bufferSize )
+    {
+      byte n = read(m_channel, buffer+res, bufferSize-res);
+      if( n==0 ) break;
+#if DEBUG>0
+      for(byte i=0; i<n; i++) dbg_data(buffer[res+i]);
+#endif
+      res += n;
+    }
+  
+  return res;
 }
 
 
@@ -320,7 +372,7 @@ void IECFileDevice::fileTask()
       
     case IFD_READ:
       {
-        if( read(m_channel, &(m_dataBuffer[m_channel][m_dataBufferLen[m_channel]])) )
+        if( read(m_channel, &(m_dataBuffer[m_channel][m_dataBufferLen[m_channel]]), 1) )
           {
 #if DEBUG==1
             dbg_data(m_dataBuffer[m_channel][m_dataBufferLen[m_channel]]);
@@ -372,8 +424,12 @@ void IECFileDevice::fileTask()
 
 void IECFileDevice::setStatus(char *data, byte dataLen)
 {
+#if DEBUG>0
+  Serial.print(F("SETSTATUS ")); Serial.println(dataLen);
+#endif
+
   m_statusBufferPtr = 0;
-  m_statusBufferLen = min(32, dataLen);
+  m_statusBufferLen = min((byte) 32, dataLen);
   memcpy(m_statusBuffer, data, m_statusBufferLen);
 }
 

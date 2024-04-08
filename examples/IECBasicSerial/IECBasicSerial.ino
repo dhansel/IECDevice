@@ -16,15 +16,24 @@
 // Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301  USA
 // -----------------------------------------------------------------------------
 
-
 #include <Arduino.h>
 #include <IECDevice.h>
 
 #define DEVICE_NUMBER 4
 
+#if defined(__AVR__) || defined(__SAM3X8E__) || defined(ARDUINO_ARCH_RP2040)
+
 #define PIN_ATN   3
 #define PIN_CLK   4
 #define PIN_DATA  5
+
+#elif defined(ARDUINO_ARCH_ESP32)
+
+#define PIN_ATN   IO35
+#define PIN_CLK   IO14
+#define PIN_DATA  IO15
+
+#endif
 
 
 // -----------------------------------------------------------------------------

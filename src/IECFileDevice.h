@@ -21,6 +21,7 @@
 
 #include "IECDevice.h"
 
+#define JIFFY_BUFFER_SIZE 128
 
 class IECFileDevice : public IECDevice
 {
@@ -48,11 +49,11 @@ class IECFileDevice : public IECDevice
   // Returning "false" signals "cannot receive more data" for this file
   virtual bool write(byte channel, byte data) { return false; }
 
-  // read one byte from file in channel, return "true" if successful
-  // "false" will signal end-of-file to the receiver. Returning "false"
-  // for the FIRST byte after open() signals an error condition
+  // read up to bufferSize bytes from file in channel, returning the number of bytes read
+  // returning 0 will signal end-of-file to the receiver. Returning 0
+  // for the FIRST call after open() signals an error condition
   // (e.g. C64 load command will show "file not found")
-  virtual bool read(byte channel, byte *data) { return false; }
+  virtual byte read(byte channel, byte *buffer, byte bufferSize) { return 0; }
 
   // called when the bus master reads from channel 15 and the status
   // buffer is currently empty. this should populate buffer with an appropriate 
@@ -71,6 +72,10 @@ class IECFileDevice : public IECDevice
   // can be called by derived class to set the status buffer (dataLen max 32 bytes)
   void setStatus(char *data, byte dataLen);
 
+  // can be called by derived class to clear the status buffer, causing readStatus()
+  // to be called again the next time the status channel is queried
+  void clearStatus() { setStatus(NULL, 0); }
+
  private:
 
   virtual void talk(byte secondary);
@@ -81,13 +86,19 @@ class IECFileDevice : public IECDevice
   virtual int8_t canRead();
   virtual void write(byte data);
   virtual byte read();
+  virtual byte read(byte *buffer, byte bufferSize);
+  virtual byte peek();
 
   void fileTask();
 
-  bool m_opening, m_canServeATN;
-  byte m_channel, m_cmd, m_dataBuffer[15][2];
-  char m_statusBuffer[32], m_statusBufferLen, m_statusBufferPtr, m_nameBufferLen, m_dataBufferLen[15];
-  char m_nameBuffer[33];
+  bool   m_opening, m_canServeATN;
+  byte   m_channel, m_cmd, m_dataBuffer[15][2];
+  int8_t m_statusBufferLen, m_statusBufferPtr, m_nameBufferLen, m_dataBufferLen[15];
+  char   m_statusBuffer[32], m_nameBuffer[33];
+
+#if JIFFY_BUFFER_SIZE>0
+  byte   m_jiffyBuffer[JIFFY_BUFFER_SIZE];
+#endif
 };
 
 

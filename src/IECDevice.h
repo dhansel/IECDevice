@@ -21,6 +21,15 @@
 
 #include <Arduino.h>
 
+#define SUPPORT_JIFFY
+
+#if defined(__AVR__)
+#define IOREG_TYPE uint8_t
+#elif defined(ARDUINO_ARCH_ESP32) || defined(__SAM3X8E__)
+#define IOREG_TYPE uint32_t
+#endif
+
+
 class IECDevice
 {
  public:
@@ -40,6 +49,14 @@ class IECDevice
   // ok but bus communication will be slower if called less frequently.
   // task() will take at most 5 milliseconds to execute before returning
   void task();
+
+#ifdef SUPPORT_JIFFY 
+  // call this to enable JiffyDOS support for your application. 
+  // larger buffers result in improved performance for LOAD operations, 
+  // other operations (SAVE, DIR, STATUS) are not affected
+  // calling with bufferSize=0 will disable JiffyDOS support
+  void enableJiffyDosSupport(byte *buffer, byte bufferSize);
+#endif
 
  protected:
   // called when bus master sends TALK command
@@ -86,6 +103,21 @@ class IECDevice
   // read() is allowed to take an indefinite amount of time
   virtual byte read() { return 0; }
 
+#ifdef SUPPORT_JIFFY 
+  // called when the device is sending data using JiffyDOS byte-by-byte protocol
+  // peek() will only be called if the last call to canRead() returned >0
+  // peek() should return the next character that will be read with read()
+  // peek() is allowed to take an indefinite amount of time
+  virtual byte peek() { return 0; }
+
+  // only called when the device is sending data using the JiffyDOS block transfer (LOAD) protocol:
+  // - should fill the buffer with as much data as possible (up to bufferSize)
+  // - must return the number of bytes put into the buffer
+  // - if not overloaded, JiffyDOS load performance will be about 3 times slower than otherwise
+  // read() is allowed to take an indefinite amount of time
+  virtual byte read(byte *buffer, byte bufferSize) { *buffer = read(); return 1; }
+#endif
+
   // called on falling edge of RESET line
   virtual void reset() {}
 
@@ -101,21 +133,35 @@ class IECDevice
   inline void writePinCLK(bool v);
   inline void writePinDATA(bool v);
   void writePinCTRL(bool v);
+  bool waitTimeoutFrom(uint32_t start, uint16_t timeout);
+  bool waitTimeout(uint16_t timeout);
+  bool waitPinDATA(bool state);
+  bool waitPinDATA(bool state, uint16_t timeout);
+  bool waitPinCLK(bool state);
+  bool waitPinCLK(bool state, uint16_t timeout);
 
-  void microTask();
   void atnRequest();
+  bool receiveIECByte(bool canWriteOk);
+  bool transmitIECByte(byte numData);
 
-  volatile uint8_t *m_regATNread, *m_regRESETread;
-  volatile uint8_t *m_regCLKread, *m_regCLKwrite, *m_regCLKmode;
-  volatile uint8_t *m_regDATAread, *m_regDATAwrite, *m_regDATAmode;
-  uint8_t m_bitATN, m_bitCLK, m_bitDATA, m_bitRESET;
+#ifdef IOREG_TYPE
+  volatile IOREG_TYPE *m_regATNread, *m_regRESETread;
+  volatile IOREG_TYPE *m_regCLKread, *m_regCLKwrite, *m_regCLKmode;
+  volatile IOREG_TYPE *m_regDATAread, *m_regDATAwrite, *m_regDATAmode;
+  IOREG_TYPE m_bitATN, m_bitCLK, m_bitDATA, m_bitRESET;
+#endif
 
-  volatile unsigned long m_timeout;
-  volatile bool m_inMicroTask;
-  volatile byte m_state, m_flags, m_primary, m_secondary;
-  int8_t m_numData;
-  byte m_data;
-  bool m_prevReset;
+  volatile uint16_t m_timeoutDuration; 
+  volatile uint32_t m_timeoutStart;
+  volatile bool m_inTask;
+  volatile byte m_flags, m_primary, m_secondary;
+
+#ifdef SUPPORT_JIFFY 
+  bool receiveJiffyByte(bool canWriteOk);
+  bool transmitJiffyByte(byte numData);
+  bool transmitJiffyBlock(byte *buffer, byte numBytes);
+  byte m_jiffyBufferSize, *m_jiffyBuffer;
+#endif
 
   static IECDevice *s_iecdevice;
   static void atnInterruptFcn();

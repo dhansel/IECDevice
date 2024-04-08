@@ -2,7 +2,6 @@
 #define IECSD_H
 
 #include <IECFileDevice.h>
-#include <SPI.h>
 #include <SdFat.h>
 
 #define IECSD_BUFSIZE 64
@@ -17,13 +16,14 @@ class IECSD : public IECFileDevice
  protected:
   virtual void open(byte channel, const char *name);
   virtual bool write(byte channel, byte data);
-  virtual bool read(byte channel, byte *data);
+  virtual byte read(byte channel, byte *buffer, byte bufferSize);
   virtual void close(byte channel);
   virtual void getStatus(char *buffer, byte bufferSize);
   virtual void execute(const char *command, byte len);
   virtual void reset();
 
  private:
+  bool checkCard();
   byte openFile(byte channel, const char *name);
   byte openDir();
   bool readDir(byte *data);
@@ -35,7 +35,7 @@ class IECSD : public IECFileDevice
 
   SdFat m_sd;
   SdFile m_file, m_dir;
-  bool m_fileWrite;
+  bool m_cardOk;
 
   bool m_writing;
   byte m_pinLED, m_pinChipSelect, m_errorCode, m_scratched;

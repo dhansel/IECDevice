@@ -80,7 +80,7 @@ Fuse bytes (Arduino standard): LOW=0xFF, HIGH=0xDA, EXTENDED=0xFD
 #define PIN_SR_DATA    9 // hardcoded to PINB1  in readShiftRegister() and printerBusy()
 #define PIN_LEDRDY    13
 
-#define DEBUG     2
+#define DEBUG     0
 
 
 #if DEBUG>0
