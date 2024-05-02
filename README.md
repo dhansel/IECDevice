@@ -19,13 +19,13 @@ The library comes with a number of examples:
   - [IECCentronics](examples/IECCentronics) is a converter to connect Centronics printers to via the IEC bus
   - [IECFDC](examples/IECFDC)/[IECFDCMega](examples/IECFDCMega) combines this library with my [ArduinoFDC  library](https://github.com/dhansel/ArduinoFDC) to connect PC floppy disk drives (3.5" or 5") to the IEC bus.
 
-# Installation
+## Installation
 
 To install this library, click the green "Code" button on the top of this page and select "Download ZIP".
 Then in the Arduino IDE select "Sketch->Include Library->Add ZIP Library" and select the downloaded ZIP file.
 After doing so you will find the included examples in File->Examples->IECDevice->...".
 
-# Wiring
+## Wiring
 
 For 5V platforms such as the Arduino Uno, the IEC bus signals (ATN, Clock, Data, Reset) can be directly 
 connected to the Microcontroller. The pins can be freely chosen and are configured in the class 
@@ -37,17 +37,22 @@ controller from the 5V signals on the IEC bus. I am using this [SparkFun level c
 other models should do fine as the IEC bus is not particularly fast. Connect the IEC bus signals
 plus 5V supply to the "High Voltage" side and microcontroller pins plus 3.3V supply to the "Low Voltage" side.
 
-# IECDevice class
+## Implementing a basic device
 
-(Take a look at the [IECBasicSerial](examples/IECBasicSerial/IECBasicSerial.ino) example to see a simple but functioning device implementation).
+To implement a basic device using the IECDevice class you must do two things:
+  1. Derive a new class from the IECDevice class and implement the device's behavior in the new class
+  2. Call the IECDevice::begin() and IECDevice::task() functions within your main sketch functions.
 
-To implement a basic low-level device, create a new C++ class derived from IECDevice.
+This section describes those steps based on the [IECBasicSerial](examples/IECBasicSerial/IECBasicSerial.ino) 
+example.
+
+First, a new class is defined and derived from the IECDevice class:
 
 ```
-class MyIECDevice : public IECDevice
+class IECBasicSerial : public IECDevice
 {
  public:
-  MyIECDevice(pinATN, pinCLK, pinDATA, pinRESET) : IECDevice(pinATN, pinCLK, pinDATA, pinRESET) {}
+  IECBasicSerial();
 
   virtual int8_t canRead();
   virtual byte   read();
@@ -62,46 +67,68 @@ device class: the IECDevice() constructor, canRead(), read(), canWrite() and wri
 
 - The constructor of your class must call the IECDevice() constructor. ```IECDevice(pinATN, pinCLK, pinDATA, pinRESET)``` 
 defines the pins to which the IEC bus signals care connected. The pinRESET parameter is optional. If not given, the device
-will simply not respond to a bus reset.
-
+will simply not respond to a bus reset.  
+```
+  IECBasicSerial::IECBasicSerial() : IECDevice(3, 4, 5)
+  {}
+```
 - ```canRead()``` This function will be called whenever the device is asked to send data
-to the bus controller (i.e. the computer). It should return one of four values: -1, 0, 1 or 2  
+to the bus controller (i.e. the computer). It should return one of four values: -1, 0, 1 or 2.  
 Returning -1 signals that we do not know yet whether there is more data to send.
 The canRead() function will be called again later and until then the bus will remain blocked.
 Alternatively, the canRead() function may wait on its own until an answer is known.  
 Returning 0 signals that there is no data to read.  
 Returning 1 signals that there is **exactly** one byte of data left to read.  
 Returning 2 signals that there are two or more bytes of data left to read.
+```
+int8_t IECBasicSerial::canRead() {
+  byte n = Serial.available();
+  return n>1 ? 2 : n;
+}
+```
 - ```read()``` This function is called **only** if the previous call to canRead() returned a value greater than 0.
 read() must return the next data byte.
+```
+byte IECBasicSerial::read() { 
+  return Serial.read();
+}
+```
 - ```canWrite()``` This function will be called whenever the bus controller (computer) sends data
-to your device. It should return one of three values: -1, 0 or 1
+to your device. It should return one of three values: -1, 0 or 1.   
 Returning -1 signals that we do not know yet whether we can accept more data.
 The canWrite() function will be called again later and until then the bus will remain blocked.
 Alternatively, the canWrite() function may wait on its own until an answer is known.  
 Returning 0 signals that we are not able to accept more data.  
 Returning 1 signals that we can accept data.  
 canWrite() should **only** return 1 if the device is ready to receive and process the data immediately.
+```
+int8_t IECBasicSerial::canWrite() {
+  return Serial.availableForWrite()>0 ? 1 : -1;
+}
+```
 - ```write(data)``` is called **only** if the previous call to canWrite() returned 1. The data argument
 is the data byte received on the bus. Note that the write() function must process the data and return 
 immediately (within 1 millisecond), otherwise bus timing errors may occur. 
-
+```
+void IECBasicSerial::write(byte data) { 
+  Serial.write(data);
+}
+```
 To implement your device class in a sketch you must instantiate the class and call the "begin()" and "task()"
 functions. The basic structure of a sketch implementing an IECDevice should look something like this:
 
 ```
-MyIECDevice myDevice(3,4,5);
+IECBasicSerial iecSerial;
 
 void setup()
 {
-   myDevice.begin(6);
-   // ... other code
+  Serial.begin(115200);
+  iecSerial.begin(6);
 }
 
 void loop()
 {
-   // ... other code
-   myDevice.task();
+  iecSerial.task();
 }
 ```
 
@@ -114,4 +141,6 @@ implements the actual bus protocol. In most cases it is not critical to call tas
 every millisecond but us communication may run slower if tasK() is not called often enough.
 See section "Timing considerations" below.
 
-# Timing considerations
+## Implementing a file-based device
+
+## Timing considerations
