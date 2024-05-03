@@ -63,14 +63,14 @@ class IECBasicSerial : public IECDevice
 ```
 
 We implement the device functions by overriding the canRead/read/canWrite/write functions.
-See the "IECDevice class reference" section below for a detailed description of these functions.
+See the "IECDevice class reference" section below for a detailed description of these functions:
 
 ```
-  IECBasicSerial::IECBasicSerial() : IECDevice(3, 4, 5)
-  {}
+IECBasicSerial::IECBasicSerial() : IECDevice(3, 4, 5)
+{}
 ```
 The class constructor must call the IECDevice() constructor which defines the pins to which the 
-IEC bus signals care connected:
+IEC bus signals care connected.
 
 ```
 int8_t IECBasicSerial::canRead() {
