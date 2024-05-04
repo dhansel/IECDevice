@@ -39,7 +39,7 @@ plus 5V supply to the "High Voltage" side and microcontroller pins plus 3.3V sup
 
 ## Implementing a simple low-level device
 
-To implement a basic device using the IECDevice class requires two steps:
+Implementing a basic device using the IECDevice class requires two steps:
   1. Derive a new class from the IECDevice class and implement the device's behavior in the new class
   2. Call the IECDevice::begin() and IECDevice::task() functions within your main sketch functions.
 
@@ -49,6 +49,8 @@ example, a simple device that connects a serial (RS232) port to the IEC bus.
 First, a new class is defined and derived from the IECDevice class. 
 
 ```
+#include <IECDevice.h>
+
 class IECBasicSerial : public IECDevice
 {
  public:
@@ -69,8 +71,8 @@ See the "IECDevice class reference" section below for a detailed description of 
 IECBasicSerial::IECBasicSerial() : IECDevice(3, 4, 5)
 {}
 ```
-The class constructor must call the IECDevice() constructor which defines the pins to which the 
-IEC bus signals care connected.
+The class constructor must call the IECDevice() constructor which defines the pins (ATN=3, Clock=4, Data=5)
+to which the IEC bus signals are connected.
 
 ```
 int8_t IECBasicSerial::canRead() {
@@ -134,6 +136,84 @@ functions when necessary.  Again, see the "IECDevice class reference" section fo
 description of these functions.
 
 ## Implementing a file-based device
+
+Implementing a file-based device using the IECFileDevice class requires two steps:
+  1. Derive a new class from the IECFileDevice class and implement the device's behavior in the new class
+  2. Call the IECFileDevice::begin() and IECFileDevice::task() functions within your main sketch functions.
+
+This section describes those steps by creating a very simple device to read/write SD cards.
+Note that this device will be limited in its functionality, it allows loading and saving programs
+on the SD card but no other functionality (directory listing, deleting files etc..).
+The purpose of this section is to demonstrate basic bus communication for file-based devices using the
+IECFileDevice class. A more feature-complete implementation of a SD card reader is provided in
+the [IECSD example](examples/IECSD). 
+
+Note that any device derived from the IECFileDevice class automatically supports the JiffyDos protocol.
+
+First, a new class is defined and derived from the IECFileDevice class. 
+
+```
+#include <IECFileDevice.h>
+#include <SdFat.h>
+
+class IECBasicSD : public IECFileDevice
+{
+ public: 
+  IECBasicSD();
+
+ protected:
+  virtual void open(byte channel, const char *name);
+  virtual byte read(byte channel, byte *buffer, byte bufferSize);
+  virtual bool write(byte channel, byte data);
+  virtual void close(byte channel);
+
+ private:
+  SdFat  m_sd;
+  SdFile m_file;
+};
+```
+
+We implement the device functions by overriding the open/read/write/close functions.
+See the "IECDevice class reference" section below for a detailed description of these functions:
+
+```
+IECBasicSD::IECBasicSD() : IECFileDevice(3, 4, 5)
+{
+  m_sd.begin(8, SD_SCK_MHZ(1));
+}
+```
+
+The class constructor must call the IECFileDevice() constructor which defines the pins (ATN=3, Clock=4, Data=5)
+to which the IEC bus signals are connected. We also initialize the SD card interface in the constructor.
+
+```
+void IECBasicSD::open(byte channel, const char *name)
+{
+  m_file.open(name, channel==0 ? O_RDONLY : (O_WRONLY | O_CREAT));
+}
+```
+
+
+```
+byte IECBasicSD::read(byte channel, byte *buffer, byte bufferSize)
+{
+  return m_file.isOpen() ? m_file.read(buffer, bufferSize) : 0;
+}
+```
+
+```
+bool IECBasicSD::write(byte channel, byte data)
+{
+  return m_file.isOpen() && m_file.write(&data, 1)==1;
+}
+```
+
+```
+void IECBasicSD::close(byte channel)
+{
+  m_file.close(); 
+}
+```
 
 ## IECDevice class reference
 
