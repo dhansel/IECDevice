@@ -137,10 +137,11 @@ description of these functions.
 
 ## IECDevice class reference
 
-The IECDevice class has the following functions that can/must be called from your code:
+The IECDevice class has the following functions that may/must be called from your code:
 
 - ```IECDevice(byte pinATN, byte pinCLK, byte pinDATA, byte pinRESET = 0xFF, byte pinCTRL = 0xFF)```  
-  The constructor defines the pins to which the IEC bus signals care connected. The pinRESET parameter is optional. 
+  The IECDevice constructor defines the pins to which the IEC bus signals care connected and must be called from
+  the constructor of your derived class. The pinRESET parameter is optional. 
   If not given, the device will simply not respond to a bus reset. The pinCTRL parameter (also optional) is helpful
   for applications where the microprocessor can not respond fast enough to a ATN request (see "Timing consideration" 
   section below).
@@ -158,7 +159,7 @@ The IECDevice class has the following functions that can/must be called from you
   pin less frequent calls are ok but bus communication will be slower if called less frequently.
 
 - ```void enableJiffyDosSupport(byte *buffer, byte bufferSize)```  
-  This function must be called if your device should support the JiffyDos protocol.
+  This function must be called **if** your device should support the JiffyDos protocol.
   In most cases devices with JiffyDos support should be derived from the IECFileDevice class
   which handles JiffyDos support internally and you do not have to call enableJiffyDosSupport().
   For more information see the "JiffyDos support" section below.
@@ -202,6 +203,8 @@ canWrite() and write() functions need to be overridden.
   This function must return immediately (within 1 millisecond), otherwise bus timing errors may occur. 
 - ```void untalk()```  
   Called when the bus controller (computer) issues an UNTALK command, i.e. is done receiving data from the device.
+- ```void reset()```  
+  Called when a high->low edge is detected on the the IEC bus RESET signal line (only if pinRESET was given in the constructor).
 - ```byte peek()```  
   Called when the device is sending data using JiffyDOS byte-by-byte protocol.
   peek() will only be called if the last call to canRead() returned >0
@@ -221,6 +224,55 @@ canWrite() and write() functions need to be overridden.
   For more information see the "JiffyDos support" section below.
 
 ## IECFileDevice class reference
+
+The IECFileDevice class has the following functions that may/must be called from your code:
+
+- ```IECFile  Device(byte pinATN, byte pinCLK, byte pinDATA, byte pinRESET = 0xFF, byte pinCTRL = 0xFF)```  
+  The IECDevice constructor defines the pins to which the IEC bus signals care connected and must be called from
+  the constructor of your derived class. The pinRESET parameter is optional. 
+  If not given, the device will simply not respond to a bus reset. The pinCTRL parameter (also optional) is helpful
+  for applications where the microprocessor can not respond fast enough to a ATN request (see "Timing consideration" 
+  section below).
+
+- ```void begin(byte devnr)```  
+  This function must be called once at startup before the first call to "task", devnr
+  is the IEC bus device number that the device should react to. begin() may be called
+  again later to switch to a different device number.
+
+- ```void task()```
+  This function must be called periodically to handle IEC bus communication
+  if the ATN signal is NOT connected to an interrupt-capable pin on your microcontroller
+  then task() must be called at least once every millisecond. Otherwise you may get "Device not present"
+  errors when trying to communicate with your device. If ATN is on an interrupt-capable
+  pin less frequent calls are ok but bus communication will be slower if called less frequently.
+
+The following functions can be overridden in the derived device class to implement the device functions.
+None of these function are *required*. For example, if your device only receives data then only the
+canWrite() and write() functions need to be overridden.
+  
+- ```void open(byte channel, const char *name)```  
+  open file "name" on channel
+- ```void close(byte channel)```  
+  close file on channel
+- ```bool write(byte channel, byte data)```  
+  write one byte to file on channel, return "true" if successful
+  Returning "false" signals "cannot receive more data" for this file
+- ```byte read(byte channel, byte *buffer, byte bufferSize)```  
+  read up to bufferSize bytes from file in channel, returning the number of bytes read
+  returning 0 will signal end-of-file to the receiver. Returning 0
+  for the FIRST call after open() signals an error condition
+  (e.g. C64 load command will show "file not found")
+- ```void getStatus(char *buffer, byte bufferSize)```  
+  called when the bus master reads from channel 15 and the status
+  buffer is currently empty. this should populate buffer with an appropriate 
+  status message bufferSize is the maximum allowed length of the message
+- ```void execute(const char *command, byte cmdLen)```  
+  called when the bus master sends data (i.e. a command) to channel 15
+  command is a 0-terminated string representing the command to execute
+  commandLen contains the full length of the received command (useful if
+  the command itself may contain zeros)
+- ```void reset()```  
+  Called when a high->low edge is detected on the the IEC bus RESET signal line (only if pinRESET was given in the constructor).
 
 ## Timing considerations
 
