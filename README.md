@@ -327,9 +327,9 @@ canWrite() and write() functions need to be overridden.
 - ```void reset()```  
   Called when a high->low edge is detected on the the IEC bus RESET signal line (only if pinRESET was given in the constructor).
 - ```byte peek()```  
-  Called when the device is sending data using JiffyDOS byte-by-byte protocol.
-  peek() will only be called if the last call to canRead() returned >0
-  peek() should return the next character that will be read with read()
+  Called when the device is sending data using JiffyDOS byte-by-byte protocol.  
+  peek() will only be called if the last call to canRead() returned >0.  
+  peek() should return the next character that will be read with read().  
   peek() is allowed to take an indefinite amount of time.  
   In most cases devices with JiffyDos support should be derived from the IECFileDevice class
   which handles JiffyDos support internally and you do not have to implement peek().
