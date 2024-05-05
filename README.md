@@ -233,8 +233,6 @@ void IECBasicSD::close(byte channel)
 
 This function is called when the bus controller (computer) sends a CLOSE command.
 It should close the data file previously opened for the given channel. 
-close() can not return a value for success or failure since the IEC bus protocol 
-does not include a method to transmit this information.  
 
 To implement our device class in a sketch we must instantiate the class and call the "begin()" and "task()"
 functions:
@@ -372,9 +370,23 @@ The IECFileDevice class has the following functions that may/must be called from
 The following functions can be overridden in the derived device class to implement the device functions.
 None of these function are *required*. For example, if your device only receives data then only the
 canWrite() and write() functions need to be overridden.
+
+Most of these functions take an argument named *channel* which is the channel number given in
+the OPEN command that opened the file on the computer side, i.e. ```OPEN fileNum, deviceNum, channel, name$```
+The channel number will be in the range 0 to 14.  
+Channel 15 is the status and command channel. If the computer reads from channel 15 on your device, 
+the getStatus() function will be called and the result of that call will be sent to the computer.
+If the computer writes to channel 15 on your device, the execute() function will be called that lets
+the device process the command.
+
+The channel number will be 0 when the computer executes a LOAD command and 1 when the computer 
+executes a SAVE command.
   
-- ```void open(byte channel, const char *name)```  
+- ```void open(byte channel, const char *filename)```  
   This function is called whenever the bus controller (computer) issues an OPEN command.
+  The *channel* parameter specifies the channel as described above and the *filename* 
+  parameter is a zero-terminated string representing the file name given in the OPEN command.
+
   Note that open() does not return a value to signify success or failure to open the
   file. The IEC bus protocol does not provide a method to transmit this information directly.
   
@@ -389,24 +401,26 @@ canWrite() and write() functions need to be overridden.
   expected that the device signals the error condition separately to the user (e.g. the blinking
   LED on a floppy disk drive).
 - ```void close(byte channel)```  
-  close file on channel
+  Close the file that was previously opened on *channel*. The close() function does not have a 
+  return value to signal success or failure since the IEC bus protocol does not include a method 
+  to transmit this information.  
 - ```bool write(byte channel, byte data)```  
-  write one byte to file on channel, return "true" if successful
-  Returning "false" signals "cannot receive more data" for this file
+  Write the given byte of *data* to then file opened on the given *channel*. Return *true*
+  if successfule or *false* if an error occurred (i.e. no more data can be accepted).
 - ```byte read(byte channel, byte *buffer, byte bufferSize)```  
-  read up to bufferSize bytes from file in channel, returning the number of bytes read
-  returning 0 will signal end-of-file to the receiver. Returning 0
-  for the FIRST call after open() signals an error condition
-  (e.g. C64 load command will show "file not found")
+  Read up to *bufferSize* bytes of data from the file opened for *channel*, returning the number 
+  of bytes read. Returning 0 will signal end-of-file to the receiver. Returning 0
+  for the FIRST call after open() signals an error condition.
+  (LOAD on the computer will show "file not found" in this case)
 - ```void getStatus(char *buffer, byte bufferSize)```  
-  called when the bus master reads from channel 15 and the status
-  buffer is currently empty. this should populate buffer with an appropriate 
-  status message bufferSize is the maximum allowed length of the message
+  Called when the computer reads from channel 15 and the status
+  buffer is currently empty. This should populate *buffer* with an appropriate, zero-terminated
+  status message of length up to *bufferSize*.
 - ```void execute(const char *command, byte cmdLen)```  
-  called when the bus master sends data (i.e. a command) to channel 15
-  command is a 0-terminated string representing the command to execute
-  commandLen contains the full length of the received command (useful if
-  the command itself may contain zeros)
+  Called when the computers sends data (i.e. a command) to channel 15.
+  The *command* parameter is a 0-terminated string representing the command to execute,
+  *commandLen* gives the full length of the received command which can be useful if
+  the command itself may contain zeros.
 - ```void reset()```  
   Called when a high->low edge is detected on the the IEC bus RESET signal line (only if pinRESET was given in the constructor).
 
