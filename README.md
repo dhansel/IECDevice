@@ -130,7 +130,7 @@ void loop()
 }
 ```
 
-begin() must be called once to set the device number and initialize the device and task()
+begin() must be called once to set the device number and initialize the IECDevice object and task()
 must be called repeatedly as it handles the bus communication and calls our canRead/read/canWrite/write
 functions when necessary.  Again, see the "IECDevice class reference" section for a detailed
 description of these functions.
@@ -143,7 +143,7 @@ Implementing a file-based device using the IECFileDevice class requires two step
 
 This section describes those steps by creating a very simple device to read/write SD cards.
 Note that this device will be limited in its functionality, it allows loading and saving programs
-on the SD card but no other functionality (directory listing, deleting files etc..).
+on the SD card but no other functionality (directory listing, status channel, deleting files etc..).
 The purpose of this section is to demonstrate basic bus communication for file-based devices using the
 IECFileDevice class. A more feature-complete implementation of a SD card reader is provided in
 the [IECSD example](examples/IECSD). 
@@ -193,6 +193,11 @@ void IECBasicSD::open(byte channel, const char *name)
 }
 ```
 
+The "open()" function is called whenever the bus controller (computer) issues an OPEN command.
+Note that this function does not return a value to signify success or failure to open the
+file. The IEC bus protocol does not provide a method to transmit this information directly.
+For more information on this see the description of the open() function in IECFileDevice class
+reference section below.
 
 ```
 byte IECBasicSD::read(byte channel, byte *buffer, byte bufferSize)
@@ -201,6 +206,12 @@ byte IECBasicSD::read(byte channel, byte *buffer, byte bufferSize)
 }
 ```
 
+This function must fill the given buffer with up to bufferSize bytes of data from
+the file that was previously opened for the given channel number. It must return the number of bytes 
+written to the buffer. Returning 0 signals that no more data is left to read. 
+Returning 0 on the first call after "open()" signals that there was an
+error opening the file.
+
 ```
 bool IECBasicSD::write(byte channel, byte data)
 {
@@ -208,12 +219,44 @@ bool IECBasicSD::write(byte channel, byte data)
 }
 ```
 
+This function must write the given data byte to the file that was previously opened 
+for the gven channel number and return "true" for success or "false" for failure.
+Returning false on the first call after "open()" signals that there was an
+error opening the file.
+
 ```
 void IECBasicSD::close(byte channel)
 {
   m_file.close(); 
 }
 ```
+
+This function is called when the bus controller (computer) sends a CLOSE command.
+It should close the data file previously opened for the given channel. 
+close() can not return a value for success or failure since the IEC bus protocol 
+does not include a method to transmit this information.  
+
+To implement our device class in a sketch we must instantiate the class and call the "begin()" and "task()"
+functions:
+
+```
+IECBasicSD iecSD;
+
+void setup()
+{
+  iecSD.begin(9);
+}
+
+void loop()
+{
+  iecSD.task();
+}
+```
+
+begin() must be called once to set the device number and initialize the IECFileDevice object and task()
+must be called repeatedly as it handles the bus communication and calls our canRead/read/canWrite/write
+functions when necessary.  Again, see the "IECDevice class reference" section for a detailed
+description of these functions.
 
 ## IECDevice class reference
 
@@ -331,7 +374,20 @@ None of these function are *required*. For example, if your device only receives
 canWrite() and write() functions need to be overridden.
   
 - ```void open(byte channel, const char *name)```  
-  open file "name" on channel
+  This function is called whenever the bus controller (computer) issues an OPEN command.
+  Note that open() does not return a value to signify success or failure to open the
+  file. The IEC bus protocol does not provide a method to transmit this information directly.
+  
+  On the computer side, success or failure for opening a file can be determined by attempting to 
+  read/write to it and checking the bus status (ST variable in BASIC) afterwards. If the read/write
+  failed (ST<>0) then the file could not be opened.
+  
+  When LOADing a program, the computer will display a "file not found" error if the device returns 0
+  on the *first* read() call  after open().
+  
+  For SAVEing a program, the computer will never show an error even in the case of failure. It is
+  expected that the device signals the error condition separately to the user (e.g. the blinking
+  LED on a floppy disk drive).
 - ```void close(byte channel)```  
   close file on channel
 - ```bool write(byte channel, byte data)```  
