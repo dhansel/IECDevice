@@ -65,7 +65,7 @@ class IECBasicSerial : public IECDevice
 ```
 
 We implement the device functions by overriding the canRead/read/canWrite/write functions.
-See the [IECDevice Class Reference section](iecdevice-class-reference) below for a detailed description of these functions:
+See the [IECDevice Class Reference](#iecdevice-class-reference) section below for a detailed description of these functions:
 
 ```
 IECBasicSerial::IECBasicSerial() : IECDevice(3, 4, 5)
@@ -132,7 +132,7 @@ void loop()
 
 begin() must be called once to set the device number and initialize the IECDevice object and task()
 must be called repeatedly as it handles the bus communication and calls our canRead/read/canWrite/write
-functions when necessary.  See the [IECDevice Class Reference](iecdevice-class-reference) section for a detailed
+functions when necessary.  See the [IECDevice Class Reference](#iecdevice-class-reference) section for a detailed
 description of these functions.
 
 ## Implementing a file-based device
@@ -174,7 +174,7 @@ class IECBasicSD : public IECFileDevice
 ```
 
 We implement the device functions by overriding the open/read/write/close functions.
-See the [IECFileDevice Class Reference section](iecfiledevice-class-reference) below for a detailed description of these functions:
+See the [IECFileDevice Class Reference](#iecfiledevice-class-reference) section below for a detailed description of these functions:
 
 ```
 IECBasicSD::IECBasicSD() : IECFileDevice(3, 4, 5)
@@ -197,7 +197,7 @@ The "open()" function is called whenever the bus controller (computer) issues an
 Note that this function does not return a value to signify success or failure to open the
 file. The IEC bus protocol does not provide a method to transmit this information directly.
 For more information on this see the description of the open() function in 
-[IECFileDevice Class Reference section](iecfiledevice-class-reference) below.
+[IECFileDevice Class Reference](#iecfiledevice-class-reference) section below.
 
 ```
 byte IECBasicSD::read(byte channel, byte *buffer, byte bufferSize)
@@ -253,8 +253,8 @@ void loop()
 
 begin() must be called once to set the device number and initialize the IECFileDevice object and task()
 must be called repeatedly as it handles the bus communication and calls our canRead/read/canWrite/write
-functions when necessary.  ee the [IECFileDevice Class Reference section](iecfiledevice-class-reference) 
-for a detailed description of these functions.
+functions when necessary.  ee the [IECFileDevice Class Reference](#iecfiledevice-class-reference) 
+section for a detailed description of these functions.
 
 ## IECDevice class reference
 
@@ -264,8 +264,8 @@ The IECDevice class has the following functions that may/must be called from you
   The IECDevice constructor defines the pins to which the IEC bus signals care connected and must be called from
   the constructor of your derived class. The pinRESET parameter is optional. 
   If not given, the device will simply not respond to a bus reset. The pinCTRL parameter (also optional) is helpful
-  for applications where the microcontroller may not be able to respond quickly enough to ATN requests (see "Timing considerations" 
-  section below).
+  for applications where the microcontroller may not be able to respond quickly enough to ATN requests 
+  (see [Timing considerations](#timing-considerations) section below).
 
 - ```void begin(byte devnr)```  
   This function must be called once at startup before the first call to "task", devnr
@@ -283,7 +283,7 @@ The IECDevice class has the following functions that may/must be called from you
   This function must be called **if** your device should support the JiffyDos protocol.
   In most cases devices with JiffyDos support should be derived from the IECFileDevice class
   which handles JiffyDos support internally and you do not have to call enableJiffyDosSupport().
-  For more information see the "JiffyDos support" section below.
+  For more information see the [JiffyDos support](jiffydos-support) section below.
 
 The following functions can be overridden in the derived device class to implement the device functions.
 None of these function are *required*. For example, if your device only receives data then only the
@@ -333,7 +333,7 @@ canWrite() and write() functions need to be overridden.
   peek() is allowed to take an indefinite amount of time.  
   In most cases devices with JiffyDos support should be derived from the IECFileDevice class
   which handles JiffyDos support internally and you do not have to implement peek().
-  For more information see the "JiffyDos support" section below.
+  For more information see the [JiffyDos support](jiffydos-support) section below.
 - ```byte read(byte *buffer, byte bufferSize)```  
   This function is only called when the device is sending data using the JiffyDOS block transfer (LOAD protocol).
   read() should fill the buffer with as much data as possible (up to bufferSize).
@@ -342,7 +342,7 @@ canWrite() and write() functions need to be overridden.
   read() is allowed to take an indefinite amount of time.  
   In most cases devices with JiffyDos support should be derived from the IECFileDevice class
   which handles JiffyDos support internally and you do not have to implement peek().
-  For more information see the "JiffyDos support" section below.
+  For more information see the [JiffyDos support](jiffydos-support) section below.
 
 ## IECFileDevice class reference
 
@@ -353,7 +353,7 @@ The IECFileDevice class has the following functions that may/must be called from
   the constructor of your derived class. The pinRESET parameter is optional. 
   If not given, the device will simply not respond to a bus reset. The pinCTRL parameter (also optional) is helpful
   for applications where the microcontroller may not be able to respond quickly enough to ATN requests 
-  (see [Timing Considerations](timing-considerations) section below).
+  (see [Timing Considerations](#timing-considerations) section below).
 
 - ```void begin(byte devnr)```  
   This function must be called once at startup before the first call to "task", devnr
