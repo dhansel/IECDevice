@@ -65,7 +65,7 @@ class IECBasicSerial : public IECDevice
 ```
 
 We implement the device functions by overriding the canRead/read/canWrite/write functions.
-See the "IECDevice class reference" section below for a detailed description of these functions:
+See the [IECDevice Class Reference section](iecdevice-class-reference) below for a detailed description of these functions:
 
 ```
 IECBasicSerial::IECBasicSerial() : IECDevice(3, 4, 5)
@@ -132,7 +132,7 @@ void loop()
 
 begin() must be called once to set the device number and initialize the IECDevice object and task()
 must be called repeatedly as it handles the bus communication and calls our canRead/read/canWrite/write
-functions when necessary.  Again, see the "IECDevice class reference" section for a detailed
+functions when necessary.  See the [IECDevice Class Reference](iecdevice-class-reference) section for a detailed
 description of these functions.
 
 ## Implementing a file-based device
@@ -174,7 +174,7 @@ class IECBasicSD : public IECFileDevice
 ```
 
 We implement the device functions by overriding the open/read/write/close functions.
-See the "IECDevice class reference" section below for a detailed description of these functions:
+See the [IECFileDevice Class Reference section](iecfiledevice-class-reference) below for a detailed description of these functions:
 
 ```
 IECBasicSD::IECBasicSD() : IECFileDevice(3, 4, 5)
@@ -196,8 +196,8 @@ void IECBasicSD::open(byte channel, const char *name)
 The "open()" function is called whenever the bus controller (computer) issues an OPEN command.
 Note that this function does not return a value to signify success or failure to open the
 file. The IEC bus protocol does not provide a method to transmit this information directly.
-For more information on this see the description of the open() function in IECFileDevice class
-reference section below.
+For more information on this see the description of the open() function in 
+[IECFileDevice Class Reference section](iecfiledevice-class-reference) below.
 
 ```
 byte IECBasicSD::read(byte channel, byte *buffer, byte bufferSize)
@@ -253,8 +253,8 @@ void loop()
 
 begin() must be called once to set the device number and initialize the IECFileDevice object and task()
 must be called repeatedly as it handles the bus communication and calls our canRead/read/canWrite/write
-functions when necessary.  Again, see the "IECDevice class reference" section for a detailed
-description of these functions.
+functions when necessary.  ee the [IECFileDevice Class Reference section](iecfiledevice-class-reference) 
+for a detailed description of these functions.
 
 ## IECDevice class reference
 
@@ -264,7 +264,7 @@ The IECDevice class has the following functions that may/must be called from you
   The IECDevice constructor defines the pins to which the IEC bus signals care connected and must be called from
   the constructor of your derived class. The pinRESET parameter is optional. 
   If not given, the device will simply not respond to a bus reset. The pinCTRL parameter (also optional) is helpful
-  for applications where the microprocessor can not respond fast enough to a ATN request (see "Timing consideration" 
+  for applications where the microcontroller may not be able to respond quickly enough to ATN requests (see "Timing considerations" 
   section below).
 
 - ```void begin(byte devnr)```  
@@ -352,8 +352,8 @@ The IECFileDevice class has the following functions that may/must be called from
   The IECDevice constructor defines the pins to which the IEC bus signals care connected and must be called from
   the constructor of your derived class. The pinRESET parameter is optional. 
   If not given, the device will simply not respond to a bus reset. The pinCTRL parameter (also optional) is helpful
-  for applications where the microprocessor can not respond fast enough to a ATN request (see "Timing consideration" 
-  section below).
+  for applications where the microcontroller may not be able to respond quickly enough to ATN requests 
+  (see [Timing Considerations](timing-considerations) section below).
 
 - ```void begin(byte devnr)```  
   This function must be called once at startup before the first call to "task", devnr
