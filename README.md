@@ -446,13 +446,13 @@ A device implemented using this library has three ways of doing so:
 3. Get a little help from extra hardware. If you can not guarantee the 1ms response
    time in software then a small circuit added to your device can help. This is in fact
    the way that the C1541 floppy drive handles this requirement (albeit using a slightly
-   different circuit). Add a 74LS125 buffer to your design and connect it up like this:
-   ![ATN circuit](images/ATNCircuit.png)
+   different circuit). Add a 74LS125 buffer to your design and connect it up like this:  
+   <img src="ATNCircuit.png" width="50%">  
    Connect the ATN and Data signals to the bus and the CTRL signal to any available
    pin on your microcontroller. Then in your sketch make sure to add the CTRL pin
    when calling the IECDevice constructor. The purpose of the circuit is to pull
    DATA low immediately when ATN goes low and only release it once the software
-   confirms (via the CTRL pin) that it now is in control.
+   confirms (via the CTRL pin) that it now is in control of the Data signal.
 
 Apart from the ATN signal timing requirements there are a few functions in the 
 IECDevice class that have limitations on how long they may take before returning.
