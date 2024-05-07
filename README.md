@@ -426,4 +426,46 @@ executes a SAVE command.
 
 ## Timing considerations
 
+The IECDevice library deals with most bus timing requirements internally so you don't have to.
+However, some need to be considered - especially for lower-powered devices such as the Arduino.
+
+The IEC bus protocol requires that all devices on the bus react to an ATN request
+(ATN signal going high->low) by pulling the DATA line low **within 1 millisecond**.
+If this does not happen the computer may report "DEVICE NOT PRESENT" errors when
+addressing your device.
+
+A device implemented using this library has three ways of doing so:
+1. Use an interrupt-capable pin to connect the ATN signal and make sure to never
+   disable interrupts for more than one millisecond. On the Raspberry Pi Pico
+   and ESP32 all pins are interrupt-capable but for the Arduino devices only
+   some are (e.g. on the Arduino Uno only pins 2 and 3).
+2. Make sure to call the IECDevice::task() function at least once every millisecond.
+   If you can't use an interrupt-capable pin (maybe those are already used for other
+   functions) then make sure to call the task() function often enough and the library
+   will deal with it.
+3. Get a little help from extra hardware. If you can not guarantee the 1ms response
+   time in software then a small circuit added to your device can help. This is in fact
+   the way that the C1541 floppy drive handles this requirement (albeit using a slightly
+   different circuit). Add a 74LS125 buffer to your design and connect it up like this:
+   ![ATN circuit](images/ATNCircuit.png)
+   Connect the ATN and Data signals to the bus and the CTRL signal to any available
+   pin on your microcontroller. Then in your sketch make sure to add the CTRL pin
+   when calling the IECDevice constructor. The purpose of the circuit is to pull
+   DATA low immediately when ATN goes low and only release it once the software
+   confirms (via the CTRL pin) that it now is in control.
+
+Apart from the ATN signal timing requirements there are a few functions in the 
+IECDevice class that have limitations on how long they may take before returning.
+Those are described in the [IECDevice Class Reference](#iecdevice-class-reference) section.
+
+Devices derived from the IECFileDevice class have no requirements apart from the ATN timing
+as the IECFileDevice class handles all of them internally.
+
+Finally, JiffyDos transfers require very precise timing which requires the IECDevice
+library to disable all interrupts during such transfers. So be aware that if JiffyDos
+is enabled, the IECDevice::task() function may take up to to 20ms before returning and
+with interrupts disabled during JiffyDos transfers. Devices derived from the IECFileDevice
+class will automatically have JiffyDos support enabled. See the [JiffyDos support](jiffydos-support) 
+section below for how to disable JiffyDos support if desired.
+
 ## JiffyDos support
