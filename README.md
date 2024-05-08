@@ -1,19 +1,25 @@
 # IECDevice
 
-This library for the Arduino IDE provides an interface to connect a variety of current 
-microcontrollers to the Commodre IEC bus used on the C64, C128 and VIC-20.
+This library for the Arduino IDE provides a simple interface to connect a variety of current 
+microcontrollers to the Commodre IEC bus used on the C64, C128 and VIC-20. This should
+make it easier for hobbyists to create new devices for those computers.
 
-The library provides one class (IECDevice) for low-level bus access and 
-another (IECFileDevice) to implement file-based devices. The **JiffyDos**
-protocol for fast data transfer is also supported.
+The library provides two classes:
+  - ```IECDevice``` for creating low-level bus devices that directly respond to the data 
+    sent over the bus one byte at a time. This can be used to implement devices such as
+    [printers](examples/IECCentronics) or [modem-like](examples/IECBasicSerial) devices.
+  - ```IECFileDevice``` for creating higher-level devices that operate more like disk
+    drives. The IECFileDevice interface is file-based, providing open/close/read/write functions.
+    An example use for this class would be an [SD-card reader](examples/IECSD).
+    Any device created using this class automatically supports the **JiffyDos** protocol for fast data transfers.
 
-IECDevice has (so far) been tested on the following microcontrollers:
+ So far I have tested this library on the following microcontrollers:
   -  8-bit ATMega devices (Arduino Uno, Mega, Mini, Micro, Leonardo)
-  -  Arduino Due
+  -  Arduino Due (32-bit)
   -  ESP32
   -  Raspberry Pi Pico
 
-The library comes with a number of examples:
+A number of examples are included to demonstrate how to implement devices using the two classes:
   - [IECBasicSerial](examples/IECBasicSerial) demonstrates how to use the IECDevice class to implement a very simple IEC-Bus-to-serial converter.
   - [IECSD](examples/IECSD) demonstrates how to use the IECFileDevice class to implement a simple SD card reader
   - [IECCentronics](examples/IECCentronics) is a converter to connect Centronics printers to via the IEC bus
@@ -135,7 +141,7 @@ must be called repeatedly as it handles the bus communication and calls our canR
 functions when necessary.  See the [IECDevice Class Reference](#iecdevice-class-reference) section for a detailed
 description of these functions.
 
-## Implementing a file-based device
+## Implementing a simple file-based device
 
 Implementing a file-based device using the IECFileDevice class requires two steps:
   1. Derive a new class from the IECFileDevice class and implement the device's behavior in the new class
@@ -469,3 +475,29 @@ class will automatically have JiffyDos support enabled. See the [JiffyDos suppor
 section below for how to disable JiffyDos support if desired.
 
 ## JiffyDos support
+
+The IECDevice class includes support for the JiffyDos bus protocol which significantly speeds up
+bus transfers, especially LOAD commands. The library automatically detects when the computer
+requests a JiffyDos transfer and responds correspondingly.
+
+For high-level file-based devices (derived from the IECFileDevice class), all functionality
+for JiffyDos support is already included in the IECFileDevice class. JiffyDos support is 
+automatically enabled. In case you do NOT want your device to support JiffyDos, just add
+the following call in the body of your class constructor: ```enableJiffyDosSupport(NULL, 0)```
+
+For low-level devices (derived from the IECDevice class), two additional functions need to 
+be overridden: ```peek()``` must return the next data byte that will be retuned by a call
+to ```read()``` and ```read(buffer, bufferSize)``` which when called should return 
+a chunk of data to be transferred. See the [IECDevice class reference](iecdevice-class-reference) section
+for the full function definitions.
+
+Even with these functions being defined, JiffyDos support is initially disabled for low-level devices
+and must be enabled by calling the ```enableJiffyDosSupport(buffer, bufferSize)``` function in your
+class constructor.
+The function parameters define a buffer which the IECDevice needs to store data during JiffyDos
+transfers. The size of the given buffer affects performance but sizes above 128 bytes do not
+increase performance much above 128 bytes which is what I would recommend unless memory is
+not an issue (maximum buffer size is 255 bytes).
+
+As mentioned in the timing consideration section, interrupts will be disabled during JiffyDos transfers 
+which may cause your program to not be able to respond to interrupts for up to 20ms at a time.
