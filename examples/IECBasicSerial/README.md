@@ -36,4 +36,8 @@ After programming your microcontroller and connecting it up to the IEC bus
 you can run the following BASIC program on the computer to test the device:
 
 ```
+10 OPEN 1,4
+20 GET#1,A$:IF (ST AND 2)=0 THEN PRINT A$;
+30 GET A$:IF A$<>"" THEN PRINT#1, A$;
+40 GOTO 20
 ```
