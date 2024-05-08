@@ -18,8 +18,8 @@ IEC Bus Pin | Signal   | Arduino Uno | Mega | Micro | Due | Raspberry Pi Pico | 
 5           | DATA     | 5           | 5    | 5     | 5   | GPIO4             | IO33
 6           | RESET    | NC          | NC   | NC    | NC  | NC                | NC 
 
-When looking at the IEC bus connector at the back of your Commodore, the pins are as follows:
-<img src="../../IECBusPins.jpg" width="25%">   
+When looking at the IEC bus connector at the back of your Commodore, the pins are as follows:  
+<img src="../../IECBusPins.jpg" width="20%">   
 
 As described in the Wiring section for the IECDevice library, controllers running
 at 5V (Arduino Uno, Mega or Micro) can be connected directly to the IEC bus.
