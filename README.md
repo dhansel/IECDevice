@@ -38,10 +38,16 @@ connected to the Microcontroller. The pins can be freely chosen and are configur
 constructor (see description below). It is recommended to choose an interrupt-capable pin for the ATN 
 signal. 
 
+When looking at the IEC bus connector at the back of your Commodore, the pins are as follows:
+
+<img src="IECBusPins.jpg" width="25%" align="center">   
+(1=SRQ, 2=GND, 3=ATN, 4=Clock, 5=Data, 6=Reset)<br><br>
+  
 For 3.3V platforms (Raspberry Pi Pico, ESP32, Arduino Due) a level shifter is required to isolate the
 controller from the 5V signals on the IEC bus. I am using this [SparkFun level converter](https://www.sparkfun.com/products/12009) 
 other models should do fine as the IEC bus is not particularly fast. Connect the IEC bus signals
 plus 5V supply to the "High Voltage" side and microcontroller pins plus 3.3V supply to the "Low Voltage" side.
+
 
 ## Implementing a simple low-level device
 
