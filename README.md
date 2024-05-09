@@ -38,7 +38,7 @@ connected to the Microcontroller. The pins can be freely chosen and are configur
 constructor (see description below). It is recommended to choose an interrupt-capable pin for the ATN 
 signal. 
 
-When looking at the IEC bus connector at the back of your Commodore, the pins are as follows:
+When looking at the IEC bus connector at the back of your computer, the pins are as follows:
 
 <img src="IECBusPins.jpg" width="25%" align="center">   
 (1=SRQ, 2=GND, 3=ATN, 4=Clock, 5=Data, 6=Reset)<br><br>
@@ -58,7 +58,7 @@ Implementing a basic device using the IECDevice class requires two steps:
 This section describes those steps based on the [IECBasicSerial](examples/IECBasicSerial/IECBasicSerial.ino) 
 example, a simple device that connects a serial (RS232) port to the IEC bus.
 
-First, a new class is defined and derived from the IECDevice class. 
+First we define a new class, derived from the IECDevice class. 
 
 ```
 #include <IECDevice.h>
@@ -83,8 +83,8 @@ See the [IECDevice Class Reference](#iecdevice-class-reference) section below fo
 IECBasicSerial::IECBasicSerial() : IECDevice(3, 4, 5)
 {}
 ```
-The class constructor must call the IECDevice() constructor which defines the pins (ATN=3, Clock=4, Data=5)
-to which the IEC bus signals are connected.
+The class constructor must call the IECDevice() constructor which defines the microcontroller 
+pins (ATN=3, Clock=4, Data=5) to which the IEC bus signals are connected.
 
 ```
 int8_t IECBasicSerial::canRead() {
@@ -93,9 +93,12 @@ int8_t IECBasicSerial::canRead() {
 }
 ```
 The canRead() function is called whenever data is requested from the device. For this device
-we return 0 if we have nothing to send which indicates a "nothing to send" (error) condition 
-on the bus. If we returned -1 instead then canRead() would be called repeatedly, blocking the 
-bus until we have something to send. That would prevent us from receiving incoming data on the bus.
+we return 0 if we have nothing to send. This will cause a timeout error condition on the bus
+(there is no provision in the IEC bus protocol for the computer to ask a device whether it
+has data to send at all). On the computer side this will set bit 1 of the status word (i.e.
+the ST variable in BASIC). If we returned -1 then canRead() would be called repeatedly, 
+blocking the bus until we have something to send. That would prevent us from receiving incoming 
+data on the bus.
 
 ```
 byte IECBasicSerial::read() { 
@@ -146,6 +149,16 @@ begin() must be called once to set the device number and initialize the IECDevic
 must be called repeatedly as it handles the bus communication and calls our canRead/read/canWrite/write
 functions when necessary.  See the [IECDevice Class Reference](#iecdevice-class-reference) section for a detailed
 description of these functions.
+
+To interact with this device in BASIC, use the following program:
+```
+10 OPEN 1,4
+20 GET#1,A$:IF (ST AND 2)=0 THEN PRINT A$;
+30 GET A$:IF A$<>"" THEN PRINT#1, A$;
+40 GOTO 20
+```
+Any characters typed on the computer's keyboard will be sent out on the microcontroller's serial
+connection (at 115200 baud) and incoming serial data will be shown on the computer's screen.
 
 ## Implementing a simple file-based device
 
