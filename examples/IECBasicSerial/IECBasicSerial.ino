@@ -21,17 +21,30 @@
 
 #define DEVICE_NUMBER 4
 
-#if defined(__AVR__) || defined(__SAM3X8E__) || defined(ARDUINO_ARCH_RP2040)
+#if defined(__AVR__) || defined(__SAM3X8E__)
 
 #define PIN_ATN   3
 #define PIN_CLK   4
 #define PIN_DATA  5
 
-#elif defined(ARDUINO_ARCH_ESP32)
+#elif defined(ARDUINO_ARCH_RP2040)
+
+#define PIN_ATN   2
+#define PIN_CLK   3
+#define PIN_DATA  4
+
+#elif defined(ARDUINO_WT32_ETH01)
 
 #define PIN_ATN   IO35
 #define PIN_CLK   IO14
 #define PIN_DATA  IO15
+
+#elif defined(ARDUINO_ARCH_ESP32)
+
+#define PIN_ATN   34
+#define PIN_CLK   32
+#define PIN_DATA  33
+#define PIN_RESET 35
 
 #endif
 
