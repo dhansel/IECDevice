@@ -47,11 +47,10 @@ class IECDevice
   // if the ATN signal is NOT on an interrupt-capable pin then task() must be
   // called at least once every millisecond, otherwise less frequent calls are
   // ok but bus communication will be slower if called less frequently.
-  // task() will take at most 5 milliseconds to execute before returning
   void task();
 
 #ifdef SUPPORT_JIFFY 
-  // call this to enable JiffyDOS support for your application. 
+  // call this to enable JiffyDOS support for your device. 
   // larger buffers result in improved performance for LOAD operations, 
   // other operations (SAVE, DIR, STATUS) are not affected
   // calling with bufferSize=0 will disable JiffyDOS support
@@ -110,7 +109,7 @@ class IECDevice
   // peek() is allowed to take an indefinite amount of time
   virtual byte peek() { return 0; }
 
-  // only called when the device is sending data using the JiffyDOS block transfer (LOAD) protocol:
+  // only called when the device is sending data using the JiffyDOS block transfer (LOAD protocol):
   // - should fill the buffer with as much data as possible (up to bufferSize)
   // - must return the number of bytes put into the buffer
   // - if not overloaded, JiffyDOS load performance will be about 3 times slower than otherwise
