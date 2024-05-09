@@ -37,7 +37,6 @@ class IECSD : public IECFileDevice
   SdFile m_file, m_dir;
   bool m_cardOk;
 
-  bool m_writing;
   byte m_pinLED, m_pinChipSelect, m_errorCode, m_scratched;
   byte m_dirBufferLen, m_dirBufferPtr;
   char m_dirBuffer[IECSD_BUFSIZE];
