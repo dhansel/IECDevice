@@ -6,7 +6,7 @@ enabling the computer to read and write MFM disks.
 
 This example is specifically adapted to the limited resources in an Arduino UNO and therefore
 has some limitations as to which operations are supported (see below). For a version
-of this with more features see the [IECFDCMega](../IECFDCMega) example.
+of this with more features see the [IECFDCMega](https://github.com/dhansel/IECDevice/tree/main/examples/IECFDCMega) example.
 
 ## Wiring
 
@@ -24,7 +24,7 @@ IEC Bus Pin | Signal   | Arduino Uno
 3           | ATN      | 3          
 4           | CLK      | 4          
 5           | DATA     | 5          
-6           | RESET    | 
+6           | RESET    | RST
 
 The ArduinoFDC library disables interrupts while reading or writing the disk which can take several
 milliseconds and can causes IEC bus timing issues as described in the 
@@ -40,4 +40,4 @@ Finally, you can wire the IEC bus RESET signal to the RST pin of the Arduino. Do
 Arduino whenever the computer is reset.
 
 Fully assembled IECFDC device:
-![IECFDC](IECFDC.jpg)
+<img src="IECFDC.jpg" width="50%">   
