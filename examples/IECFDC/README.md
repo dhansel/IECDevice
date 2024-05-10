@@ -14,6 +14,7 @@ IEFDC supports the same disk drive types as [ArduinoFDC](https://github.com/dhan
 * 2: High-density disk in a 5.25" high-density drive (1.2MB)
 * 3: Double-density disk in a 3.5" double- or high-density drive (720KB)
 * 4: High-density disk in a 3.5" high-density drive (1.44MB)
+
 By default type 4 is assumed. The drive type can be changed via the "XT=n" DOS command (see below)
 
 ## Wiring
