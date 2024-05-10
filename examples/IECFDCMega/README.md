@@ -61,7 +61,17 @@ IECFDCMega supports:
   - Code page 437 (U.S.) is supported by default, supported code page can be changed in file ffconf.h
 
 Supported DOS commands:
-  - `U:` or `UJ`: software reset
+  - `S:filename`: delete file filename
+  - `R:newname=oldname`: rename file oldname to newname
+  - `R:newname`: change disk name
+  - `C:newname=oldname`: copy file (allows copying between drives by specifying 0: and 1: prefix)
+  - `I`: re-initialize disk
+  - `N:diskname`: delete all files on disk
+  - `N:diskname,n`: format disk using [interleave](https://en.wikipedia.org/wiki/Interleaving_(disk_storage)) factor n (if n=0 or not a digit then interleave is 7)
+  - `MD:dirname`: create a directory named dirname
+  - `RD:dirname`: remove the directory named dirname
+  - `CD:dirname`: change into sub-directory named dirname
+  - `CD[left-arrow]`: change to parent sub-directory
   - `X` or `E`: query extended device status
   - `XT=n`: set disk drive type (n=0-4, see below)
   - `XT=abc`: set disk drive type (abc=mnemonic, see below)
@@ -69,17 +79,7 @@ Supported DOS commands:
   - `XUn!`: permanently make drive n (0 or 1) the default drive
   - `Xnn`: temporarily change device number (3 <= nn <= 15) 
   - `Xnn!`: permanently change device number (3 <= nn <= 15)
-  - `S:filename`: delete file filename
-  - `R:newname=oldname`: rename file oldname to newname
-  - `R:newname`: change disk name
-  - `C:newname=oldname`: copy file (allows copying between drives by specifying 0: and 1: prefix)
-  - `I`: re-initialize disk
-  - `N:diskname`: format disk
-  - `N:diskname,n`: format disk using interleave factor n
-  - `MD:dirname`: create a directory named dirname
-  - `RD:dirname`: remove the directory named dirname
-  - `CD:dirname`: change into sub-directory named dirname
-  - `CD[left-arrow]`: change to parent sub-directory
+  - `U:` or `UJ`: software reset
 
 Reading the status channel after sending an "X" or "E" command produces the following output: `02, U=n:T0=mn:T1=mn` where
   - `U=n` shows the currently selected default drive unit
