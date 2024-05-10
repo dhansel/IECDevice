@@ -1,0 +1,98 @@
+# IECFDCMega
+
+This example combines the IECDevice library with my [ArduinoFDC library](https://github.com/dhansel/ArduinoFDC)
+to connect PC-style disk dives (3.5" and 5.25") to a Commodore computer,
+enabling the computer to read and write MFM disks.
+
+This is the bigger brother to the [IECFDC](https://github.com/dhansel/IECDevice/tree/main/examples/IECFDC) example.
+The two are nearly identical but IECFDCMega fixes some of IECFDC's shortcomings by utilizing the bigger
+memory space (SRAM and flash) as well as the larger number of pins available on the Arduino Mega 2560.
+
+IEFDC supports the same disk drive types as [ArduinoFDC](https://github.com/dhansel/ArduinoFDC/blob/main/README.md#supported-diskdrive-types):
+* 0: Double-density disk in a 5.25" double-density drive (360KB)
+* 1: Double-density disk in a 5.25" high-density drive (360KB)
+* 2: High-density disk in a 5.25" high-density drive (1.2MB)
+* 3: Double-density disk in a 3.5" double- or high-density drive (720KB)
+* 4: High-density disk in a 3.5" high-density drive (1.44MB)
+
+By default type 4 is assumed. The drive type can be changed via the "XT=n" DOS command (see below)
+
+## Wiring
+
+To wire the disk drive I recommend using the [ArduinoFDC shield](https://github.com/dhansel/ArduinoFDC#arduinofdc-shields).
+
+The following table lists the IEC bus pin connections for this example (NC=not connected).
+
+IEC Bus Pin | Signal   | Arduino Mega
+------------|----------|-------------
+1           | SRQ      | NC         
+2           | GND      | GND        
+3           | ATN      | A3          
+4           | CLK      | A2         
+5           | DATA     | A1         
+6           | RESET    | RST
+
+The ArduinoFDC library disables interrupts while reading or writing the disk which can take several
+milliseconds and can causes IEC bus timing issues as described in the 
+[Timing Considerations](https://github.com/dhansel/IECDevice#timing-considerations) section of the IECDevice library.
+Therefore this example code utilizes the hardware extension described in that section. Wire the 74LS125 IC 
+up as described in that section onto the prototyping area on the ArduinoFDC shield. The CTRL pin must be
+connected to the Arduino's "A4" pin.
+
+To show disk drive activity and status (i.e. blinking to signal an error), wire an LED from the "A7" pin on 
+the Arduino through a 150 Ohm resistor to GND.
+
+Finally, you can wire the IEC bus RESET signal to the RST pin of the Arduino. Doing so will reset the
+Arduino whenever the computer is reset.
+
+Fully assembled IECFDC device:
+<img src="IECFDCMega.jpg" width="50%">   
+
+Note that the IEC bus does supply 5V power so you will need to power
+your device either from an external 5V supply or use the 5V output available on
+the computer's user port, cassette port or expansion port.
+
+## Supported functionality
+
+IECFDCMega supports:
+  - Listing directory via LOAD"$",9
+  - Loading and saving files (LOAD and SAVE commands)
+  - Reading and writing data via the OPEN/PRINT#/INPUT# BASIC commands
+  - Reading the device status (channel 15)
+  - Executing the following DOS commands via the command channel (channel 15, see below for details)
+  - Fast data transfer using JiffyDos
+  - Dual disk drive support (prefix file names with "0:" or "1:" to select the drive)
+  - Multiple files open at the same time
+  - Long DOS file names (not limited to 8 characters)
+  - Code page 437 (U.S.) is supported by default, supported code page can be changed in file ffconf.h
+
+Supported DOS commands:
+  - `U:` or `UJ`: software reset
+  - `X` or `E`: query extended device status
+  - `XT=n`: set disk drive type (n=0-4, see below)
+  - `XT=abc`: set disk drive type (abc=mnemonic, see below)
+  - `XUn`: temporarily make drive n (0 or 1) the default drive
+  - `XUn!`: permanently make drive n (0 or 1) the default drive
+  - `Xnn`: temporarily change device number (3 <= nn <= 15) 
+  - `Xnn!`: permanently change device number (3 <= nn <= 15)
+  - `S:filename`: delete file filename
+  - `R:newname=oldname`: rename file oldname to newname
+  - `R:newname`: change disk name
+  - `C:newname=oldname`: copy file (allows copying between drives by specifying 0: and 1: prefix)
+  - `I`: re-initialize disk
+  - `N:diskname`: format disk
+  - `N:diskname,n`: format disk using interleave factor n
+  - `MD:dirname`: create a directory named dirname
+  - `RD:dirname`: remove the directory named dirname
+  - `CD:dirname`: change into sub-directory named dirname
+  - `CD[left-arrow]`: change to parent sub-directory
+
+Supported disk drive types:
+
+n | Mnemonic | Drive type
+--|----------|-----------
+0 | 5DD      | Double-density disk in a 5.25" double-density drive (360KB)
+1 | 5DDHD    | Double-density disk in a 5.25" high-density drive (360KB)
+2 | 5HD      | High-density disk in a 5.25" high-density drive (1.2MB)
+3 | 3DD      | Double-density disk in a 3.5" double- or high-density drive (720KB)
+4 | 3HD      | High-density disk in a 3.5" high-density drive (1.44MB)
