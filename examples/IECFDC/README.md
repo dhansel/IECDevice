@@ -89,3 +89,5 @@ Supported DOS commands:
 Limitations:
   - Only one file can be opened at a time
   - Only one disk drive supported
+  - No long filename support (file names longer than 8 characters show up as abcdef~N)
+  - No code page support (file names using characer codes >127 may show up incorrecly)
