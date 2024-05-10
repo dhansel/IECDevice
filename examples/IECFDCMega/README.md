@@ -5,11 +5,11 @@ to connect PC-style disk dives (3.5" and 5.25") to a Commodore computer,
 enabling the computer to read and write MFM disks.
 
 This is the bigger brother to the [IECFDC](https://github.com/dhansel/IECDevice/tree/main/examples/IECFDC) example.
-The two are nearly identical but IECFDCMega fixes some of IECFDC's shortcomings by utilizing the bigger
+The two are very similar but IECFDCMega fixes some of IECFDC's shortcomings by utilizing the bigger
 memory space (SRAM and flash) as well as the larger number of pins available on the Arduino Mega 2560.
 
 IEFDC supports the same disk drive types as [ArduinoFDC](https://github.com/dhansel/ArduinoFDC/blob/main/README.md#supported-diskdrive-types):
-By default a 3" HD is assumed. The drive type can be changed via the "XT=n" or "XT=mnemonic" DOS command (see below)
+By default a 3" HD drive is assumed. The drive type can be changed via the "XT=n" or "XT=mnemonic" DOS command (see below).
 
 ## Wiring
 
@@ -61,11 +61,10 @@ IECFDCMega supports:
   - Code page 437 (U.S.) is supported by default, supported code page can be changed in file ffconf.h
 
 Supported DOS commands:
-  - `S:filename`: delete file filename
+  - `S:filename`: delete file filename (filename may contain "*" and "?" wildcards)
   - `R:newname=oldname`: rename file oldname to newname
   - `R:newname`: change disk name
   - `C:newname=oldname`: copy file (allows copying between drives by specifying 0: and 1: prefix)
-  - `I`: re-initialize disk
   - `N:diskname`: delete all files on disk
   - `N:diskname,n`: format disk using [interleave](https://en.wikipedia.org/wiki/Interleaving_(disk_storage)) factor n (if n=0 or not a digit then interleave is 7)
   - `MD:dirname`: create a directory named dirname
@@ -79,6 +78,7 @@ Supported DOS commands:
   - `XUn!`: permanently make drive n (0 or 1) the default drive
   - `Xnn`: temporarily change device number (3 <= nn <= 15) 
   - `Xnn!`: permanently change device number (3 <= nn <= 15)
+  - `I`: re-initialize disk
   - `U:` or `UJ`: software reset
 
 Reading the status channel after sending an "X" or "E" command produces the following output: `02, U=n:T0=mn:T1=mn` where
