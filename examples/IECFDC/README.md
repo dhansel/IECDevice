@@ -72,7 +72,7 @@ IECFDC supports:
 
 Supported DOS commands:
   - `U:` or `UJ`: software reset
-  - `X` or `E`: query extended device status
+  - `X` or `E`: query extended device status: the next status channel read will return `02, T=n, 00, 00` where n is the currently selected drive type.
   - `XT=n`: set disk drive type (n=0-4, see [above](#IECFDC))
   - `Xnn`: temporarily change device number (3 <= nn <= 15) 
   - `Xnn!`: permanently change device number (3 <= nn <= 15)
