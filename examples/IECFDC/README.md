@@ -8,6 +8,14 @@ This example is specifically adapted to the limited resources in an Arduino UNO 
 has some limitations as to which operations are supported (see below). For a version
 of this with more features see the [IECFDCMega](https://github.com/dhansel/IECDevice/tree/main/examples/IECFDCMega) example.
 
+IEFDC supports the same disk drive types as [ArduinoFDC](https://github.com/dhansel/ArduinoFDC/blob/main/README.md#supported-diskdrive-types):
+* 0: Double-density disk in a 5.25" double-density drive (360KB)
+* 1: Double-density disk in a 5.25" high-density drive (360KB)
+* 2: High-density disk in a 5.25" high-density drive (1.2MB)
+* 3: Double-density disk in a 3.5" double- or high-density drive (720KB)
+* 4: High-density disk in a 3.5" high-density drive (1.44MB)
+By default type 4 is assumed. The drive type can be changed via the "XT=n" DOS command (see below)
+
 ## Wiring
 
 To wire the disk drive I recommend using the [ArduinoFDC shield](https://github.com/dhansel/ArduinoFDC#arduinofdc-shields).
@@ -41,3 +49,42 @@ Arduino whenever the computer is reset.
 
 Fully assembled IECFDC device:
 <img src="IECFDC.jpg" width="50%">   
+
+Note that the IEC bus does supply 5V power so you will need to power
+your device either from an external 5V supply or use the 5V output available on
+the computer's user port, cassette port or expansion port.
+
+## Supported functionality and limitations
+
+Fitting both the support for reading MFM floppy disks and the IEC protocol into the limited
+flash and sdram memory of the Arduino Uno required some compromises regarding the supported 
+functionality. The [IECFDCMega](https://github.com/dhansel/IECDevice/tree/main/examples/IECFDCMega) example
+makes use of the Arduino MEGA 2560 to offer extended support.
+
+IECFDC supports:
+  - Listing directory via LOAD"$",9
+  - Loading and saving files (LOAD and SAVE commands)
+  - Reading and writing data via the OPEN/PRINT#/INPUT# BASIC commands
+  - Reading the device status (channel 15)
+  - Executing the following DOS commands via the command channel (channel 15, see below for details)
+  - Fast data transfer using JiffyDos
+
+Supported DOS commands:
+  - `U:` or `UJ`: software reset
+  - `X` or `E`: query extended device status
+  - `XT=n`: set disk drive type (n=0-4, see [above](#IECFDC))
+  - `Xnn`: temporarily change device number (3 <= nn <= 15) 
+  - `Xnn!`: permanently change device number (3 <= nn <= 15)
+  - `S:filename`: delete file filename
+  - `R:newname=oldname`: rename file oldname to newname
+  - `I`: re-initialize disk
+  - `N:diskname,id`: low-level format disk
+  - `N:diskname`: delete all files on disk
+  - `MD:dirname`: create a directory named dirname
+  - `RD:dirname`: remove the directory named dirname
+  - `CD:dirname`: change into sub-directory named dirname
+  - `CD[left-arrow]`: change to parent sub-directory
+
+Limitations:
+  - Only one file can be opened at a time
+  - Only one disk drive supported
