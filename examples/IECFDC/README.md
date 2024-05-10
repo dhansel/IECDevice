@@ -71,19 +71,19 @@ IECFDC supports:
   - Fast data transfer using JiffyDos
 
 Supported DOS commands:
-  - `S:filename`: delete file filename (file name can contain "*" and "?" wildcards)
+  - `S:filename`: delete file filename (filename may contain "*" and "?" wildcards)
   - `R:newname=oldname`: rename file oldname to newname
-  - `N:diskname,nn`: low-level format disk (nn is ignored, interleave is fixed to 7)
+  - `N:diskname,n`: format disk (n is ignored, interleave factor is fixed to 7)
   - `N:diskname`: delete all files on disk
   - `MD:dirname`: create a directory named dirname
   - `RD:dirname`: remove the directory named dirname
   - `CD:dirname`: change into sub-directory named dirname
   - `CD[left-arrow]`: change to parent sub-directory
-  - `I`: re-initialize disk
-  - `X` or `E`: query extended device status: the next status channel read will return `02, T=n, 00, 00` where n is the currently selected drive type.
+  - `X` or `E`: query extended device status: next status channel read will return `02, T=n, 00, 00` where n is the current drive type.
   - `XT=n`: set disk drive type (n=0-4, see [above](#IECFDC))
   - `Xnn`: temporarily change device number (3 <= nn <= 15) 
   - `Xnn!`: permanently change device number (3 <= nn <= 15)
+  - `I`: re-initialize disk
   - `U:` or `UJ`: reset
 
 Limitations:
