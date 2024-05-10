@@ -9,13 +9,7 @@ The two are nearly identical but IECFDCMega fixes some of IECFDC's shortcomings 
 memory space (SRAM and flash) as well as the larger number of pins available on the Arduino Mega 2560.
 
 IEFDC supports the same disk drive types as [ArduinoFDC](https://github.com/dhansel/ArduinoFDC/blob/main/README.md#supported-diskdrive-types):
-* 0: Double-density disk in a 5.25" double-density drive (360KB)
-* 1: Double-density disk in a 5.25" high-density drive (360KB)
-* 2: High-density disk in a 5.25" high-density drive (1.2MB)
-* 3: Double-density disk in a 3.5" double- or high-density drive (720KB)
-* 4: High-density disk in a 3.5" high-density drive (1.44MB)
-
-By default type 4 is assumed. The drive type can be changed via the "XT=n" DOS command (see below)
+By default a 3" HD is assumed. The drive type can be changed via the "XT=n" or "XT=mnemonic" DOS command (see below)
 
 ## Wiring
 
@@ -45,12 +39,12 @@ the Arduino through a 150 Ohm resistor to GND.
 Finally, you can wire the IEC bus RESET signal to the RST pin of the Arduino. Doing so will reset the
 Arduino whenever the computer is reset.
 
-Fully assembled IECFDC device:
-<img src="IECFDCMega.jpg" width="50%">   
-
 Note that the IEC bus does supply 5V power so you will need to power
 your device either from an external 5V supply or use the 5V output available on
 the computer's user port, cassette port or expansion port.
+
+Fully assembled IECFDCMega device:  
+<img src="IECFDCMega.jpg" width="50%">   
 
 ## Supported functionality
 
@@ -86,6 +80,11 @@ Supported DOS commands:
   - `RD:dirname`: remove the directory named dirname
   - `CD:dirname`: change into sub-directory named dirname
   - `CD[left-arrow]`: change to parent sub-directory
+
+Reading the status channel after sending an "X" or "E" command produces the following output: `02, U=n:T0=mn:T1=mn` where
+  - `U=n` shows the currently selected default drive unit
+  - `T0=mn` shows the drive type for drive unit 0
+  - `T1=mn` shows the drive type for drive unit 1
 
 Supported disk drive types:
 
