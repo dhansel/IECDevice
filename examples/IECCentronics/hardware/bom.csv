@@ -1,0 +1,21 @@
+Designator,Quantity,Manufacturer Part,Manufacturer,Supplier,Supplier Part
+POWER,1,1734510-1,TE Connectivity AMP Connectors,Digi-Key,A107788-ND
+PRINTER,1,5747846-6,TE Connectivity,Digi-Key,A32128-ND
+"IEC1,IEC2",1,SDS-60J,CUI Devices,Digi-Key,CP-2360-ND
+"Q1,Q2",2,2N7000BU,onsemi,Digi-Key,2N7000BU-ND
+"R1,R8,R9,R10,R11,R12,R13",7,CF14JT10K0,Stackpole Electronics Inc,Digi-Key,CF14JT10K0TR-ND
+R2,1,CF14JT220R,Stackpole Electronics Inc,Digi-Key,CF14JT220RTR-ND
+"R3,R4,R5,R6,R7",5,CF14JT4K70,Stackpole Electronics Inc,Digi-Key,CF14JT4K70TR-ND
+R14,1,CF14JT1K00,Stackpole Electronics Inc,Digi-Key,CF14JT1K00TR-ND
+"C1,C4,C5,C6",4,K104K15X7RF5TL2,Vishay Beyschlag,Digi-Key,BC1084TR-ND
+"C2,C3",2,K220J15C0GF53L2,Vishay Beyschlag,Digi-Key,BC5146-ND
+"D2,D3,D4",3,1N4148,onsemi,Digi-Key,1N4148FS-ND
+READY,1,151031VS04000,Würth Elektronik,Digi-Key,732-5007-ND
+SW1,1,DS02C-254-2L-04BE,CUI Devices,Digi-Key,2223-DS02C-254-2L-04BE-ND
+RESET,1,PTS645VH58-2 LFS,C&K,Digi-Key,CKN9120-ND
+U1,1,ATMEGA328-PU,Microchip Technology,Digi-Key,ATMEGA328-PU-ND
+"U2,U3",2,SN74LS07N,Texas Instruments,Digi-Key,296-14878-5-ND
+U4,1,SN74LS165AN,Texas Instruments,Digi-Key,296-14885-5-ND
+X1,1,ATS16A,CTS-Frequency Controls,Digi-Key,CTX415-ND
+"RSTP,SELECT,AUTOLF",1,PREC040SAAN-RC,Sullins Connector Solutions,Digi-Key,S1012EC-40-ND
+Serial,1,PPTC061LGBN-RC,Sullins Connector Solutions,Digi-Key,S5442-ND
