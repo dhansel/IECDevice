@@ -2,7 +2,8 @@
 
 This example combines the IECDevice library with my [ArduinoFDC library](https://github.com/dhansel/ArduinoFDC)
 to connect PC-style disk dives (3.5" and 5.25") to a Commodore computer,
-enabling the computer to read and write MFM disks.
+enabling the computer to read and write MFM disks. A JiffyDos enabled C64 can load a 202 block file 
+from IECFDCMega in 12 seconds, the same speed as a JiffyDos enabled C1541 drive.
 
 This is the bigger brother to the [IECFDC](https://github.com/dhansel/IECDevice/tree/main/examples/IECFDC) example.
 The two are very similar but IECFDCMega fixes some of IECFDC's shortcomings by utilizing the bigger
