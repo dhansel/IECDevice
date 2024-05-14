@@ -110,27 +110,27 @@ The PCB has four different jumper settings that offer some more configuration op
 ## Extending IECCentronics
 
 The IECCentronics code is structured to make it easy to develop new conversion routines
-for different printers. To add a new converter, three steps are necessary:
-1) Create the converter by deriving a new class from the Converter class
+for different printers. To add a new conversion mode, three steps are necessary:
+1) Create a new converter class by deriving it from the Converter class
 2) Implement a simple converter by overriding the "byte convert(byte data)" function
    or a more advanced converter by overriding the "void convert()" function in the new class.
 3) Create an instance of the new converter class
-4) Assign the new converter object to a DIP switch setting in the Arduino `begin()` function.
+4) Assign the new converter object to a conversion mode in the Arduino `begin()` function.
 
-Up to eight different converters can be defined and selected by the settings of DIP switches 2-4.
-Converter # | DIP2 | DIP3 | DIP4
-------------|------|------|-----
-0           | up   | up   | up
-1           | up   | up   | down
-2           | up   | down | up
-3           | up   | down | down
-4           | down | up   | up
-5           | down | up   |   down
-6           | down | down | up
-7           | down | down | down
+Up to eight different conversion modes can be defined and selected by the settings of DIP switches 2-4.
+Mode # | DIP2 | DIP3 | DIP4
+-------|------|------|-----
+0      | up   | up   | up
+1      | up   | up   | down
+2      | up   | down | up
+3      | up   | down | down
+4      | down | up   | up
+5      | down | up   | down
+6      | down | down | up
+7      | down | down | down
 
-In the firmware included here only converters 0-3 are implemented as described above. You may either
-change the existing implementations or add new ones for converters 4-7.
+In the firmware included here only modes 0-3 are implemented as described above. You may either
+change the existing implementations or add new ones for modes 4-7.
 
 ### Implementing a simple (single-byte) converter
 
@@ -169,8 +169,8 @@ Next we create an instance of the converter (note that this must be outside of `
 ConverterPETSCIIToASCII mode1;
 ```
 
-And finally (within the `setup()` function) we assign the new converter as converter #1:
-The converter modes align with the DIP switch 3+4 settings as follows: 1=up-up, 2=up-down, 3=down-up, 4=down-down
+And finally (within the `setup()` function) we set the new converter as conversion mode #1
+(see the table above for the relation between conversion mode numbers and DIP switch settings):
 ```
 iec.setConverter(1, &mode1);
 ```
