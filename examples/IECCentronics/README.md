@@ -6,12 +6,16 @@ I wanted to print from my C64 to my Centronics printer, don't have an adapter an
 a DIY solution so I came up with this. Actually this is where the IECDevice library started and
 I generalized it as I came up with other ideas for devices.
 
-This adapter is made to fill my specific need (attaching a Tandy DMP 130 printer to my C64 and
-being able to use existing software with it) but it is designed such that it can be used with
-any printer.
-
 As is, the adapter has four main operating modes for relaying data received from the Commodore 
-computer to the printer:
+computer to the connected printer. Modes 1-3 are generic and should work with any connected printer.
+Mode 4 is specific to the Tandy (or Radio Shack) DMP 130 printer.
+
+The IECCentronics software is designed such that it can easily be [extended](#extending-ieccentronics)
+to support other data conversion methods or add support for different printers. The software
+can simply be edited in the Arduino IDE and [uploaded](hardware/README.md#uploading-the-firmware) 
+directly from there via the provided pin header on the board.
+
+The currently implemented conversion modes are as follows:
 1) **No conversion.** In this mode all received data is sent on to the printer without modifications.
 This can be helpful if you want to run your own printer software that directly talks to the printer.
 2) **Convert PETSCII->ASCII**. In this mode all data received from the computer is assumed to be text 
