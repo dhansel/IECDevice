@@ -17,7 +17,7 @@ There are also STL files for 3d-printing a case ([top](CaseTop.stl), [bottom](Ca
 
 # Uploading the firmware
 
-First make sure that the ATMega328p chip has an Arduino bootloader installed. If not, there
+First make sure that the ATMega328p chip has an Arduino UNO bootloader installed. If not, there
 are a number of instructions available on the net (google ["atmega328 burn boot loader"](https://www.google.com/search?client=firefox-b-1-d&q=atmega328+burn+boot+loader)).
 Once the bootloader is installed, you can upload the firmware:
 1) make sure the PCB is fully populated
