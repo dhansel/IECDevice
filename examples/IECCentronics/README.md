@@ -77,6 +77,11 @@ Reading from channel 15 will return one of the following status messages
 - `03,NO PAPER`: The printer is out of paper
 - `04,PRINTER ERROR`: The printer is reporting an error condition via its ERROR signal line
 
+Due to the way the Centronics interface defines the signal levels for its various status pins
+(SELECT, PE, FAULT), if no printer is connected the status will read as "03,NO PAPER". If a
+printer is connected but turned off, the status depends on the internals of the printer but
+will likely also report "NO PAPER".
+
 ### Jumper settings
 
 The PCB has four different jumper settings that offer some more configuration options:
