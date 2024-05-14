@@ -73,12 +73,9 @@ settings (no reset or poweroff is required).
 The IECCentronics device supports a status channel, similar to Commodore floppy disk drives. 
 Reading from channel 15 will return one of the following status messages
 - `00,READY`: Printer is ready to print
-- `01,OFF LINE`: The printer is off line (likely not turned on)
+- `01,OFF LINE`: The printer is off line
 - `03,NO PAPER`: The printer is out of paper
 - `04,PRINTER ERROR`: The printer is reporting an error condition via its ERROR signal line
-
-If your computer has JiffyDos installed you can query the printer status
-by typing `@#4` (to select the printer as the current device) followed by `@` (to query the status).
 
 ### Jumper settings
 
@@ -93,9 +90,9 @@ The PCB has four different jumper settings that offer some more configuration op
   the function can easily be altered in the source code. If no jumper is installed then the
   printer is never reset.
 - `SELECT`: If a jumper is installed then the *Select* pin (13) on the [printer port](https://www.lammertbies.nl/comm/cable/parallel) will be pulled LOW,
-  otherwise it remains HIGH. Some printers require this, others do not.
+  otherwise it remains HIGH. Some printers require this to be LOW, others do not.
 - `AUTOLF`: If a jumper is installed then the *Autofeed* pin (14) on the [printer port](https://www.lammertbies.nl/comm/cable/parallel) will be pulled LOW.
-  On some printers this signal controls whether the printer automatically executes a line feed
+  otherwise it remains HIGH. On some printers this signal controls whether the printer automatically executes a line feed
   after receiving a carriage return (0Dh) character.
 
 ## Extending IECCentronics
