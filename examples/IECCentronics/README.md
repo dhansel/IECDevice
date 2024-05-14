@@ -48,7 +48,11 @@ necessary information (Gerber file, BOM, STL files for printing a case) is avail
 
 The device is plug-and-play - simply connect the IEC bus, USB power and printer to the device
 and turn on your computer. Any data sent to the device's address (4 or 5, depending on the DIP
-switch) will be sent to the printer. The DIP switches have the following functions:
+switch) will be sent to the printer. 
+
+### DIP switches (conversion modes)
+
+The DIP switches have the following functions:
 
 - DIP switch 1 (leftmost): Device address (up=4, down=5)
 - DIP switch 2: Currently not used, reserved for future extensions
@@ -64,7 +68,9 @@ down  | down  | Emulate Commodore MPS801 on Tandy DMP130
 All DIP switches can be changed at runtime and the device will immediately start using the new 
 settings (no reset or poweroff is required).
 
-The device also supports a status channel, similar to Commodore floppy disk drives. 
+### Status channel
+
+The IECCentronics device supports a status channel, similar to Commodore floppy disk drives. 
 Reading from channel 15 will return one of the following status messages
 - `00,READY`: Printer is ready to print
 - `01,OFF LINE`: The printer is off line (likely not turned on)
@@ -73,6 +79,8 @@ Reading from channel 15 will return one of the following status messages
 
 If your computer has JiffyDos installed you can query the printer status
 by typing `@#4` (to select the printer as the current device) followed by `@` (to query the status).
+
+### Jumper settings
 
 The PCB has four different jumper settings that offer some more configuration options:
 - `RESET`: If this jumper is installed then the IEC bus RESET will also reset IECCentronics.
