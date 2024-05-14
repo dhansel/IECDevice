@@ -32,6 +32,10 @@
 
 #define SHOW_LOWERCASE 0
 
+#if !defined(SD_FAT_VERSION) || SD_FAT_VERSION<20200
+#error This code requires SdFat library version 2.2.0 or later
+#endif
+
 #ifndef min
 #define min(a,b) ((a)<(b) ? (a) : (b))
 #endif
