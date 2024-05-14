@@ -55,15 +55,18 @@ switch) will be sent to the printer.
 The DIP switches have the following functions:
 
 - DIP switch 1 (leftmost): Device address (up=4, down=5)
-- DIP switch 2: Currently not used, reserved for future extensions
-- DIP switches 3 and 4: Conversion mode (see table below)
+- DIP switches 2, 3 and 4: Conversion mode selection (see table below)
   
-DIP 3 | DIP 4 | Mode
-------|-------|-----
-up    | up    | Direct pass-through (no conversion)
-up    | down  | Convert PETSCII to lowercase/uppercase ASCII
-down  | up    | Convert PETSCII to uppercase ASCII
-down  | down  | Emulate Commodore MPS801 on Tandy DMP130
+DIP 2 | DIP 3 | DIP 4 | Mode
+------|-------|-------|-----
+up    | up    | up    | Direct pass-through (no conversion)
+up    | up    | down  | Convert PETSCII to lowercase/uppercase ASCII
+up    | down  | up    | Convert PETSCII to uppercase ASCII
+up    | down  | down  | Emulate Commodore MPS801 on Tandy DMP130
+
+If DIP 2 is set to "down" then converter modes 4-7 are selected which are currently
+not implemented. Section [Extending IECCentronics](#extending-ieccentronics) below describes
+how to implement new converters and assign them to conversion modes.
 
 All DIP switches can be changed at runtime and the device will immediately start using the new 
 settings (no reset or poweroff is required).
@@ -101,3 +104,75 @@ The PCB has four different jumper settings that offer some more configuration op
   after receiving a carriage return (0Dh) character.
 
 ## Extending IECCentronics
+
+The IECCentronics code is structured to make it easy to develop new conversion routines
+for different printers. To add a new converter, three steps are necessary:
+1) Create the converter by deriving a new class from the Converter class
+2) Implement a simple converter by overriding the "byte convert(byte data)" function
+   or a more advanced converter by overriding the "void convert()" function in the new class.
+3) Create an instance of the new converter class
+4) Assign the new converter object to a DIP switch setting in the Arduino `begin()` function.
+
+Up to eight different converters can be defined and selected by the settings of DIP switches 2-4.
+Converter # | DIP2 | DIP3 | DIP4
+------------|------|------|-----
+0           | up   | up   | up
+1           | up   | up   | down
+2           | up   | down | up
+3           | up   | down | down
+4           | down | up   | up
+5           | down | up   |   down
+6           | down | down | up
+7           | down | down | down
+
+In the firmware included here only converters 0-3 are implemented as described above. You may either
+change the existing implementations or add new ones for converters 4-7.
+
+### Implementing a simple (single-byte) converter
+
+An implementation of a simple converter can be seen in the [IECCentronics.ino](IECCentronics.ino) file
+by the implementation of the PETSCII-to-ASCII converter:
+
+First a new class is created, derived from the Converter class:
+```
+class ConverterPETSCIIToASCII : public Converter
+{
+ public:
+  byte convert(byte data);
+};
+```
+
+The only function defined in that class is "convert()" which takes an input data byte and
+returns the converted data byte. In this case, swapping the codes for uppercase and lowercase letters:
+
+```
+byte ConverterPETSCIIToASCII::convert(byte data)
+{
+  if( data>=192 ) 
+    data -= 96;
+
+  if( data>=65 && data<=90 )
+    data += 32;
+  else if( data>=97 && data<=122 )
+    data -= 32;
+  
+  return data;
+}
+```
+
+Next we create an instance of the converter (note that this must be outside of `setup()`)
+```
+ConverterPETSCIIToASCII mode1;
+```
+
+And finally (within the `setup()` function) we assign the new converter as converter #1:
+The converter modes align with the DIP switch 3+4 settings as follows: 1=up-up, 2=up-down, 3=down-up, 4=down-down
+```
+iec.setConverter(1, &mode1);
+```
+
+That's all that needs to be done. If DIP switches 2-4 are set to "up,up,down" any byte
+received by IECCentronics will pass through the "convert" function of class ConverterPETSCIItoASCII 
+before being sent to the printer.
+
+### Implementing an advanced (multi-byte) converter
