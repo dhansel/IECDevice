@@ -11,7 +11,7 @@ The library provides two classes:
   - ```IECFileDevice``` for creating higher-level devices that operate more like disk
     drives. The IECFileDevice interface is file-based, providing open/close/read/write functions.
     An example use for this class would be an [SD-card reader](examples/IECSD).
-    Any device created using this class automatically supports the **JiffyDos** protocol for fast data transfers.
+    Any device created using this class automatically supports the [JiffyDos](https://www.go4retro.com/products/jiffydos/) protocol for fast data transfers.
 
  So far I have tested this library on the following microcontrollers:
   -  8-bit ATMega devices (Arduino Uno, Mega, Mini, Micro, Leonardo)
@@ -173,7 +173,7 @@ The purpose of this section is to demonstrate basic bus communication for file-b
 IECFileDevice class. A more feature-complete implementation of a SD card reader is provided in
 the [IECSD example](examples/IECSD). 
 
-Note that any device derived from the IECFileDevice class automatically supports the JiffyDos protocol.
+Note that any device derived from the IECFileDevice class automatically supports the [JiffyDos](#jiffydos-support) protocol.
 
 First, a new class is defined and derived from the IECFileDevice class. 
 
@@ -278,7 +278,7 @@ void loop()
 
 begin() must be called once to set the device number and initialize the IECFileDevice object and task()
 must be called repeatedly as it handles the bus communication and calls our canRead/read/canWrite/write
-functions when necessary.  ee the [IECFileDevice Class Reference](#iecfiledevice-class-reference) 
+functions when necessary.  See the [IECFileDevice Class Reference](#iecfiledevice-class-reference) 
 section for a detailed description of these functions.
 
 ## IECDevice class reference
@@ -495,7 +495,7 @@ section below for how to disable JiffyDos support if desired.
 
 ## JiffyDos support
 
-The IECDevice class includes support for the JiffyDos bus protocol which significantly speeds up
+The IECDevice class includes support for the [JiffyDos](https://www.go4retro.com/products/jiffydos/) bus protocol which significantly speeds up
 bus transfers, especially LOAD commands. The library automatically detects when the computer
 requests a JiffyDos transfer and responds correspondingly.
 
