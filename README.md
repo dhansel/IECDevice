@@ -11,7 +11,7 @@ The library provides two classes:
   - ```IECFileDevice``` for creating higher-level devices that operate more like disk
     drives. The IECFileDevice interface is file-based, providing open/close/read/write functions.
     An example use for this class would be an [SD-card reader](examples/IECSD).
-    Any device created using this class automatically supports the [JiffyDos](https://www.go4retro.com/products/jiffydos/) protocol for fast data transfers.
+    Any device created using this class automatically supports the [JiffyDos](#jiffydos-support) protocol for fast data transfers.
 
  So far I have tested this library on the following microcontrollers:
   -  8-bit ATMega devices (Arduino Uno, Mega, Mini, Micro, Leonardo)
@@ -507,7 +507,7 @@ the following call in the body of your class constructor: ```enableJiffyDosSuppo
 For low-level devices (derived from the IECDevice class), two additional functions need to 
 be overridden: ```peek()``` must return the next data byte that will be retuned by a call
 to ```read()``` and ```read(buffer, bufferSize)``` which when called should return 
-a chunk of data to be transferred. See the [IECDevice class reference](iecdevice-class-reference) section
+a chunk of data to be transferred. See the [IECDevice class reference](#iecdevice-class-reference) section
 for the full function definitions.
 
 Even with these functions being defined, JiffyDos support is initially disabled for low-level devices
