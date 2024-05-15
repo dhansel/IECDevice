@@ -34,9 +34,9 @@ After doing so you will find the included examples in File->Examples->IECDevice-
 ## Wiring
 
 For 5V platforms such as the Arduino Uno, the IEC bus signals (ATN, Clock, Data, Reset) can be directly 
-connected to the Microcontroller. The pins can be freely chosen and are configured in the class 
-constructor (see description below). It is recommended to choose an interrupt-capable pin for the ATN 
-signal. 
+connected to the microcontroller. The pins can be freely chosen and are configured in the class 
+constructor (see [class reference](#iecdevice-class-reference) below). It is recommended to choose an interrupt-capable pin for the ATN 
+signal (see [timing considerations](#timing-considerations) section below). 
 
 When looking at the IEC bus connector at the back of your computer, the pins are as follows:
 
