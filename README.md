@@ -507,7 +507,7 @@ the following call in the body of your class constructor: ```enableJiffyDosSuppo
 For low-level devices (derived from the IECDevice class), two additional functions need to 
 be overridden: ```peek()``` must return the next data byte that will be retuned by a call
 to ```read()``` and ```read(buffer, bufferSize)``` which when called should return 
-a chunk of data to be transferred. See the [IECFileDevice class reference](#iecfiledevice-class-reference) section
+a chunk of data to be transferred. See the [IECDevice class reference](#iecdevice-class-reference) section
 for the full function definitions.
 
 Even with these functions being defined, JiffyDos support is initially disabled for low-level devices
