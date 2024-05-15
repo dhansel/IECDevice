@@ -205,6 +205,9 @@ A more complex example can be found in the implementation of the `void convert()
 The general framework to implementing a converter using this method is the same as from the previous
 (simple converter) section. The only change is which one of the two `convert` functions gets overridden.
 
+Note that if you override the `void convert()` function then `byte convert(byte data)` will not
+be called automatically. All conversion must happen in `void convert()` in that case.
+
 ### Converter class reference
 
 The `Converter` class has the following functions that can be overridden in the derived class.
