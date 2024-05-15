@@ -180,3 +180,68 @@ received by IECCentronics will pass through the "convert" function of class Conv
 before being sent to the printer.
 
 ### Implementing an advanced (multi-byte) converter
+
+For more complex conversions that involve more than one character (e.g. character sequences),
+the conversion function above is not very helpful since it only converts one character at a time.
+
+In thise cases you can override the `void convert()` function. This function is called periodically,
+independent of when data has been received from the computer. Within your convert() function you
+can call the `canRead()`, `read()`, `canWrite()` and `write()` functions to get any data received
+and schedule data to send.
+
+As a simple example, the default implementation of the `void convert()` function is this:
+```
+void convert() 
+{
+  if( canRead() && canWrite() ) write(convert(read()));
+}
+```
+If data has been received from the computer **and** we have space to schedule output data to the printer then
+read the input data, call the `byte convert(byte data)` function and schedule its result to be sent to the printer.
+
+A more complex example can be found in the implementation of the `void convert()` function in the
+[ConverterTandyMPS801](https://github.com/dhansel/IECDevice/blob/5724cff6040543991a420c1624d976b8e8a48e9b/examples/IECCentronics/ConverterTandyMPS801.cpp#L264) class.
+
+The general framework to implementing a converter using this method is the same as from the previous
+(simple converter) section. The only change is which one of the two `convert` functions gets overridden.
+
+### Converter class reference
+
+The `Converter` class has the following functions that can be overridden in the derived class.
+Note that overriding all these functions is optional, although you would want to override one
+of the `convert` functions, otherwise your converter will just pass the input through to the
+printer as is.
+
+- `byte convert(byte data)` This function is called whenever a character is has been received 
+  from the computer. The **data** value is the received data and the return value is what will
+  be sent to the printer.
+- `void convert()` This function is called periodically and can be used to implement more advanced
+  conversions involving more than one byte of data. It should call the `canRead, read, canWrite, write`
+  functions (see below) to perform the actual conversions.
+- `void begin()` This function is called when the converter becomes active, either at startup or
+  when the DIP switch setting is changed *to* this converter.
+- `void end()` This function is falled when the DIP switch seting is changed *away from* this converter.
+- `void setChannel(byte channel)` This function is called when the computer starts sending data to the device.
+  The **channel** parameter contains the secondary address used in the corresponding *OPEN* command
+  on the computer (e.g. if `OPEN 1,4,7` was used then the channel number is 7).
+- `bool ledStatus()` This function is called repeatedly to update the status of the LED on the IECCentronics
+  board. Returning true will turn the LED on. If this function is not overridden then the LED will be
+  on as long as the receive buffer if not full.
+- `void getStatus(char buffer[], byte buflen)` This function is called when the user queries the status channel (channel 15). 
+  It should fill the **buffer** with a status message of up to **buflen** characters. This message is then
+  sent back to the computer. If this function is not overridden then the status messages will match the
+  ones described in the *Status Channel* section above.
+- `void execCommand(char *command)` This function is called if the computer sends a command on the
+  command channel (channel 15). Overriding it enables you to process such commands, for example allowing
+  the computer to programmatically change the behavior of the converter.
+
+Aside from the functions that can be overridden, the `Converter` class also provides a number of helper
+functions for the actual conversion. These are mostly helpful within the `void convert()` function:
+
+- `int canRead()` Returns the number of data bytes currently in the *receive* buffer, i.e. bytes that
+  have been sent by the computer and not yet processed for conversion. The receive buffer is 256 bytes long.
+- `byte read()` Returns the next data byte in the receive buffer. Returns 255 if the receice buffer is empty.
+- `int canWrite()` Returns the number of available bytes in the send buffer. The send buffer contains data
+  that has been scheduled to be sent to the printer but has not yet been sent. The send buffer is 256 bytes long.
+- `bool write(byte data)` Schedules a byte of data to be sent to the printer. Returns *false* if the send buffer
+  is full and can not accept more data, otherwise returns *true*.
