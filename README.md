@@ -41,7 +41,7 @@ signal (see [timing considerations](#timing-considerations) section below).
 When looking at the IEC bus connector at the back of your computer, the pins are as follows:
 
 <img src="IECBusPins.jpg" width="25%" align="center">   
-(1=SRQ, 2=GND, 3=ATN, 4=Clock, 5=Data, 6=Reset)<br><br>
+(1=SRQ [not used], 2=GND, 3=ATN, 4=Clock, 5=Data, 6=Reset)<br><br>
   
 For 3.3V platforms (Raspberry Pi Pico, ESP32, Arduino Due) a level shifter is required to isolate the
 microcontroller from the 5V signals on the IEC bus. I am using this [SparkFun level converter](https://www.sparkfun.com/products/12009) 
