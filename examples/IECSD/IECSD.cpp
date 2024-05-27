@@ -221,7 +221,7 @@ bool IECSD::readDir(byte *data)
 
 bool IECSD::isMatch(const char *name, const char *pattern)
 {
-  char found = -1;
+  signed char found = -1;
 
   for(byte i=0; found<0; i++)
     {
