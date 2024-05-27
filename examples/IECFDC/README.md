@@ -18,6 +18,9 @@ IEFDC supports the same disk drive types as [ArduinoFDC](https://github.com/dhan
 
 By default type 4 is assumed. The drive type can be changed via the "XT=n" DOS command (see below)
 
+Initially this device will show up as device #9 on the IEC bus. The device number can be changed
+using the 'Xnn' command. For example, `OPEN 1,9,15,"X10!":CLOSE 1` will change the device number to 10.
+
 ## Wiring
 
 To wire the disk drive I recommend using the [ArduinoFDC shield](https://github.com/dhansel/ArduinoFDC#arduinofdc-shields).
