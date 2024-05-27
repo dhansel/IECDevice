@@ -4,6 +4,9 @@ This example demonstrates how to implement a very basic IEC-to-serial converter 
 class. It can be used to connect a microcontroller (e.g Arduino Uno) to the Commodore IEC bus and
 communicate with the computer using a serial connection.
 
+As is, this device will show up as device #4 on the IEC bus. The device number can be changed
+by altering the `#define DEVICE_NUMBER 4` line in IECBasicSerial.ino.
+
 ## Wiring
 
 The following table lists the pin connections for this example for different microcontrollers
