@@ -1,7 +1,10 @@
 # IECSD
 
 This example demonstrates how to implement a simple SD card reader for the IEC bus
-using the IECFileDevice class
+using the IECFileDevice class.
+
+As is, this device will show up as device #9 on the IEC bus. The device number can be changed
+by altering the `#define DEVICE_NUMBER 9` line in IECSD.ino.
 
 ## Wiring
 
