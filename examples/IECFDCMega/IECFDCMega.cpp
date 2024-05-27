@@ -67,7 +67,7 @@ void IECFDC::begin(byte devnr)
   if( devnr==0xFF )
     {
       devnr = EEPROM.read(0);
-      if( devnr<3 || devnr>15 ) { devnr = 8; EEPROM.write(0, devnr); }
+      if( devnr<3 || devnr>15 ) { devnr = 9; EEPROM.write(0, devnr); }
     }
   IECFileDevice::begin(devnr);
   if( m_pinLED<0xFF ) pinMode(m_pinLED, OUTPUT);
