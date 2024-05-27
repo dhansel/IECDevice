@@ -12,6 +12,9 @@ memory space (SRAM and flash) as well as the larger number of pins available on 
 IEFDC supports the same disk drive types as [ArduinoFDC](https://github.com/dhansel/ArduinoFDC/blob/main/README.md#supported-diskdrive-types):
 By default a 3" HD drive is assumed. The drive type can be changed via the "XT=n" or "XT=mnemonic" DOS command (see below).
 
+Initially this device will show up as device #9 on the IEC bus. The device number can be changed
+using the 'Xnn' command. For example, `OPEN 1,9,15,"X10!":CLOSE 1` will change the device number to 10.
+
 ## Wiring
 
 To wire the disk drive I recommend using the [ArduinoFDC shield](https://github.com/dhansel/ArduinoFDC#arduinofdc-shields).
