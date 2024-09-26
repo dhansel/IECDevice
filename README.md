@@ -327,7 +327,7 @@ The IECDevice class has the following functions that may/must be called from you
   This function must be called **if** your device should support the DolphinDos parallel protocol.
   In most cases devices with DolphinDos support should be derived from the IECFileDevice class
   which handles DolphinDos support internally and you do not have to call enableDolphinDosSupport().
-  For more information see the [DolphinDos support](dolphindos-support) section below.
+  For more information see the [DolphinDos support](#dolphindos-support) section below.
   You can also use this function to disable DolphinDos support after it has been enabled.
 
 - ```void setBuffer(byte *buffer, byte bufferSize);```
@@ -339,7 +339,7 @@ The IECDevice class has the following functions that may/must be called from you
 
 - ```void setDolphinDosPins(...)```
   This function can be called **before** calling enableDolphinDosSupport to specify the pins to be used
-  for the DolphinDos parallel cable. See the [DolphinDos support](dolphindos-support) section below 
+  for the DolphinDos parallel cable. See the [DolphinDos support](#dolphindos-support) section below 
   for more information.
 
 The following functions can be overloaded in the derived device class to implement the device functions.
@@ -409,7 +409,7 @@ For more information see the [JiffyDos support](jiffydos-support) section below.
 The following functions should be overloaded if the DolphinDos parallel protocol should be supported.
 In most cases devices with DolphinDos support should be derived from the IECFileDevice class
 which handles DolphinDos support internally and you do not have to implement these functions.
-For more information see the [DolphinDos support](dolphindos-support) section below.
+For more information see the [DolphinDos support](#dolphindos-support) section below.
 
 - ```byte write(byte devnr, byte *buffer, byte bufferSize, bool eoi)```
   This function is only called when the device is receiving data using the DolphinDos block transfer (SAVE protocol).
@@ -462,7 +462,7 @@ The IECFileDevice class has the following functions that may/must be called from
 
 - ```void setDolphinDosPins(...)```
   This function can be called before calling enableDolphinDosSupport to specify the pins to be used
-  for the DolphinDos parallel cable. See the [DolphinDos support](dolphindos-support) section below 
+  for the DolphinDos parallel cable. See the [DolphinDos support](#dolphindos-support) section below 
   for more information.
 
 - ```void task()```
