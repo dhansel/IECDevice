@@ -1,0 +1,203 @@
+; ===================  Disassembly of JiffyDos I/O routines in C64 kernal  ===================
+
+; =====  LOAD/VERIFY  =====
+
+FAF0	jsr	IncrClock22		; <STOP> key pressed?
+FAF3	bpl	FB27                    ; jump if so
+FAF5	lda	VICCTR1			; read the vertical fine scroll
+FAF8	and	#$07
+FAFA	clc
+FAFB	adc	#$2F			; add $2F - start of the visible screen
+FAFD	sta	$B1
+FAFF	lda	CIA2DRA
+FB02	and	#$07			; all IEC lines (H)
+FB04	sta	$B2
+FB07	sta	CIA2DRA                 ; 
+FB0A	ora	#$20			; DATA line := (L)
+FB0B    tax				; X := %0000 0xxx (used at FB51)
+FB0C	bit	CIA2DRA			; get CLK/DATA line into V/N flags
+FB0F	bvc	FB0C			; wait if CLK LOW
+FB11	bpl	FB3E			; if DATA LOW -> LOAD
+FB13   	ldx	#$64
+FB15    bit	CIA2DRA			; get CLK line into V flag
+FB18	bvc	FB20			; if LOW -> EOI
+FB1A	dex				; another loop?
+FB1B	bne	FB15			; yes, -> 
+FB1D	lda	#$42			; EOI & READ TIME OUT
+FB1F	.by $2C				; dummy BIT opcode
+FB20    lda	#$40			; EOI found
+FB22	jsr	AorIecStatus		; set status
+FB25	clc
+FB26	.by $24				; dummy BIT opcode
+FB27    sec
+FB28	lda	$B0
+FB2A	sta	VICSPEN			; enable sprites by using stored value
+FB2D	pla
+FB2E	sta	$B0                     ; restore $B0
+FB30	pla
+FB31	sta	$B1                     ; restore $B1
+FB33	pla
+FB34	sta	$B2                     ; restore $B2
+FB36	bcs	FB3B			; if carry set, exit the normal way
+FB38	jmp	jdCloseFile		;
+FB3B	jmp	CloseIecBus		;
+FB3E	bit	CIA2DRA			; get DATA line into N flag
+FB41	bpl	FB3E			; wait if DATA still LOW
+FB43	sec
+FB44	lda	VICLINE                 ; get current VIC II raster line
+FB47 	sbc	$B1			; visible screen?
+FB49	bcc	FB4F			; no -> go ahead
+FB4B	and	#$07                    ; bad line (VIC needs the bus)?
+FB4D	beq	FB44                    ; yes -> wait
+FB4F	lda	$B2                     ;        %0000 0xxx     
+FB51 	stx	CIA2DRA			;  0 (4) store %0010 0xxx => DATA line := (L)
+FB54	bit	CIA2DRA			;  4 (4) get CLK line into V flag
+FB57	bvc	FAF0			;  8 (2) branch if CLK LOW (sender not ready)
+FB59	nop                             ; 10 (2)
+FB5A	sta	CIA2DRA			; 12 (4) store %0000 0xxx => DATA line := (H)
+FB5D	ora	CIA2DRA                 ; 16 (4) read bits 0+1
+FB60	lsr	                        ; 20 (2)
+FB61	lsr	                        ; 22 (2)
+FB62	nop                             ; 24 (2)
+FB63	ora	CIA2DRA                 ; 26 (4) read bits 2+3
+FB66	lsr	                        ; 30 (2)
+FB67	lsr	                        ; 32 (2)
+FB68	eor	TEMPA4                  ; 34 (3)
+FB6A	eor	CIA2DRA                 ; 37 (4) read bits 4+5
+FB6D	lsr	                        ; 41 (2)
+FB6E	lsr	                        ; 43 (2)
+FB6F	eor	TEMPA4                  ; 45 (3)
+FB71	eor	CIA2DRA                 ; 48 (4) read bits 6+7
+FB74	cpy	LoadVerify2		; LOAD?
+FB76	bne	FB83			; no, -> VERIFY
+FB78	sta	(EAL),Y			; store received byte
+FB7A	inc	EAL                     ; increment target address
+FB7C	bne	FB44
+FB7E	inc	EAL+1
+FB80	jmp	FB44			; next byte
+
+FB83	cmp	(EAL),Y			; compare OK?
+FB85	beq	A_FB7A			; yes, -> continue
+FB87	sec
+FB88	lda	#$10			; VERIFY ERROR
+FB8A	sta	STATUS
+FB8C	bne	A_FB7A			; always ->
+
+
+; =====  read byte from IEC  =====
+
+FBB4	lda	CIA2DRA
+	cmp	#$40
+	bcc	jdIecByteIn3
+	and	#$07
+	pha
+FBBE    lda	VICLINE
+	sbc	VICCTR1
+	and	#$07
+	cmp	#$07
+	bcs	A_FBBE
+	pla
+	sta	CIA2DRA			; store %0000 0xxx
+	sta	TEMPA4
+	ora	#$20
+	pha
+FBCB 	sta	CIA2DRA			;  0 (4) store %0000 0xxx (release DATA)
+FBCE	sta	$A4                     ;  4 (3)
+FBD0	ora	#$20                    ;  7 (2)
+FBD2	pha                             ;  9 (3)
+FBD3	nop                             ; 12 (2)
+FBD4	nop                             ; 14 (2)
+FBD5	ora	CIA2DRA                 ; 16 (4) read bits 0+1
+FBD8	lsr	                        ; 20 (2)
+FBD9	lsr	                        ; 22 (2)
+FBDA	nop                             ; 24 (2)
+FBDB	ora	CIA2DRA                 ; 26 (4) read bits 2+3
+FBDE	lsr	                        ; 30 (2)
+FBDF	lsr	                        ; 32 (2)
+FBE0	eor	$A4                     ; 34 (3)
+FBE2	eor	CIA2DRA                 ; 37 (4) read bits 4+5
+FBE5	lsr	                        ; 41 (2)
+FBE6	lsr	                        ; 43 (2)
+FBE7	eor	$A4                     ; 45 (3)
+FBE9	eor	CIA2DRA                 ; 48 (4) read bits 6+7
+FBEC	sta	$A4                     ; 52 (3) save received byte
+FBED	pla                             ; 55 (4)
+FBEF	bit	CIA2DRA                 ; 59 (4) get CLK/DATA line into V/N flags
+FBF2	sta	CIA2DRA			; 63 (4) store %0010 0xxx (pull DATA low)
+FBF5	bvc	FC22			; if CLK  LOW then done
+	bpl	FC1D			; if DATA LOW then EOI
+	lda	#$42			; otherwise EOI & READ TIME OUT
+	jmp	SetIecStatus
+...
+FC1D    lda	#$40			; set EOI
+	jsr	AorIecStatus
+FC22	lda	$A4			; get received byte back
+FC24	cli
+	clc
+	rts
+
+
+; =====  write byte to IEC  =====
+
+	txa				; save X
+	pha
+	lda	BSOUR			; byte to be send
+	and	#$F0
+	pha				; save upper four bits
+	lda	BSOUR
+	and	#$0F
+	tax				; X := lower four bits of data byte
+FC33    lda	CIA2DRA			; get DATA line into N flag
+	bpl	A_FC33			; wait if DATA is LOW
+	and	#$07
+	sta	BSOUR
+	sec
+FC3D	lda	VICLINE
+	sbc	VICCTR1
+	and	#$07
+	cmp	#$06
+	bcs	A_FC3D
+	lda	BSOUR			; = % 0000 0xxx
+	sta	CIA2DRA			; all line (H)
+	pla				; upper four bits
+	ora	BSOUR
+FC4B 	sta	CIA2DRA			;  0 (4) CLK high
+FC4E  	pla				;  4 (4) upper four bits
+FC4F	ora	$95                     ;  8 (3) 
+FC51	sta	CIA2DRA			; 11 (4) transmit bits 4 and 5
+FC54	lsr	                        ; 15 (2)
+FC55	lsr	                        ; 17 (2)
+FC56	and	#$F0                    ; 19 (2)
+FC58	ora	$95                     ; 21 (3)
+FC5A	sta	CIA2DRA			; 24 (4) transmit bits 6 and 7
+FC5D	lda	jdBits,X		; 28 (4) "load" lower four bits
+FC60	ora	$95                     ; 32 (3)
+FC62	sta	CIA2DRA			; 35 (4) transmit bits 3 and 1
+FC65	lsr	                        ; 39 (2)
+FC66	lsr	                        ; 41 (2)
+FC67	and	#$F0                    ; 43 (2)
+FC69	ora	$95                     ; 45 (3)
+FC6B	sta	CIA2DRA			; 48 (4) transmit bits 2 and 0
+FC6E	and	#$0F                    ; 52 (2) CLK and DATA high (0)
+FC70	bit	$A3			; 54 (3) signal EOI?
+FC72	bmi	FC76			; 57 (2) yes: CLK high
+FC74	ora	#$10			; 59 (2) no: CLK low
+FC76 	sta	CIA2DRA                 ; 61 (4) set CLK and DATA
+FC79	pla                             ; 65 (4)
+FC7A	tax				; 69 (2) restore X
+FC7B	lda	BSOUR                   ; 71 (3)
+FC7D	ora	#$10			; 74 (2) CLK := (L)
+FC7F	sta	CIA2DRA                 ; 76 (4) 
+FC82	bit	CIA2DRA			; 80 (4) get DATA line into N flag
+FC85	bpl	FC24			; return (ok) if DATA is LOW
+FC87	jmp	$EDB0			; timeout error
+
+jdBits:
+.by $00, $80, $20, $A0, $40, $C0, $60, $E0
+.by $10, $90, $30, $B0, $50, $D0, $70, $F0
+
+...
+FC24    cli
+	clc
+	rts
+

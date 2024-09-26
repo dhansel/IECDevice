@@ -1,0 +1,125 @@
+Multi-Dub Two changes to allow auto-copy between different drives:
+(use VICE monitor)
+
+- RUN MultiDub Two
+- break into monitor
+- fill 0400 07E7 20
+- save "md2.prg" 0 02a7 1412
+- reset
+- LOAD MultiDub Two
+- break into monitor
+- Modify re-location code:
+.C:094d  A2 84       LDX #$84           ; start of code after LOAD
+.C:094f  A0 09       LDY #$09
+.C:0951  86 FB       STX $FB
+.C:0953  84 FC       STY $FC
+.C:0955  A2 A7       LDX #$A7           ; relocate to address
+.C:0957  A0 02       LDY #$02
+.C:0959  86 FD       STX $FD
+.C:095b  84 FE       STY $FE
+.C:095d  A0 00       LDY #$00
+.C:095f  B1 FB       LDA ($FB),Y
+.C:0961  91 FD       STA ($FD),Y
+.C:0963  8D 20 D0    STA $D020          ; produce screen effect
+.C:0966  8D 21 D0    STA $D021
+.C:0969  E6 FB       INC $FB
+.C:096b  D0 02       BNE $096F
+.C:096d  E6 FC       INC $FC
+.C:096f  E6 FD       INC $FD
+.C:0971  D0 02       BNE $0975
+.C:0973  E6 FE       INC $FE
+.C:0975  A5 FB       LDA $FB
+.C:0977  C5 AE       CMP $AE            ; $AE/$AF are end address after LOAD
+.C:0979  D0 E4       BNE $095F
+.C:097b  A5 FC       LDA $FC
+.C:097d  C5 AF       CMP $AF
+.C:097f  D0 DE       BNE $095F
+.C:0981  4C 78 14    JMP $1472          ; jump to initialization
+- load "md2.prg" 0 0984
+- Add new code:
+; ($13e9) auto-swap current drive between read/write
+.C:1ac6  20 12 10    JSR $1012          ; code that was replaced by jump to here
+.C:1ac9  AD FD 03    LDA $03FD
+.C:1acc  CD FE 03    CMP $03FE          ; src=dst?
+.C:1acf  D0 03       BNE $1AD4          ; jump if not
+.C:1ad1  4C A4 11    JMP $11A4          ; show menu
+.C:1ad4  AD FF 03    LDA $03FF          ; flip flag
+.C:1ad7  49 FF       EOR #$FF
+.C:1ad9  8D FF 03    STA $03FF
+.C:1adc  D0 09       BNE $1AE7          ; jump if next action is WRITE
+.C:1ade  AD FD 03    LDA $03FD          ; get source drive
+.C:1ae1  8D 94 02    STA $0294          ; set as current drive
+.C:1ae4  4C D0 11    JMP $11D0          ; jump to READ routine
+.C:1ae7  AD FE 03    LDA $03FE          ; get destination drive
+.C:1aea  8D 94 02    STA $0294          ; set as current drive
+.C:1aed  4C 06 12    JMP $1206          ; jump to WRITE routine
+; ($1413) display source/destination drive number
+.C:1af0  8E 04 D4    STX $D404          ; code that was replaced by jump to here
+.C:1af3  20 ED 0B    JSR $0BED          ; display main screen
+.C:1af6  A9 53       LDA #$53           ; write "S"
+.C:1af8  8D E1 07    STA $07E1
+.C:1afb  AD FD 03    LDA $03FD          ; get source drive
+.C:1afe  A0 01       LDY #$01           ; screen offset for source
+.C:1b00  20 30 14    JSR $1430          ; ($1b0d)
+.C:1b03  A9 44       LDA #$44           ; write "D"
+.C:1b05  8D E5 07    STA $07E5
+.C:1b08  AD FE 03    LDA $03FE          ; get destination drive
+.C:1b0b  A0 05       LDY #$05           ; screen offset for destination
+.C:1b0d  A2 30       LDX #$30           ; get "0" as 10s-digit
+.C:1b0f  18          CLC
+.C:1b10  69 30       ADC #$30           ; add "0" to 1s-digit
+.C:1b12  C9 3A       CMP #$3A           ; is 1s-digit > "9"?
+.C:1b14  90 03       BCC $1B19          ; jump if not
+.C:1b16  E8          INX                ; switch 10s-digit to "1"
+.C:1b17  E9 0A       SBC #$0A           ; subtract 10 from 1s-digit
+.C:1b19  99 E2 07    STA $07E2,Y        ; store 1s-digit
+.C:1b1c  8A          TXA                
+.C:1b1d  99 E1 07    STA $07E1,Y        ; store 10s-digit
+.C:1b20  60          RTS                ; return
+; ($1444) handle S/D keys to change drive numbers
+.C:1b21  20 E4 FF    JSR $FFE4          ; get input character
+.C:1b24  A2 00       LDX #$00           ; 0=source drive
+.C:1b26  C9 53       CMP #$53           ; was input "S"?
+.C:1b28  F0 05       BEQ $1B2F          ; jump if so
+.C:1b2a  C9 44       CMP #$44           ; was input "D"?
+.C:1b2c  D0 F2       BNE $1B20          ; jump if not
+.C:1b2e  E8          INX                ; 1=destination drive
+.C:1b2f  BD FD 03    LDA $03FD,X        ; get drive number
+.C:1b32  18          CLC 
+.C:1b33  69 01       ADC #$01           ; add one
+.C:1b35  C9 10       CMP #$10           ; are we at 16?
+.C:1b37  90 02       BCC $1B3B          ; jump if not
+.C:1b39  A9 04       LDA #$04           ; reset to 4
+.C:1b3b  9D FD 03    STA $03FD,X        ; store drive number
+.C:1b3e  4C 19 14    JMP $1419          ; ($1af0) display drive numbers and return
+; ($1464) initialize current drive and flag at start of copy
+.C:1b41  AD FD 03    LDA $03FD          ; get source drive
+.C:1b44  8D 94 02    STA $0294          ; set as current
+.C:1b47  A9 00       LDA #$00           ; current action is READ
+.C:1b49  8D FF 03    STA $03FF          ; set flag
+.C:1b4c  4C A8 09    JMP $09A8          ; jump to start of COPY
+; ($1472) set source and destination drive on startup
+.C:1b4f  AD 94 02    LDA $0294          ; get current drive number
+.C:1b52  F0 06       BEQ $1B5A          ; jump if nothing set
+.C:1b54  8D FD 03    STA $03FD          ; set source drive
+.C:1b57  8D FE 03    STA $03FE          ; set destination drive
+.C:1b5a  4C 8E 0D    JMP $0D8E          ; go to startup
+.C:1b5c
+- Modify existing code to jump into new code:
+  a 187e ($11a1)
+  jmp $13e9 ; auto-swap current drive between read/write
+  a 12c7 ($0bea)
+  jmp $1413 ; display source/destination drive number           
+  a 14d2 ($0df5)
+  jsr $1444 ; handle S/D keys to change drive numbers
+  a 14e1 ($0e04)
+  jmp $1464 ; initialize current drive and flag at start of copy
+- Update end-of-code pointers in existing code:
+  a 112a ($0a4d)
+  ldx #$81 ; $1481 = $1b5c - $6DB
+  ldy #$14
+  a 1772 ($1095)
+  ldx #$81 ; $1481 = $1b5c - $6DB
+  ldy #$14
+- Save final program:
+  s "multi-dub two.1" 0 0801 1b5c

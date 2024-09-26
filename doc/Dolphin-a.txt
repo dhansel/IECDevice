@@ -1,0 +1,575 @@
+; ===================  Disassembly of DolphinDos I/O routines in C64 kernal  ===================
+
+; Serial data register on CIA#1 ($DC0C) is used as flag storage (all flags are active "1"):
+;   bit 7: parallel cable to floppy detected
+;   bit 6: use Centronics printer on user port
+;   bit 1: Centronics printer on user port detected
+;   bit 0: convert PETSCII->ASCII for Centronics printer
+
+
+; =====  LOAD/VERIFY entry point (same as original kernal)  =====
+
+f49e  86 C3       STX $C3            ; store load address (low)
+f4a0  84 C4       STY $C4            ; store load address (high)
+f4a2  6C 30 03    JMP ($0330)        ; ($0330) points to $F4A5
+f4a5  85 93       STA $93            ; verify flag (0=load, otherwise verify)
+f4a7  A9 00       LDA #$00           ; clear serial status
+f4a9  85 90       STA $90
+f4ab  A5 BA       LDA $BA            ; get device number
+f4ad  D0 03       BNE $F4B2          ; jump if not 0
+f4af  4C 13 F7    JMP $F713          ; "ILLEGAL DEVICE NUMBER" error
+f4b2  C9 03       CMP #$03           ; is it device #3 (screen)?
+f4b4  F0 F9       BEQ $F4AF          ; jump if so (error)
+f4b6  90 DD       BCC $F495          ; jump if device number < 3
+f4b8  A4 B7       LDY $B7            ; get file name length
+f4ba  D0 03       BNE $F4BF          ; jump if >0
+f4bc  20 F5 F0    JSR $F0F5          ; "MISSING FILE NAME" error
+f4bf  A6 B9       LDX $B9            ; get secondary address into X
+f4c1  20 AF F5    JSR $F5AF          ; print "SEARCHING FOR ..."
+f4c4  A9 60       LDA #$60           ; secondary address $60
+f4c6  85 B9       STA $B9            ; 
+f4c8  20 D5 F3    JSR $F3D5          ; send OPEN
+f4cb  A5 BA       LDA $BA            ; 
+f4cd  20 09 ED    JSR $ED09          ; send TALK
+f4d0  A5 B9       LDA $B9            ; 
+f4d2  20 C7 ED    JSR $EDC7          ; send secondary address and detect parallel cable
+f4d5  20 13 EE    JSR $EE13          ; get byte from serial bus
+f4d8  85 AE       STA $AE            ; load address (low)
+f4da  A5 90       LDA $90            ; get serial status
+f4dc  4A          LSR A
+f4dd  4A          LSR A
+f4de  B0 50       BCS $F530          ; jump if timeout error ("FILE NOT FOUND")
+f4e0  20 13 EE    JSR $EE13          ; get byte from serial bus
+f4e3  85 AF       STA $AF            ; load addres (high)
+f4e5  8A          TXA                ; override load address?
+f4e6  D0 08       BNE $F4F0          ; jump if not
+f4e8  A5 C3       LDA $C3            ; override
+f4ea  85 AE       STA $AE
+f4ec  A5 C4       LDA $C4
+f4ee  85 AF       STA $AF
+f4f0  4C BB EE    JMP $EEBB          ; continue at $EEBB
+eebb  20 D2 F5    JSR $F5D2          ; print either "LOADING" or "VERIFYING"
+eebe  E0 02       CPX #$02
+eec0  F0 08       BEQ $EECA          ; if X (secondary address) is 2 then do regular load
+eec2  A0 00       LDY #$00
+eec4  B1 BB       LDA ($BB),Y        ; get first character of file name
+eec6  C9 24       CMP #$24           ; is it "$" (directory)?
+eec8  D0 03       BNE $EECD          ; skip if not
+eeca  4C F3 F4    JMP $F4F3          ; jump to regular load
+eecd  AE 0C DC    LDX $DC0C          ; did we detect parallel cable (at $F4D2)
+eed0  10 F8       BPL $EECA          ; jump if not (do regular load)
+eed2  A0 51       LDY #$51           ; "Q"
+eed4  20 EB F0    JSR $F0EB          ; send "XQ" on command channel 15 and save PORTB state
+eed7  20 6F F7    JSR $F76F          ; switch PORTB from output to input and pull DATA low
+eeda  20 EF EF    JSR $EFEF          ; wait for floppy to start BURST transfer (wait for FLAG2 with timeout)
+eedd  F0 EB       BEQ $EECA          ; jump if FLAG2 not seen (regular load but using parallel cable)
+
+; --- Dolphin BURST load/verify
+
+eedf  A5 9D       LDA $9D            ; should we print load addresses?
+eee1  10 0B       BPL $EEEE          ; skip if not
+eee3  A0 2A       LDY #$2A           ; point to " $" message string
+eee5  20 2F F1    JSR $F12F          ; print message, returns with Y=$2C (pointing to "-$" message string)
+eee8  20 90 F8    JSR $F890          ; print start address (Y remains unchanged)
+eeeb  20 2F F1    JSR $F12F          ; print message
+eeee  A5 AE       LDA $AE            ; save start address (low)
+eef0  85 C3       STA $C3
+eef2  A5 AF       LDA $AF            ; save start address (high)
+eef4  85 C4       STA $C4
+eef6  20 A1 F5    JSR $F5A1          ; wait for (and ignore) repeat of start address LOW
+eef9  AA          TAX
+eefa  2C 00 DD    BIT $DD00
+eefd  70 4A       BVS $EF49          ; exit loop if CLK high
+eeff  2C 0D DD    BIT $DD0D          ; wait for (and ignore) repeat of start address HIGH
+ef02  F0 F6       BEQ $EEFA          ; keep waiting for FLAG2
+ef04  2C 01 DD    BIT $DD01          ; produce pulse on PC2
+ef07  24 91       BIT $91            ; get STOP key flag
+ef09  10 20       BPL $EF2B          ; exit if STOP key pressed
+ef0b  A0 00       LDY #$00
+; load/verify loop
+ef0d  A5 93       LDA $93            ; is this a verify?
+ef0f  D0 20       BNE $EF31          ; jump if so
+; load 256 bytes
+ef11  8A          TXA                ; X = $10
+ef12  2C 00 DD    BIT $DD00
+ef15  70 32       BVS $EF49          ; exit loop if CLK high
+ef17  2C 0D DD    BIT $DD0D         
+ef1a  F0 F6       BEQ $EF12          ; keep waiting for FLAG2
+ef1c  AD 01 DD    LDA $DD01          ; get data and produce pulse on PC2
+ef1f  91 AE       STA ($AE),Y        ; store data
+ef21  E6 AE       INC $AE            ; increment low addr
+ef23  D0 EC       BNE $EF11          ; repeat if not 0
+ef25  E6 AF       INC $AF            ; increment high addr
+ef27  24 91       BIT $91            ; get STOP key flag
+ef29  30 E2       BMI $EF0D          ; repeat if STOP not pressed
+ef2b  20 36 F7    JSR $F736          ; finish up after LOAD
+ef2e  4C 36 F6    JMP $F636          ; return with fail status
+; verify 256 bytes
+ef31  8A          TXA                ; X = $10
+ef32  2C 00 DD    BIT $DD00
+ef35  70 12       BVS $EF49          ; exit loop if CLK high
+ef37  2C 0D DD    BIT $DD0D
+ef3a  F0 F6       BEQ $EF32          ; keep waiting for FLAG2
+ef3c  AD 01 DD    LDA $DD01          ; get data and produce pulse on PC2
+ef3f  D1 AE       CMP ($AE),Y        ; compare data
+ef41  D0 23       BNE $EF66          ; exit if different (error)
+ef43  E6 AE       INC $AE            ; increment low addr
+ef45  D0 EA       BNE $EF31          ; repeat if not 0
+ef47  F0 DC       BEQ $EF25          ; go to increment high data
+
+ef49  20 97 EE    JSR $EE97          ; release DATA 
+ef4c  A0 40       LDY #$40           ; EOI for serial flags
+ef4e  8A          TXA                ; X = $10
+ef4f  2C 0D DD    BIT $DD0D          ; check FLAG2
+ef52  D0 0A       BNE $EF5E          ; if found, set serial status, finish up and exit
+ef54  E8          INX
+ef55  D0 F8       BNE $EF4F          ; keep checking until timeout
+ef57  A0 42       LDY #$42           ; EOI+timeout for serial flags
+ef59  20 5E EF    JSR $EF5E          ; set serial status and finish up after LOAD
+ef5c  90 D0       BCC $EF2E          ; always jump, return with fail status
+
+ef5e  84 90       STY $90            ; set serial flags
+ef60  20 40 F7    JSR $F740          ; finish up after LOAD
+ef63  4C A9 F5    JMP $F5A9          ; continue at $F5A9
+ef66  20 36 F7    JSR $F736          ; finish up after LOAD
+ef69  A9 50       LDA #$50           ; EOI+Verify Error for serial flags
+ef6b  85 90       STA $90            ; store
+ef6d  D0 F4       BNE $EF63          ; jump always (done)
+
+f5a9  18          CLC                ; no error
+f5aa  A6 AE       LDX $AE            ; get end address (low)
+f5ac  A4 AF       LDY $AF            ; get end address (high)
+f5ae  60          RTS
+
+; finish up after LOAD
+f736  20 97 EE    JSR $EE97          ; release DATA and get serial port status into A
+f739  2C 01 DD    BIT $DD01          ; produce pulse on PC2
+f73c  29 40       AND #$40           ; isolate CLK line
+f73e  F0 F6       BEQ $F736          ; wait until CLK high
+f740  A5 C4       LDA $C4            ; get load address (high)
+f742  C9 08       CMP #$08           ; was it lower than $0800?
+f744  90 07       BCC $F74D          ; skip printing if lower (non-standard load address)
+f746  A5 9D       LDA $9D            ; should we print load addresses?
+f748  10 03       BPL $F74D          ; skip if not
+f74a  20 90 F8    JSR $F890          ; print content of $AE/$AF in hex
+f74d  4C 58 F9    JMP $F958          ; restore saved PORTB state, reset flags and return
+
+=====  SAVE entry point (same as original kernal)  =====
+
+f5dd  86 AE       STX $AE            ; end address (low)
+f5df  84 AF       STY $AF            ; end address (high)
+f5e1  AA          TAX                ; start address is in $00+A
+f5e2  B5 00       LDA $00,X          ; get start address (low)
+f5e4  85 C1       STA $C1
+f5e6  B5 01       LDA $01,X          ; get start address (high)
+f5e8  85 C2       STA $C2
+f5ea  6C 32 03    JMP ($0332)        ; ($0332) points to $F5ED
+f5ed  A5 BA       LDA $BA            ; get device number
+f5ef  D0 03       BNE $F5F4          ; jump if non-zero
+f5f1  4C 13 F7    JMP $F713          ; "ILLEGAL DEVICE NUMBER" error
+f5f4  C9 03       CMP #$03           ; is it device #3 (screen)?
+f5f6  F0 F9       BEQ $F5F1          ; jump if so (error)
+f5f8  90 5F       BCC $F659          ; jump if less than 3
+f5fa  A9 61       LDA #$61           ; secondary address
+f5fc  85 B9       STA $B9
+f5fe  A4 B7       LDY $B7            ; get file name length
+f600  D0 03       BNE $F605          ; is it >0?
+f602  4C 10 F7    JMP $F710          ; "MISSING FILE NAME" error
+f605  20 D5 F3    JSR $F3D5          ; send OPEN
+f608  20 8F F6    JSR $F68F          ; print "SAVING"
+f60b  A5 BA       LDA $BA
+f60d  20 0C ED    JSR $ED0C          ; send LISTEN
+f610  A5 B9       LDA $B9
+f612  20 B9 ED    JSR $EDB9          ; send secondary address and detect parallel cable
+f615  A0 00       LDY #$00
+f617  20 8E FB    JSR $FB8E          ; get start address into $AC/$AD
+f61a  A5 AC       LDA $AC            ; get low start address
+f61c  20 DD ED    JSR $EDDD          ; send on serial bus
+f61f  A5 AD       LDA $AD            ; get high start address
+f621  4C 6F EF    JMP $EF6F          ; continue at EF6F
+ef6f  20 DD ED    JSR $EDDD          ; send on serial bus
+ef72  A5 90       LDA $90            ; get serial status
+ef74  F0 05       BEQ $EF7B          ; only proceed to burst mode if serial status is 0 (no errors)
+ef76  A0 00       LDY #$00
+ef78  4C 24 F6    JMP $F624          ; jump to regular save mode (F-)
+ef7b  AE 0C DC    LDX $DC0C          ; did we detect parallel cable (at $F612)
+ef7e  10 F6       BPL $EF76          ; jump if not (do regular save)
+ef80  A0 5A       LDY #$5A           ; "Z"
+ef82  20 EB F0    JSR $F0EB          ; send "XZ" on command channel 15 and save PORTB state (also releases CLK)
+ef85  20 8E EE    JSR $EE8E          ; pull CLK low 
+ef88  20 EF EF    JSR $EFEF          ; wait for floppy to confirm BURST transfer (wait for FLAG2 with timeout)
+ef8b  F0 E9       BEQ $EF76          ; jump if FLAG2 not seen (regular save but using parallel cable)
+
+; --- Dolphin BURST save
+
+ef8d  A4 AC       LDY $AC            ; get low byte of program start address into Y
+ef8f  8C 01 DD    STY $DD01          ; transmit and produce pulse on PC2
+ef92  20 D1 FC    JSR $FCD1          ; is start address less than end address (carry will be clear if so)?
+ef95  A6 AD       LDX $AD            ; get high byte of start address into X
+ef97  B0 47       BCS $EFE0          ; if start>=end then just transmit X and finish up transmission
+ef99  20 A1 F5    JSR $F5A1          ; wait for either FLAG2 or DATA high then transmit X
+ef9c  A9 00       LDA #$00
+ef9e  85 AC       STA $AC            ; zero-out low byte of data address (using Y offset instead)
+efa0  A5 AD       LDA $AD            ; get high byte of data (start) address
+efa2  C5 AF       CMP $AF            ; compare to high byte of end address
+efa4  F0 32       BEQ $EFD8          ; if equal then go directly to final page handler
+efa6  D0 03       BNE $EFAB          ; skip next instruction
+efa8  8E 01 DD    STX $DD01          ; transmit byte in X and produce pulse on PC2
+efab  B1 AC       LDA ($AC),Y        ; get data byte
+efad  AA          TAX                ; into X
+efae  C8          INY                ; increment LOW byte
+efaf  D0 12       BNE $EFC3          ; loop if not 0
+efb1  E6 AD       INC $AD            ; increment high byte of address
+efb3  24 91       BIT $91            ; is STOP key pressed?
+efb5  30 06       BMI $EFBD          ; skip if not
+efb7  20 E0 EF    JSR $EFE0          ; transmit final byte (in X) and finish up transmission
+efba  4C 36 F6    JMP $F636          ; return with fail status
+efbd  A5 AD       LDA $AD            ; get high byte of address
+efbf  C5 AF       CMP $AF            ; compare to high byte of end address
+efc1  F0 19       BEQ $EFDC          ; if equal then go to final page handler
+efc3  A9 10       LDA #$10
+efc5  2C 0D DD    BIT $DD0D          ; check FLAG2 (receiver handshake)
+efc8  D0 DE       BNE $EFA8          ; loop if handshake seen
+efca  2C 00 DD    BIT $DD00          ; check DATA
+efcd  10 F6       BPL $EFC5          ; keep waiting if LOW
+efcf  20 58 F9    JSR $F958          ; restore saved PORTB state and reset flags
+efd2  4C 3F F6    JMP $F63F          ; continue at F63F
+efd5  20 A1 F5    JSR $F5A1          ; wait for either FLAG2 or DATA high then transmit X
+efd8  B1 AC       LDA ($AC),Y        ; get next data byte
+efda  AA          TAX                ; into X
+efdb  C8          INY                ; increment LOW address
+efdc  C4 AE       CPY $AE            ; reached low end address?
+efde  D0 F5       BNE $EFD5          ; loop if not
+efe0  20 3B FF    JSR $FF3B          ; wait for either FLAG2 or DATA high
+efe3  20 85 EE    JSR $EE85          ; release CLK
+efe6  8E 01 DD    STX $DD01          ; transmit final byte in X and produce pulse on PC2
+efe9  20 3B FF    JSR $FF3B          ; wait for either FLAG2 or DATA high
+efec  4C CF EF    JMP $EFCF          ; finish up
+
+f63f  20 FE ED    JSR $EDFE          ; send UNLISTEN
+f642  24 B9       BIT $B9            ; check bit 7 of secondary address
+f644  30 11       BMI $F657          ; done if set (skip CLOSE)
+f646  A5 BA       LDA $BA            ; get device address
+f648  20 0C ED    JSR $ED0C          ; send LISTEN
+f64b  A5 B9       LDA $B9            ; get secondary address
+f64d  29 EF       AND #$EF           ; isolate channel number
+f64f  09 E0       ORA #$E0           ; $E0 = CLOSE
+f651  20 B9 ED    JSR $EDB9          ; send CLOSE
+f654  20 FE ED    JSR $EDFE          ; send UNLISTEN
+f657  18          CLC
+f658  60          RTS
+
+
+; =====  Receive byte from IEC entry point (same as original kernal)  =====
+
+ee13  4C 41 F8    JMP $F841          ; continue at F841
+
+f841  78          SEI
+f842  2C 0C DC    BIT $DC0C          ; is "parallel cable detected" flag set?
+f845  10 44       BPL $F88B          ; jump if not
+f847  86 A5       STX $A5            ; save X
+f849  2C 00 DD    BIT $DD00          ; wait for CLK to go HIGH
+f84c  50 FB       BVC $F849
+f84e  AD 00 DD    LDA $DD00          ; release DATA
+f851  29 DF       AND #$DF
+f853  8D 00 DD    STA $DD00
+f856  A2 05       LDX #$05           ; timeout
+f858  2C 00 DD    BIT $DD00          ; check serial bus
+f85b  50 1D       BVC $F87A          ; jump if CLK is low (no EOI)
+f85d  CA          DEX
+f85e  D0 F8       BNE $F858          ; wait until timeout
+f860  20 A0 EE    JSR $EEA0          ; EOI detected => pull DATA low
+f863  A9 40       LDA #$40           ; bit 6 (EOI)
+f865  20 1C FE    JSR $FE1C          ; set bit in serial status
+f868  20 97 EE    JSR $EE97          ; release DATA
+f86b  A2 05       LDX #$05           ; timeout
+f86d  2C 00 DD    BIT $DD00          ; check serial bus
+f870  50 08       BVC $F87A          ; jump if CLK is low
+f872  CA          DEX
+f873  D0 F8       BNE $F86D          ; wait some more
+f875  A9 02       LDA #$02           ; serial "timeout error" flag
+f877  4C B8 F9    JMP $F9B8          ; set serial status and exit
+f87a  AE 01 DD    LDX $DD01          ; get data byte and produce pulse on PC2
+f87d  09 20       ORA #$20
+f87f  8D 00 DD    STA $DD00          ; pull DATA low
+f882  86 A4       STX $A4            ; save received byte
+f884  A6 A5       LDX $A5            ; restore X
+f886  A5 A4       LDA $A4            ; get received byte into A
+f888  18          CLC
+f889  58          CLI
+f88a  60          RTS
+
+f88b  A9 00       LDA #$00
+f88d  4C 16 EE    JMP $EE16          ; receive byte via regular IEC protocol
+
+
+; =====  Transmit byte on IEC entry point (same as original kernal)  =====
+
+ed40  78          SEI
+ed41  4C 70 F9    JMP $F970          ; continue at F970
+
+f970  86 A5       STX $A5            ; save X
+f972  AD 0C DC    LDA $DC0C          ; is "parallel cable detected" flag set?
+f975  10 49       BPL $F9C0          ; jump if not
+f977  AD 00 DD    LDA $DD00          ; get serial port status
+f97a  30 3A       BMI $F9B6          ; jump (error) if DATA high
+f97c  29 EF       AND #$EF           ; release CLK
+f97e  8D 00 DD    STA $DD00
+f981  24 A3       BIT $A3            ; is this the last byte?
+f983  10 11       BPL $F996          ; jump if not
+f985  2C 00 DD    BIT $DD00          ; check serial port status
+f988  10 FB       BPL $F985          ; wait while DATA low
+f98a  A2 1E       LDX #$1E
+f98c  AD 00 DD    LDA $DD00          ; get serial port status
+f98f  10 05       BPL $F996          ; jump if DATA low
+f991  CA          DEX
+f992  D0 F8       BNE $F98C          ; repeat until timeout
+f994  F0 0C       BEQ $F9A2          ; timeout => jump always
+f996  AD 00 DD    LDA $DD00          ; get serial port status
+f999  10 FB       BPL $F996          ; wait while DATA low
+f99b  A6 95       LDX $95            ; get data byte
+f99d  8E 01 DD    STX $DD01          ; put on parallel bus and produce pulse on PC2
+f9a0  A2 1E       LDX #$1E           ;
+f9a2  09 10       ORA #$10           ; pull CLK low
+f9a4  8D 00 DD    STA $DD00
+f9a7  A9 03       LDA #$03
+f9a9  CA          DEX
+f9aa  30 0C       BMI $F9B8          ; jump if timed out
+f9ac  2C 00 DD    BIT $DD00          ; check serial port status
+f9af  30 F8       BMI $F9A9          ; loop if DATA high
+f9b1  A6 A5       LDX $A5            ; restore X
+f9b3  18          CLC
+f9b4  58          CLI
+f9b5  60          RTS
+
+f9b6  A9 80       LDA #$80           ; "device not present" flag for serial status ($90)
+f9b8  A6 A5       LDX $A5            ; restore X
+f9ba  20 52 F9    JSR $F952          ; clear flags and restore PORTB status
+f9bd  4C B2 ED    JMP $EDB2          ; set serial error status 
+
+f9c0  4A          LSR A              ; check "use Centronic printer" flag
+f9c1  29 20       AND #$20
+f9c3  F0 1B       BEQ $F9E0          ; if 0 then transmit via regular IEC protocol
+
+; transmit on Centronics interface on user port
+f9c5  A5 95       LDA $95            ; get data byte
+f9c7  90 0B       BCC $F9D4          ; if "convert PETSCII" flag bit is 0 then skip conversion
+f9c9  A2 0A       LDX #$0A           ; convert PETSCII->ASCII
+f9cb  CA          DEX
+f9cc  DD B3 F0    CMP $F0B3,X
+f9cf  90 FA       BCC $F9CB
+f9d1  FD 9B F1    SBC $F19B,X
+f9d4  20 EC E4    JSR $E4EC          ; put A on parallel bus, clear FLAG2 and produce pulse on PA2
+f9d7  A9 10       LDA #$10
+f9d9  2C 0D DD    BIT $DD0D          ; check FLAG2 (receiver handshake)
+f9dc  F0 FB       BEQ $F9D9          ; wait if handshake not seen
+f9de  D0 D1       BNE $F9B1          ; jump always (exit)
+
+f9e0  4C 44 ED    JMP $ED44          ; transmit byte via regular IEC protocol
+
+
+; =====  Supporting subroutines  =====
+
+; send byte in A to Centronics printer on user port
+e4ec  8D 01 DD    STA $DD01          ; put A on parallel bus and produce pulse on PC2
+e4ef  AD 0D DD    LDA $DD0D          ; clear FLAG2
+e4f2  AD 00 DD    LDA $DD00
+e4f5  29 FB       AND #$FB           ; produce HIGH-LOW-HIGH on PA2 pin on user port (Centronics STROBE)
+e4f7  8D 00 DD    STA $DD00
+e4fa  09 04       ORA #$04
+e4fc  8D 00 DD    STA $DD00
+e4ff  60          RTS
+
+; send secondary address after LISTEN
+edb9  85 95       STA $95
+edbb  20 DD F8    JSR $F8DD          ; send secondary and detect parallel cable
+edbe  AD 00 DD    LDA $DD00          ; release ATN
+edc1  29 F7       AND #$F7
+edc3  8D 00 DD    STA $DD00
+edc6  60          RTS
+
+; send secondary address after TALK
+edc7  85 95       STA $95
+edc9  20 DD F8    JSR $F8DD          ; send secondary and detect parallel cable
+edcc  78          SEI
+edcd  20 6A F7    JSR $F76A          ; pull DATA low and switch parallel bus to input
+edd0  20 BE ED    JSR $EDBE          ; release ATN
+edd3  20 85 EE    JSR $EE85          ; release CLK
+edd6  20 A9 EE    JSR $EEA9          ; get CLK status into N flag
+edd9  30 FB       BMI $EDD6          ; repeat if CLK is high
+eddb  58          CLI
+eddc  60          RTS
+
+; release CLK
+ee85  AD 00 DD    LDA $DD00
+ee88  29 EF       AND #$EF           ; bit 4 is CLK (0=release)
+ee8a  8D 00 DD    STA $DD00
+ee8d  60          RTS
+
+; pull CLK low
+ee8e  AD 00 DD    LDA $DD00
+ee91  09 10       ORA #$10           ; bit 4 is CLK (1=pull low)
+ee93  8D 00 DD    STA $DD00
+ee96  60          RTS
+
+; release DATA
+ee97  AD 00 DD    LDA $DD00
+ee9a  29 DF       AND #$DF           ; bit 5 is DATA (0=release)
+ee9c  8D 00 DD    STA $DD00
+ee9f  60          RTS
+
+; pull DATA low
+eea0  AD 00 DD    LDA $DD00
+eea3  09 20       ORA #$20           ; bit 5 is DATA (1=pull low)
+eea5  8D 00 DD    STA $DD00
+eea8  60          RTS
+
+; wait for FLAG2 with timeout (confirmation of BURST mode)
+efef  8E 0C DC    STX $DC0C
+eff2  A9 10       LDA #$10
+eff4  AA          TAX
+eff5  2C 0D DD    BIT $DD0D          ; check for FLAG2
+eff8  D0 03       BNE $EFFD          ; jump if handshake seen
+effa  E8          INX                ; incrememnt X
+effb  D0 F8       BNE $EFF5          ; loop until 0 (timeout)
+effd  60          RTS
+
+; send "X" followed by the character in Y, save the current state of PORTB and switch to output
+f0eb  20 78 F1    JSR $F178          ; send "X" followed by the character in Y
+   f178  20 76 F6    JSR $F676       ; send LISTEN on channel 15
+   f17b  A9 58       LDA #$58        ; "X"
+   f17d  20 DD ED    JSR $EDDD       ; transmit character in A
+   f180  98          TYA
+   f181  20 DD ED    JSR $EDDD       ; transmit character in A
+   f184  4C FE ED    JMP $EDFE       ; send UNLISTEN (releases CLK) and return
+f0ee  20 B8 F1    JSR $F1B8          ; save PORTB state and switch to OUTPUT
+f0f1  2C 0D DD    BIT $DD0D          ; clear FLAG2
+f0f4  60          RTS
+
+; save current state of PORTB (direction and value) and switch to OUTPUT mode
+f1b8  AD 03 DD    LDA $DD03          ; get direction
+f1bb  8D 96 02    STA $0296          ; save
+f1be  A9 FF       LDA #$FF           ; all bits output mode
+f1c0  8D 03 DD    STA $DD03          ; set direction
+f1c3  AD 01 DD    LDA $DD01          ; get current value and produce pulse on PC2
+f1c6  8D 95 02    STA $0295          ; save
+f1c9  60          RTS      
+
+; wait for FLAG2 or DATA high, then transmit X on parallel bus
+f5a1  20 3B FF    JSR $FF3B          ; wait for either FLAG2 or DATA high
+f5a4  8E 01 DD    STX $DD01          ; put content of X on parallel bus and produce pulse on PC2
+f5a7  60          RTS
+
+; send LISTEN command on channel 15, print "I/O ERROR #5" if failed
+f676  A9 00       LDA #$00
+f678  85 90       STA $90            ; clear serial status flags
+f67a  A5 BA       LDA $BA
+f67c  20 0C ED    JSR $ED0C          ; send LISTEN
+f67f  A9 6F       LDA #$6F
+f681  20 B9 ED    JSR $EDB9          ; send secondary address
+f684  A5 90       LDA $90            ; get serial status flags
+f686  10 05       BPL $F68D          ; jump if "device not present" is NOT set
+f688  68          PLA                ; discard this function's return address
+f689  68          PLA
+f68a  4C 07 F7    JMP $F707          ; print "I/O ERROR #5" and return (from PARENT)
+f68d  18          CLC
+f68e  60          RTS
+
+; pull DATA low and (if parallel cable was detected) switch PORTB from output to input
+f76a  2C 0C DC    BIT $DC0C          ; is "parallel cable detected" flag set?
+f76d  10 03       BPL $F772          ; jump if not
+f76f  EE 03 DD    INC $DD03          ; switch PORTB from output mode ($FF) to input ($00)
+f772  4C A0 EE    JMP $EEA0          ; pull DATA low and return
+
+; detect parallel cable
+f8dd  2C 0C DC    BIT $DC0C
+f8e0  70 2E       BVS $F910          ; jump if "use Centronics printer" flag is set
+f8e2  48          PHA 
+f8e3  20 36 ED    JSR $ED36          ; send secondary address byte
+f8e6  78          SEI
+f8e7  68          PLA
+f8e8  29 F0       AND #$F0           ; was secondary address a CLOSE command?
+f8ea  C9 E0       CMP #$E0           ; 
+f8ec  F0 20       BEQ $F90E          ; jump if so (don't detect cable)
+f8ee  86 A5       STX $A5            ; save X
+f8f0  A2 19       LDX #$19           ; timeout value
+f8f2  A9 10       LDA #$10           ; prepare for FLAG bit check
+f8f4  2C 0D DD    BIT $DD0D          ; clear FLAG bit
+f8f7  CA          DEX                ; decrement X (timeout)
+f8f8  F0 12       BEQ $F90C          ; done if X=0
+f8fa  2C 01 DD    BIT $DD01          ; produce pulse on PC2
+f8fd  2C 0D DD    BIT $DD0D          ; check (and clear) FLAG bit
+f900  F0 F5       BEQ $F8F7          ; keep waiting if 0
+f902  0E 0C DC    ASL $DC0C          ; => we received a response on FLAG for our pulse
+f905  38          SEC                ; set "parallel cable detected" flag
+f906  6E 0C DC    ROR $DC0C
+f909  20 B8 F1    JSR $F1B8          ; save PORTB state (direction and value) and switch to OUTPUT
+f90c  A6 A5       LDX $A5            ; restore X
+f90e  58          CLI
+f90f  60          RTS
+f910  29 0F       AND #$0F           ; isolate bits 0-3 of SECONDARY address
+f912  C9 07       CMP #$07           ; is it 7?
+f914  D0 3A       BNE $F950          ; jump if not (CLC, CLI and RTS)
+f916  A9 43       LDA #$43           ; set "convert PETSCII->ASCII" flag
+f918  D0 33       BNE $F94D          ; jump always (STA $DC0C, CLC, CLI and RTS)
+
+; detect Centronics printer on parallel port
+; (called from within LISTEN at $ED2B if device #4 is addressed)
+f91a  20 B8 F1    JSR $F1B8          ; save PORTB state (direction and value) and switch to OUTPUT
+f91d  AD 0C DC    LDA $DC0C          ; get flags
+f920  29 02       AND #$02
+f922  D0 27       BNE $F94B          ; jump if Centronics printer was already detected
+f924  AD 0D DD    LDA $DD0D          ; clear FLAG2
+f927  A9 16       LDA #$16
+f929  20 EC E4    JSR $E4EC          ; put A on parallel bus, clear FLAG2 and produce pulse on PA2
+f92c  A9 FF       LDA #$FF
+f92e  8D 07 DC    STA $DC07          ; set CIA1 timer B high register (timeout is about 65ms)
+f931  A9 19       LDA #$19
+f933  8D 0F DC    STA $DC0F          ; load and start timer B, one-shot mode
+f936  AD 0D DD    LDA $DD0D          ; check FLAG2 bit
+f939  29 10       AND #$10
+f93b  D0 0E       BNE $F94B          ; jump if handshake seen
+f93d  AD 06 DC    LDA $DC06          ; get timer low register
+f940  CD 06 DC    CMP $DC06          ; is it changing (i.e. still running)?
+f943  D0 F1       BNE $F936          ; repeat if so
+f945  20 59 F9    JSR $F959          ; restore saved PORTB state and reset flags
+f948  4C 2E ED    JMP $ED2E          ; pull ATN low and return
+f94b  A9 42       LDA #$42           ; set "Centronics printer detected" and "use Centronics printer" flags
+f94d  8D 0C DC    STA $DC0C
+f950  D0 61       BNE $F9B3          ; jump always (CLC, CLI and RTS)
+
+; clear flags and restore PORTB state
+f952  2C 0C DC    BIT $DC0C          ; check flags
+f955  70 02       BVS $F959          ; jump if using Centronics printer
+f957  10 16       BPL $F96F          ; skip if NOT using parallel floppy cable
+f959  48          PHA
+f95a  AD 0C DC    LDA $DC0C
+f95d  29 02       AND #$02           ; clear all flags except ("Centronics printer detected")
+f95f  8D 0C DC    STA $DC0C
+f962  AD 96 02    LDA $0296          ; restore PORTB state
+f965  8D 03 DD    STA $DD03
+f968  AD 95 02    LDA $0295
+f96b  8D 01 DD    STA $DD01
+f96e  68          PLA
+f96f  60          RTS
+
+; wait until either pulse on FLAG2 is seen or DATA line to go high
+ff3b  A9 10       LDA #$10           ; mask for FLAG
+ff3d  2C 0D DD    BIT $DD0D          ; check interrupt register
+ff40  D0 05       BNE $FF47          ; return if FLAG is set
+ff42  2C 00 DD    BIT $DD00          ; check serial poirt
+ff45  10 F6       BPL $FF3D          ; loop if DATA is low
+ff47  60          RTS
+
+; IRQ entry point
+ff48  48          PHA
+ff49  8A          TXA
+ff4a  48          PHA
+ff4b  98          TYA
+ff4c  48          PHA
+ff4d  BA          TSX
+ff4e  BD 04 01    LDA $0104,X
+ff51  29 10       AND #$10
+ff53  F0 03       BEQ $FF58
+ff55  4C 1D F0    JMP $F01D         ; jump to "break" instruction (monitor)
+ff58  6C 14 03    JMP ($0314)
