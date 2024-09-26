@@ -304,6 +304,10 @@ The IECDevice class has the following functions that may/must be called from you
   answer to multiple different device numbers, call "addDeviceNumber" to add more numbers.
   The "devnum" argument passed to the communication functions below (canRead/read/canWrite/write)
   will indicate the device number that was addressed.
+  
+  **NOTE:** You must increase the ```#define MAX_DEVICES``` in file IECDevice.h if you want to call
+  this function. By default, MAX_DEVICES is set to 1 in order to save memory on smaller platforms.
+  Calling addDeviceNumber() will have no effect if MAX_DEVICES is set to 1.
 
 - ```void task()```
   This function must be called periodically to handle IEC bus communication
@@ -451,6 +455,10 @@ The IECFileDevice class has the following functions that may/must be called from
   answer to multiple different device numbers, call "addDeviceNumber" to add more numbers.
   The "devnum" argument passed to the communication functions below (canRead/read/canWrite/write)
   will indicate the device number that was addressed.
+
+  **NOTE:** You must increase the ```#define MAX_DEVICES``` in file IECDevice.h if you want to call
+  this function. By default, MAX_DEVICES is set to 1 in order to save memory on smaller platforms.
+  Calling addDeviceNumber() will have no effect if MAX_DEVICES is set to 1.
 
 - ```void setDolphinDosPins(...)```
   This function can be called before calling enableDolphinDosSupport to specify the pins to be used
