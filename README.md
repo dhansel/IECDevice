@@ -323,7 +323,7 @@ The IECDevice class has the following functions that may/must be called from you
   For more information see the [JiffyDos support](jiffydos-support) section below.
   You can also use this function to disable JiffyDos support after it has been enabled.
 
-- ```void enableDolphinDosSupport(byte *buffer, byte bufferSize)```  
+- ```void enableDolphinDosSupport(bool enable)```  
   This function must be called **if** your device should support the DolphinDos parallel protocol.
   In most cases devices with DolphinDos support should be derived from the IECFileDevice class
   which handles DolphinDos support internally and you do not have to call enableDolphinDosSupport().
@@ -338,7 +338,7 @@ The IECDevice class has the following functions that may/must be called from you
   A good buffer size is 128.
 
 - ```void setDolphinDosPins(...)```
-  This function can be called before calling enableDolphinDosSupport to specify the pins to be used
+  This function can be called **before** calling enableDolphinDosSupport to specify the pins to be used
   for the DolphinDos parallel cable. See the [DolphinDos support](dolphindos-support) section below 
   for more information.
 
