@@ -13,7 +13,6 @@ static IECFDC IECFDC(PIN_ATN, PIN_CLK, PIN_DATA, PIN_RESET, PIN_CTRL, PIN_LED);
 
 void setup() 
 {
-  //pinMode(A4, INPUT_PULLUP);
   IECFDC.begin(DEVICE);
 }
 

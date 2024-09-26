@@ -9,6 +9,10 @@
 
 static IECFDC IECFDC(PIN_ATN, PIN_CLK, PIN_DATA, PIN_RESET, PIN_CTRL, PIN_LED);
 
+#ifdef SUPPORT_DOLPHIN
+#error "Not enough program space (or pins) on Arduino UNO to support Dolphin DOS in this sketch - remove '#define SUPPORT_DOLPHIN' in file IECDevice.h"
+#endif
+
 void setup() 
 {
   IECFDC.begin();

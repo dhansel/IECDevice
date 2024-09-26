@@ -21,7 +21,9 @@
 
 #include "IECDevice.h"
 
-#define JIFFY_BUFFER_SIZE 128
+#if defined(SUPPORT_JIFFY) || defined(SUPPORT_DOLPHIN)
+#define BUFFER_SIZE 128
+#endif
 
 class IECFileDevice : public IECDevice
 {
@@ -40,64 +42,77 @@ class IECFileDevice : public IECDevice
   // --- override the following functions in your device class:
 
   // open file "name" on channel
-  virtual void open(byte channel, const char *name) {}
+  virtual void open(byte devnr, byte channel, const char *name) {}
 
   // close file on channel
-  virtual void close(byte channel) {}
+  virtual void close(byte devnr, byte channel) {}
 
-  // write one byte to file on channel, return "true" if successful
-  // Returning "false" signals "cannot receive more data" for this file
-  virtual bool write(byte channel, byte data) { return false; }
+  // write bufferSize bytes to file on channel, returning the number of bytes written
+  // Returning less than bufferSize signals "cannot receive more data" for this file
+  virtual byte write(byte devnr, byte channel, byte *buffer, byte bufferSize) { return 0; }
 
   // read up to bufferSize bytes from file in channel, returning the number of bytes read
   // returning 0 will signal end-of-file to the receiver. Returning 0
   // for the FIRST call after open() signals an error condition
   // (e.g. C64 load command will show "file not found")
-  virtual byte read(byte channel, byte *buffer, byte bufferSize) { return 0; }
+  virtual byte read(byte devnr, byte channel, byte *buffer, byte bufferSize) { return 0; }
 
   // called when the bus master reads from channel 15 and the status
   // buffer is currently empty. this should populate buffer with an appropriate 
   // status message bufferSize is the maximum allowed length of the message
-  virtual void getStatus(char *buffer, byte bufferSize) { *buffer=0; }
+  virtual void getStatus(byte devnr, char *buffer, byte bufferSize) { *buffer=0; }
 
   // called when the bus master sends data (i.e. a command) to channel 15
   // command is a 0-terminated string representing the command to execute
   // commandLen contains the full length of the received command (useful if
   // the command itself may contain zeros)
-  virtual void execute(const char *command, byte cmdLen) {}
+  virtual void execute(byte devnr, const char *command, byte cmdLen) {}
 
   // called on falling edge of RESET line
   virtual void reset();
 
   // can be called by derived class to set the status buffer (dataLen max 32 bytes)
-  void setStatus(char *data, byte dataLen);
+  void setStatus(byte devnr, char *data, byte dataLen);
 
   // can be called by derived class to clear the status buffer, causing readStatus()
   // to be called again the next time the status channel is queried
-  void clearStatus() { setStatus(NULL, 0); }
+  void clearStatus(byte devnr) { setStatus(devnr, NULL, 0); }
 
  private:
 
-  virtual void talk(byte secondary);
-  virtual void listen(byte secondary);
+  virtual void talk(byte devnr, byte secondary);
+  virtual void listen(byte devnr, byte secondary);
   virtual void untalk();
   virtual void unlisten();
-  virtual int8_t canWrite();
-  virtual int8_t canRead();
-  virtual void write(byte data);
-  virtual byte read();
-  virtual byte read(byte *buffer, byte bufferSize);
-  virtual byte peek();
+  virtual int8_t canWrite(byte devnr);
+  virtual int8_t canRead(byte devnr);
+  virtual void write(byte devnr, byte data, bool eoi);
+  virtual byte write(byte devnr, byte *buffer, byte bufferSize, bool eoi);
+  virtual byte read(byte devnr);
+  virtual byte read(byte devnr, byte *buffer, byte bufferSize);
+  virtual byte peek(byte devnr);
 
   void fileTask();
 
   bool   m_opening, m_canServeATN;
-  byte   m_channel, m_cmd, m_dataBuffer[15][2];
-  int8_t m_statusBufferLen, m_statusBufferPtr, m_nameBufferLen, m_dataBufferLen[15];
-  char   m_statusBuffer[32], m_nameBuffer[33];
+  byte   m_channel, m_cmd;
+  char   m_nameBuffer[33];
 
-#if JIFFY_BUFFER_SIZE>0
-  byte   m_jiffyBuffer[JIFFY_BUFFER_SIZE];
+  // On smaller platforms (e.g. Arduino Uno) the indexing done for multiple devices significantly
+  // eats into the flash memory usage. Since on those platforms most times we only want to have
+  // one device anyways we use scalars for MAX_DEVICES==1 even though it would work just fine with arrays.
+#if MAX_DEVICES==1
+  byte   m_dataBuffer[15][2];
+  int8_t m_statusBufferLen, m_statusBufferPtr, m_nameBufferLen, m_dataBufferLen[15];
+  char   m_statusBuffer[32];
+#else
+  byte   m_dataBuffer[MAX_DEVICES][15][2];
+  int8_t m_statusBufferLen[MAX_DEVICES], m_statusBufferPtr[MAX_DEVICES], m_nameBufferLen, m_dataBufferLen[MAX_DEVICES][15];
+  char   m_statusBuffer[MAX_DEVICES][32];
+#endif
+
+#if BUFFER_SIZE>0
+  byte   m_buffer[BUFFER_SIZE];
 #endif
 };
 

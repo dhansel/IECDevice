@@ -22,9 +22,13 @@
 
 #include "IECDevice.h"
 
-#if defined(__AVR__)
+#if MAX_DEVICES>16
+#error "Maximum allowed number of devices is 16"
+#endif
 
-// ---------------- Arduino 8-bit ATMega (UNO/Mega/Mini/Micro/Leonardo...)
+// ---------------- Arduino 8-bit ATMega (UNO R3/Mega/Mini/Micro/Leonardo...)
+
+#if defined(__AVR__)
 
 #if defined(__AVR_ATmega32U4__)
 // Atmega32U4 does not have a second 8-bit timer (first one is used by Arduino millis())
@@ -50,13 +54,54 @@
 #define JDEBUG0()
 #define JDEBUG1()
 
-#else
+// ---------------- Arduino Uno R4
+
+#elif defined(ARDUINO_UNOR4_MINIMA) || defined(ARDUINO_UNOR4_WIFI)
+#ifndef ARDUINO_UNOR4
+#define ARDUINO_UNOR4
+#endif
+
+// NOTE: this assumes the AGT timer is running at the (Arduino default) 3MHz rate
+//       and rolling over after 3000 ticks 
+static unsigned long timer_start_ticks;
+static uint16_t timer_ticks_diff(uint16_t t0, uint16_t t1) { return ((t0 < t1) ? 3000 + t0 : t0) - t1; }
+#define timer_init()         while(0)
+#define timer_reset()        while(0)
+#define timer_start()        timer_start_ticks = R_AGT0->AGT
+#define timer_stop()         while(0)
+#define timer_wait_until(us) while( timer_ticks_diff(timer_start_ticks, R_AGT0->AGT) < ((int) (us*3)) )
+
+#define JDEBUGI() pinMode(1, OUTPUT)
+#define JDEBUG0() R_PORT3->PODR &= ~bit(2);
+#define JDEBUG1() R_PORT3->PODR |=  bit(2);
+//#define JDEBUGI()
+//#define JDEBUG0()
+//#define JDEBUG1()
+
+// ---------------- Arduino Due
+
+#elif defined(__SAM3X8E__)
+
+#define portModeRegister(port) 0
+
+static unsigned long timer_start_ticks;
+static uint32_t timer_ticks_diff(uint32_t t0, uint32_t t1) { return ((t0 < t1) ? 84000 + t0 : t0) - t1; }
+#define timer_init()         while(0)
+#define timer_reset()        while(0)
+#define timer_start()        timer_start_ticks = SysTick->VAL;
+#define timer_stop()         while(0)
+#define timer_wait_until(us) while( timer_ticks_diff(timer_start_ticks, SysTick->VAL) < ((int) (us*84)) )
+
+//#define JDEBUGI() pinMode(2, OUTPUT)
+//#define JDEBUG0() digitalWriteFast(2, LOW);
+//#define JDEBUG1() digitalWriteFast(2, HIGH);
+#define JDEBUGI()
+#define JDEBUG0()
+#define JDEBUG1()
 
 // ---------------- other (32-bit) platforms
 
-#if defined(__SAM3X8E__)
-#define portModeRegister(port) 0
-#endif
+#else
 
 static unsigned long timer_start_us;
 #define timer_init()         while(0)
@@ -65,9 +110,9 @@ static unsigned long timer_start_us;
 #define timer_stop()         while(0)
 #define timer_wait_until(us) while( (micros()-timer_start_us) < ((int) (us+0.5)) )
 
-//#define JDEBUGI() pinMode(IO4, OUTPUT)
-//#define JDEBUG0() GPIO.out_w1tc = bit(4)
-//#define JDEBUG1() GPIO.out_w1ts = bit(4)
+//#define JDEBUGI() pinMode(22, OUTPUT)
+//#define JDEBUG0() GPIO.out_w1tc = bit(22)
+//#define JDEBUG1() GPIO.out_w1ts = bit(22)
 //#define JDEBUGI() pinMode(2, OUTPUT)
 //#define JDEBUG0() digitalWriteFast(2, LOW);
 //#define JDEBUG1() digitalWriteFast(2, HIGH);
@@ -77,23 +122,26 @@ static unsigned long timer_start_us;
 
 #endif
 
-// if we have a "digitalWriteFast()" function then use it, otherwise use digitalWrite()
-#ifndef digitalWriteFast
-#define digitalWriteFast digitalWrite
-#endif
-
-// if we have a "digitalReadFast()" function then use it, otherwise use digitalRead()
-#ifndef digitalReadFast
-#define digitalReadFast digitalRead
-#endif
-
-// use faster gpio_* functions to set pin mode on RP2040
-#ifndef pinModeFast
-#ifdef ARDUINO_ARCH_RP2040
-#define pinModeFast(pin, m) if( m==OUTPUT ) { gpio_set_dir(pin, true); } else { gpio_set_dir(pin, false); gpio_pull_up(pin); }
+#if defined(__SAM3X8E__)
+// Arduino Due
+#define pinModeFastExt(pin, reg, bit, dir)    { if( (dir)==OUTPUT ) digitalPinToPort(pin)->PIO_OER |= bit; else digitalPinToPort(pin)->PIO_ODR |= bit; }
+#define digitalReadFastExt(pin, reg, bit)     (*(reg) & (bit))
+#define digitalWriteFastExt(pin, reg, bit, v) { if( v ) *(reg)|=(bit); else (*reg)&=~(bit); }
+#elif defined(ARDUINO_ARCH_RP2040)
+// Raspberry Pi Pico
+#define pinModeFastExt(pin, reg, bit, dir)    gpio_set_dir(pin, (dir)==OUTPUT)
+#define digitalReadFastExt(pin, reg, bit)     gpio_get(pin)
+#define digitalWriteFastExt(pin, reg, bit, v) gpio_put(pin, v)
+#elif defined(__AVR__) || defined(ARDUINO_ARCH_ESP32) || defined(ARDUINO_UNOR4)
+// Arduino 8-bit (Uno R3/Mega/...) or ESP32
+#define pinModeFastExt(pin, reg, bit, dir)    { if( (dir)==OUTPUT ) *(reg)|=(bit); else *(reg)&=~(bit); }
+#define digitalReadFastExt(pin, reg, bit)     (*(reg) & (bit))
+#define digitalWriteFastExt(pin, reg, bit, v) { if( v ) *(reg)|=(bit); else (*reg)&=~(bit); }
 #else
-#define pinModeFast pinMode
-#endif
+#warning "No fast digital I/O macros defined for this platform - code will likely run too slow"
+#define pinModeFastExt(pin, reg, bit, dir)    pinMode(pin, dir)
+#define digitalReadFastExt(pin, reg, bit)     digitalRead(pin)
+#define digitalWriteFastExt(pin, reg, bit, v) digitalWrite(pin, v)
 #endif
 
 // -----------------------------------------------------------------------------------------
@@ -104,132 +152,66 @@ static unsigned long timer_start_us;
 #define P_TALKING    0x20
 #define P_DONE       0x10
 #define P_RESET      0x08
-#define P_JIFFY      0x04
-#define P_JIFFYBLOCK 0x02
 
+#define S_JIFFY_ENABLED          0x01  // JiffyDos support is enabled
+#define S_JIFFY_DETECTED         0x02  // Detected JiffyDos request from host
+#define S_JIFFY_BLOCK            0x04  // Detected JiffyDos block transfer request from host
+#define S_DOLPHIN_ENABLED        0x08  // DolphinDos support is enabled
+#define S_DOLPHIN_DETECTED       0x10  // Detected DolphinDos request from host
+#define S_DOLPHIN_BURST_ENABLED  0x20  // DolphinDos burst mode is enabled
+#define S_DOLPHIN_BURST_TRANSMIT 0x40  // Detected DolphinDos burst transmit request from host
+#define S_DOLPHIN_BURST_RECEIVE  0x80  // Detected DolphinDos burst receive request from host
 
-IECDevice *IECDevice::s_iecdevice = NULL;
+IECDevice *IECDevice::s_iecdevice1 = NULL, *IECDevice::s_iecdevice2 = NULL;
 
 
 void IECDevice::writePinCLK(bool v)
 {
-  // emulate open collector behavior: switch pin to INPUT for HIGH
-  // switch pin to output for LOW
-#ifdef IOREG_TYPE
-  if( v ) 
-    { 
-#if defined(__SAM3X8E__)
-      digitalPinToPort(m_pinCLK)->PIO_OER |= m_bitCLK; // switch to OUTPUT mode
-#else
-      *m_regCLKmode  &= ~m_bitCLK; // switch to INPUT mode
-#endif
-      *m_regCLKwrite |=  m_bitCLK; // enable pull-up resistor
-    } 
-  else 
-    {  
-      *m_regCLKwrite &= ~m_bitCLK; // set to output "0"
-#if defined(__SAM3X8E__)
-      digitalPinToPort(m_pinCLK)->PIO_OER |= m_bitCLK; // switch to OUTPUT mode
-#else
-      *m_regCLKmode  |=  m_bitCLK; // switch to OUTPUT mode
-#endif
-    }
-#else
-  if( v )
-    {
-      pinModeFast(m_pinCLK, INPUT_PULLUP);
-    }
-  else
-    {
-      digitalWriteFast(m_pinCLK, LOW);
-      pinModeFast(m_pinCLK, OUTPUT);
-    }
-#endif
+  // Emulate open collector behavior: 
+  // - switch pin to INPUT  mode (high-Z output) for true
+  // - switch pun to OUTPUT mode (LOW output) for false
+  pinModeFastExt(m_pinCLK, m_regCLKmode, m_bitCLK, v ? INPUT : OUTPUT);
 }
 
 
 void IECDevice::writePinDATA(bool v)
 {
-  // emulate open collector behavior: switch pin to INPUT for HIGH
-  // switch pin to output for LOW
-#ifdef IOREG_TYPE
-  if( v ) 
-    { 
-#if defined(__SAM3X8E__)
-      digitalPinToPort(m_pinDATA)->PIO_ODR |= m_bitDATA; // switch to INPUT mode
-#else
-      *m_regDATAmode  &= ~m_bitDATA; // switch to INPUT mode
-#endif
-      *m_regDATAwrite |=  m_bitDATA; // enable pull-up resistor
-    }
-  else 
-    {  
-      *m_regDATAwrite &= ~m_bitDATA; // set to output "0"
-#if defined(__SAM3X8E__)
-      digitalPinToPort(m_pinDATA)->PIO_OER |= m_bitDATA; // switch to OUTPUT mode
-#else
-      *m_regDATAmode  |=  m_bitDATA; // switch to OUTPUT 1mode
-#endif
-    }
-#else
-  if( v )
-    {
-      pinModeFast(m_pinDATA, INPUT_PULLUP);
-    }
-  else
-    {
-      digitalWriteFast(m_pinDATA, LOW);
-      pinModeFast(m_pinDATA, OUTPUT);
-    }
-#endif
+  // Emulate open collector behavior: 
+  // - switch pin to INPUT  mode (high-Z output) for true
+  // - switch pun to OUTPUT mode (LOW output) for false
+  pinModeFastExt(m_pinDATA, m_regDATAmode, m_bitDATA, v ? INPUT : OUTPUT);
 }
 
 
 void IECDevice::writePinCTRL(bool v)
 {
   if( m_pinCTRL!=0xFF )
-    digitalWriteFast(m_pinCTRL, v);
+    digitalWrite(m_pinCTRL, v);
 }
 
 
 bool IECDevice::readPinATN()
 {
-#ifdef IOREG_TYPE
-  return (*m_regATNread & m_bitATN)!=0;
-#else
-  return digitalReadFast(m_pinATN);
-#endif
+  return digitalReadFastExt(m_pinATN, m_regATNread, m_bitATN)!=0;
 }
 
 
 bool IECDevice::readPinCLK()
 {
-#ifdef IOREG_TYPE
-  return (*m_regCLKread & m_bitCLK)!=0;
-#else
-  return digitalReadFast(m_pinCLK);
-#endif
+  return digitalReadFastExt(m_pinCLK, m_regCLKread, m_bitCLK)!=0;
 }
 
 
 bool IECDevice::readPinDATA()
 {
-#ifdef IOREG_TYPE
-  return (*m_regDATAread & m_bitDATA)!=0;
-#else
-  return digitalReadFast(m_pinDATA);
-#endif
+  return digitalReadFastExt(m_pinDATA, m_regDATAread, m_bitDATA)!=0;
 }
 
 
 bool IECDevice::readPinRESET()
 {
   if( m_pinRESET==0xFF ) return true;
-#ifdef IOREG_TYPE
-  return (*m_regRESETread & m_bitRESET)!=0;
-#else
-  return digitalReadFast(m_pinRESET);
-#endif
+  return digitalReadFastExt(m_pinRESET, m_regRESETread, m_bitRESET)!=0;
 }
 
 
@@ -251,8 +233,10 @@ bool IECDevice::waitTimeout(uint16_t timeout)
 
 bool IECDevice::waitPinDATA(bool state)
 {
+  // if ATN changes (i.e. our internal ATN state no longer matches the ATN signal line)
+  // then exit with error condition
   while( readPinDATA()!=state )
-    if( (m_flags & P_ATN)==0 && !readPinATN() )
+    if( ((m_flags & P_ATN)!=0) == readPinATN() )
       return false;
 
   // DATA LOW can only be properly detected if ATN went HIGH->LOW
@@ -264,9 +248,11 @@ bool IECDevice::waitPinDATA(bool state)
 
 bool IECDevice::waitPinDATA(bool state, uint16_t timeout)
 {
+  // if ATN changes (i.e. our internal ATN state no longer matches the ATN signal line)
+  // or the timeout is met then exit with error condition
   uint32_t start = micros();
   while( readPinDATA()!=state )
-    if( ((m_flags & P_ATN)==0 && !readPinATN()) || (uint16_t) (micros()-start)>=timeout )
+    if( (((m_flags & P_ATN)!=0) == readPinATN()) || (uint16_t) (micros()-start)>=timeout )
       return false;
 
   // DATA LOW can only be properly detected if ATN went HIGH->LOW
@@ -278,8 +264,10 @@ bool IECDevice::waitPinDATA(bool state, uint16_t timeout)
 
 bool IECDevice::waitPinCLK(bool state)
 {
+  // if ATN changes (i.e. our internal ATN state no longer matches the ATN signal line)
+  // then exit with error condition
   while( readPinCLK()!=state )
-    if( (m_flags & P_ATN)==0 && !readPinATN() )
+    if( ((m_flags & P_ATN)!=0) == readPinATN() )
       return false;
   
   return true;
@@ -288,24 +276,54 @@ bool IECDevice::waitPinCLK(bool state)
 
 bool IECDevice::waitPinCLK(bool state, uint16_t timeout)
 {
+  // if ATN changes (i.e. our internal ATN state no longer matches the ATN signal line)
+  // or the timeout is met then exit with error condition
   uint32_t start = micros();
-
   while( readPinCLK()!=state )
-    if( ((m_flags & P_ATN)==0 && !readPinATN()) || (uint16_t) (micros()-start)>=timeout )
+    if( (((m_flags & P_ATN)!=0) == readPinATN()) || (uint16_t) (micros()-start)>=timeout )
       return false;
   
   return true;
 }
 
 
-IECDevice::IECDevice(byte pinATN, byte pinCLK, byte pinDATA, byte pinRESET, byte pinCTRL)
+IECDevice::IECDevice(byte pinATN, byte pinCLK, byte pinDATA, byte pinRESET, byte pinCTRL) :
+#if defined(SUPPORT_DOLPHIN)
+#if defined(ARDUINO_ARCH_ESP32)
+  // ESP32
+  m_pinDolphinHandshakeTransmit(4),
+  m_pinDolphinHandshakeReceive(36),
+  m_pinDolphinParallel{13,14,15,16,17,25,26,27},
+#elif defined(ARDUINO_ARCH_RP2040)
+  // Raspberry Pi Pico
+  m_pinDolphinHandshakeTransmit(6),
+  m_pinDolphinHandshakeReceive(15),
+  m_pinDolphinParallel{7,8,9,10,11,12,13,14},
+#elif defined(__SAM3X8E__)
+  // Arduino Due
+  m_pinDolphinHandshakeTransmit(52),
+  m_pinDolphinHandshakeReceive(53),
+  m_pinDolphinParallel{51,50,49,48,47,46,45,44},
+#elif defined(__AVR_ATmega328P__) || defined(ARDUINO_UNOR4)
+  // Arduino UNO, Pro Mini
+  m_pinDolphinHandshakeTransmit(7),
+  m_pinDolphinHandshakeReceive(2),
+  m_pinDolphinParallel{A0,A1,A2,A3,A4,A5,8,9},
+#elif defined(__AVR_ATmega2560__)
+  // Arduino Mega 2560
+  m_pinDolphinHandshakeTransmit(30),
+  m_pinDolphinHandshakeReceive(2),
+  m_pinDolphinParallel{22,23,24,25,26,27,28,29},
+#endif
+#endif
+#if defined(SUPPORT_JIFFY) || defined(SUPPORT_DOLPHIN)
+  m_buffer(NULL),
+  m_bufferSize(0),
+#endif
+  m_numDevices(0),
+  m_flags(0),
+  m_inTask(false)
 {
-  m_devnr = 0;
-  m_flags = 0;
-  m_inTask = false;
-  m_jiffyBuffer = NULL;
-  m_jiffyBufferSize = 0;
-
   m_pinATN       = pinATN;
   m_pinCLK       = pinCLK;
   m_pinDATA      = pinDATA;
@@ -335,39 +353,117 @@ void IECDevice::begin(byte devnr)
 {
   JDEBUGI();
 
-  pinMode(m_pinATN,   INPUT_PULLUP);
-  pinMode(m_pinCLK,   INPUT_PULLUP);
-  pinMode(m_pinDATA,  INPUT_PULLUP);
+  // set pins to output 0 (when in output mode)
+  pinMode(m_pinCLK,  OUTPUT); digitalWrite(m_pinCLK, LOW); 
+  pinMode(m_pinDATA, OUTPUT); digitalWrite(m_pinDATA, LOW); 
+
+  pinMode(m_pinATN,   INPUT);
+  pinMode(m_pinCLK,   INPUT);
+  pinMode(m_pinDATA,  INPUT);
   if( m_pinCTRL<0xFF )  pinMode(m_pinCTRL,  OUTPUT);
-  if( m_pinRESET<0xFF ) pinMode(m_pinRESET, INPUT_PULLUP);
+  if( m_pinRESET<0xFF ) pinMode(m_pinRESET, INPUT);
   m_flags = 0;
-  m_devnr = devnr;
+  m_sflags = 0;
+  m_numDevices = 0;
+  addDeviceNumber(devnr);
 
   // allow ATN to pull DATA low in hardware
   writePinCTRL(LOW);
 
   // if the ATN pin is capable of interrupts then use interrupts to detect 
   // ATN requests, otherwise we'll poll the ATN pin in function microTask().
-  s_iecdevice = this;
-  if( m_atnInterrupt!=NOT_AN_INTERRUPT ) attachInterrupt(m_atnInterrupt, atnInterruptFcn, FALLING);
+  if( m_atnInterrupt!=NOT_AN_INTERRUPT )
+    {
+      if( s_iecdevice1==NULL )
+        {
+          s_iecdevice1 = this;
+          attachInterrupt(m_atnInterrupt, atnInterruptFcn1, FALLING);
+        }
+      else if( s_iecdevice2==NULL )
+        {
+          s_iecdevice2 = this;
+          attachInterrupt(m_atnInterrupt, atnInterruptFcn2, FALLING);
+        }
+    }
 }
 
 
-void IECDevice::enableJiffyDosSupport(byte *buffer, byte bufferSize)
+bool IECDevice::addDeviceNumber(byte devnr)
 {
-  m_jiffyBuffer = buffer;
-  m_jiffyBufferSize = bufferSize;
+  if( haveDeviceNumber(devnr) )
+    return true;
+  else if( m_numDevices<MAX_DEVICES )
+    {
+      m_devices[m_numDevices++] = devnr;
+      return true;
+    }
+  else
+    return false;
 }
 
 
-void IECDevice::atnInterruptFcn() 
+byte IECDevice::getDeviceIndex(byte devnr)
+{
+#if MAX_DEVICES==1
+  return devnr==m_devices[0] ? 0 : MAX_DEVICES;
+#else
+  for(byte i=0; i<m_numDevices; i++)
+    if( devnr==m_devices[i] )
+      return i;
+
+  return MAX_DEVICES;
+#endif
+}
+
+
+bool IECDevice::haveDeviceNumber(byte devnr)
+{
+#if MAX_DEVICES==1
+  return devnr==m_devices[0];
+#else
+  return getDeviceIndex(devnr)<MAX_DEVICES;
+#endif
+}
+
+
+void IECDevice::atnInterruptFcn1()
 { 
-  if( s_iecdevice && !s_iecdevice->m_inTask & ((s_iecdevice->m_flags & P_ATN)==0) )
-    s_iecdevice->atnRequest(); 
+  if( s_iecdevice1!=NULL && !s_iecdevice1->m_inTask & ((s_iecdevice1->m_flags & P_ATN)==0) )
+    s_iecdevice1->atnRequest();
 }
 
+
+void IECDevice::atnInterruptFcn2()
+{ 
+  if( s_iecdevice2!=NULL && !s_iecdevice2->m_inTask & ((s_iecdevice2->m_flags & P_ATN)==0) )
+    s_iecdevice2->atnRequest();
+}
+
+
+#if defined(SUPPORT_JIFFY) || defined(SUPPORT_DOLPHIN)
+void IECDevice::setBuffer(byte *buffer, byte bufferSize)
+{
+  m_buffer     = buffer;
+  m_bufferSize = bufferSize;
+}
+#endif
 
 #ifdef SUPPORT_JIFFY
+
+// ------------------------------------  JiffyDos support routines  ------------------------------------  
+
+bool IECDevice::enableJiffyDosSupport(bool enable)
+{
+  if( enable && m_buffer!=NULL && m_bufferSize>0 )
+    m_sflags |= S_JIFFY_ENABLED;
+  else
+    m_sflags &= ~S_JIFFY_ENABLED;
+
+  // cancel any current JiffyDos activities
+  m_sflags &= ~(S_JIFFY_DETECTED|S_JIFFY_BLOCK);
+
+  return (m_sflags & S_JIFFY_ENABLED)!=0;
+}
 
 bool IECDevice::receiveJiffyByte(bool canWriteOk)
 {
@@ -382,11 +478,7 @@ bool IECDevice::receiveJiffyByte(bool canWriteOk)
   writePinDATA(HIGH);
 
   // wait for either CLK high or ATN low
-#ifdef IOREG_TYPE
-  while( (*m_regCLKread & m_bitCLK)==0 && (*m_regATNread & m_bitATN)!=0 );
-#else
-  while( !digitalReadFast(m_pinCLK) && digitalReadFast(m_pinATN) );
-#endif
+  while( !digitalReadFastExt(m_pinCLK, m_regCLKread, m_bitCLK) && digitalReadFastExt(m_pinATN, m_regATNread, m_bitATN) );
 
   // start timer (on AVR, lag from CLK high to timer start is between 700...1700ns)
   timer_start();
@@ -454,7 +546,7 @@ bool IECDevice::receiveJiffyByte(bool canWriteOk)
   if( canWriteOk )
     {
       // pass received data on to higher layer
-      write(data);
+      write(m_devnr, data, eoi);
     }
   else
     {
@@ -468,7 +560,7 @@ bool IECDevice::receiveJiffyByte(bool canWriteOk)
 
 bool IECDevice::transmitJiffyByte(byte numData)
 {
-  byte data = numData>0 ? peek() : 0;
+  byte data = numData>0 ? peek(m_devnr) : 0;
 
   JDEBUG1();
   timer_init();
@@ -480,11 +572,7 @@ bool IECDevice::transmitJiffyByte(byte numData)
   writePinCLK(HIGH);
   
   // wait for either DATA high (FBCB) or ATN low
-#ifdef IOREG_TYPE
-  while( (*m_regDATAread & m_bitDATA)==0 && (*m_regATNread & m_bitATN)!=0 );
-#else
-  while( !digitalReadFast(m_pinDATA) && digitalReadFast(m_pinATN) );
-#endif
+  while( !digitalReadFastExt(m_pinDATA, m_regDATAread, m_bitDATA) && digitalReadFastExt(m_pinATN, m_regATNread, m_bitATN) );
 
   // start timer (on AVR, lag from DATA high to timer start is between 700...1700ns)
   timer_start();
@@ -549,8 +637,11 @@ bool IECDevice::transmitJiffyByte(byte numData)
     }
 
   // EOI/error status is read by receiver 59 cycles after DATA HIGH (FBEF)
-
   interrupts();
+
+  // make sure the DATA line has had time to settle on HIGH
+  // receiver sets DATA low 63 cycles after initial DATA HIGH (FBF2)
+  timer_wait_until(60);
 
   // receiver signals "done" by pulling DATA low (FBF2)
   JDEBUG1();
@@ -560,7 +651,7 @@ bool IECDevice::transmitJiffyByte(byte numData)
   if( numData>0 )
     {
       // success => discard transmitted byte (was previously read via peek())
-      read();
+      read(m_devnr);
       return true;
     }
   else
@@ -618,12 +709,13 @@ bool IECDevice::transmitJiffyBlock(byte *buffer, byte numBytes)
       // signal READY by releasing CLK
       writePinCLK(HIGH);
 
+      // make sure DATA has settled on HIGH
+      // (receiver takes at least 19 cycles between seeing DATA HIGH [at FB3E] and setting DATA LOW [at FB51]
+      // so waiting a couple microseconds will not hurt transfer performance)
+      delayMicroseconds(2);
+
       // wait for either DATA low (FB51) or ATN low
-#ifdef IOREG_TYPE
-      while( (*m_regDATAread & m_bitDATA)!=0 && (*m_regATNread & m_bitATN)!=0 );
-#else
-      while( digitalReadFast(m_pinDATA) && digitalReadFast(m_pinATN) );
-#endif
+      while( digitalReadFastExt(m_pinDATA, m_regDATAread, m_bitDATA) && digitalReadFastExt(m_pinATN, m_regATNread, m_bitATN) );
 
       // start timer (on AVR, lag from DATA low to timer start is between 700...1700ns)
       timer_start();
@@ -690,8 +782,529 @@ bool IECDevice::transmitJiffyBlock(byte *buffer, byte numBytes)
 #endif // !SUPPORT_JIFFY
 
 
+#ifdef SUPPORT_DOLPHIN
+
+// ------------------------------------  DolphinDos support routines  ------------------------------------  
+
+#define DOLPHIN_PREBUFFER_BYTES 2
+
+#if !defined(__AVR_ATmega328P__) && !defined(__AVR_ATmega2560__)
+volatile static bool _handshakeReceived = false;
+static void handshakeIRQ() { _handshakeReceived = true; }
+#endif
+
+
+void IECDevice::setDolphinDosPins(byte pinHT, byte pinHR,byte pinD0, byte pinD1, byte pinD2, byte pinD3, byte pinD4, byte pinD5, byte pinD6, byte pinD7)
+{
+  m_pinDolphinHandshakeTransmit = pinHT;
+  m_pinDolphinHandshakeReceive  = pinHR;
+  m_pinDolphinParallel[0] = pinD0;
+  m_pinDolphinParallel[1] = pinD1;
+  m_pinDolphinParallel[2] = pinD2;
+  m_pinDolphinParallel[3] = pinD3;
+  m_pinDolphinParallel[4] = pinD4;
+  m_pinDolphinParallel[5] = pinD5;
+  m_pinDolphinParallel[6] = pinD6;
+  m_pinDolphinParallel[7] = pinD7;
+}
+
+
+bool IECDevice::enableDolphinDosSupport(bool enable)
+{
+  if( enable && m_buffer!=NULL && m_bufferSize>=DOLPHIN_PREBUFFER_BYTES && 
+      !isDolphinPin(m_pinATN)   && !isDolphinPin(m_pinCLK) && !isDolphinPin(m_pinDATA) && 
+      !isDolphinPin(m_pinRESET) && !isDolphinPin(m_pinCTRL) && 
+      m_pinDolphinHandshakeTransmit!=0xFF && m_pinDolphinHandshakeReceive!=0xFF && 
+      digitalPinToInterrupt(m_pinDolphinHandshakeReceive)!=NOT_AN_INTERRUPT )
+    {
+      m_sflags |= S_DOLPHIN_ENABLED|S_DOLPHIN_BURST_ENABLED;
+
+#if defined(IOREG_TYPE)
+      m_regDolphinHandshakeTransmitMode = portModeRegister(digitalPinToPort(m_pinDolphinHandshakeTransmit));
+      m_bitDolphinHandshakeTransmit     = digitalPinToBitMask(m_pinDolphinHandshakeTransmit);
+      for(int i=0; i<8; i++)
+        {
+          m_regDolphinParallelWrite[i] = portOutputRegister(digitalPinToPort(m_pinDolphinParallel[i]));
+          m_regDolphinParallelRead[i]  = portInputRegister(digitalPinToPort(m_pinDolphinParallel[i]));
+          m_regDolphinParallelMode[i]  = portModeRegister(digitalPinToPort(m_pinDolphinParallel[i]));
+          m_bitDolphinParallel[i]      = digitalPinToBitMask(m_pinDolphinParallel[i]);
+        }
+#endif
+      // initialize handshake transmit (high-Z)
+      pinMode(m_pinDolphinHandshakeTransmit, OUTPUT);
+      digitalWrite(m_pinDolphinHandshakeTransmit, LOW);
+      pinModeFastExt(m_pinDolphinHandshakeTransmit, m_regDolphinHandshakeTransmitMode, m_bitDolphinHandshakeTransmit, INPUT);
+      
+      // initialize handshake receive
+      pinMode(m_pinDolphinHandshakeReceive, INPUT); 
+
+      // For 8-bit AVR platforms (Arduino Uno R3, Arduino Mega) the interrupt latency combined
+      // with the comparatively slow clock speed leads to reduced performance during load/save
+      // For those platforms we do not use the generic interrupt mechanism but instead directly 
+      // access the registers dealing with external interrupts.
+      // All other platforms are fast enough so we can use the interrupt mechanism without
+      // performance issues.
+#if defined(__AVR_ATmega328P__)
+      // 
+      if( m_pinDolphinHandshakeReceive==2 )
+        {
+          EIMSK &= ~bit(INT0);  // disable pin change interrupt
+          EICRA &= ~bit(ISC00); EICRA |=  bit(ISC01); // enable falling edge detection
+          m_handshakeReceivedBit = bit(INTF0);
+        }
+      else if( m_pinDolphinHandshakeReceive==3 )
+        {
+          EIMSK &= ~bit(INT1);  // disable pin change interrupt
+          EICRA &= ~bit(ISC10); EICRA |=  bit(ISC11); // enable falling edge detection
+          m_handshakeReceivedBit = bit(INTF1);
+        }
+#elif defined(__AVR_ATmega2560__)
+      if( m_pinDolphinHandshakeReceive==2 )
+        {
+          EIMSK &= ~bit(INT4); // disable interrupt
+          EICRB &= ~bit(ISC40); EICRB |=  bit(ISC41);  // enable falling edge detection
+          m_handshakeReceivedBit = bit(INTF4);
+        }
+      else if( m_pinDolphinHandshakeReceive==3 )
+        {
+          EIMSK &= ~bit(INT5); // disable interrupt
+          EICRB &= ~bit(ISC50); EICRB |=  bit(ISC51);  // enable falling edge detection
+          m_handshakeReceivedBit = bit(INTF5);
+        }
+      else if( m_pinDolphinHandshakeReceive==18 )
+        {
+          EIMSK &= ~bit(INT3); // disable interrupt
+          EICRA &= ~bit(ISC30); EICRA |=  bit(ISC31);  // enable falling edge detection
+          m_handshakeReceivedBit = bit(INTF3);
+        }
+      else if( m_pinDolphinHandshakeReceive==19 )
+        {
+          EIMSK &= ~bit(INT2); // disable interrupt
+          EICRA &= ~bit(ISC20); EICRA |=  bit(ISC21);  // enable falling edge detection
+          m_handshakeReceivedBit = bit(INTF2);
+        }
+      else if( m_pinDolphinHandshakeReceive==20 )
+        {
+          EIMSK &= ~bit(INT1); // disable interrupt
+          EICRA &= ~bit(ISC10); EICRA |=  bit(ISC11);  // enable falling edge detection
+          m_handshakeReceivedBit = bit(INTF1);
+        }
+      else if( m_pinDolphinHandshakeReceive==21 )
+        {
+          EIMSK &= ~bit(INT0); // disable interrupt
+          EICRA &= ~bit(ISC00); EICRA |=  bit(ISC01);  // enable falling edge detection
+          m_handshakeReceivedBit = bit(INTF0);
+        }
+#else
+      attachInterrupt(digitalPinToInterrupt(m_pinDolphinHandshakeReceive), handshakeIRQ, FALLING);
+#endif
+
+      // initialize parallel bus pins
+      for(int i=0; i<8; i++) pinMode(m_pinDolphinParallel[i], OUTPUT);
+      // switch parallel bus to input
+      setParallelBusModeInput();
+    }
+  else
+    {
+      if( m_sflags & S_DOLPHIN_ENABLED )
+        detachInterrupt(digitalPinToInterrupt(m_pinDolphinHandshakeReceive));
+
+      m_sflags &= ~(S_DOLPHIN_ENABLED|S_DOLPHIN_BURST_ENABLED);
+    }
+
+  // cancel any current DolphinDos activities
+  m_sflags &= ~(S_DOLPHIN_DETECTED|S_DOLPHIN_BURST_TRANSMIT|S_DOLPHIN_BURST_RECEIVE);
+
+  // make sure parallel bus is not outputting data
+  setParallelBusModeInput();
+
+  return (m_sflags & S_DOLPHIN_ENABLED)!=0;
+}
+
+
+bool IECDevice::isDolphinPin(byte pin)
+{
+  if( pin==m_pinDolphinHandshakeTransmit || pin==m_pinDolphinHandshakeReceive )
+    return true;
+  for(int i=0; i<8; i++) 
+    if( pin==m_pinDolphinParallel[i] )
+      return true;
+  return false;
+}
+
+
+bool IECDevice::parallelBusHandshakeReceived()
+{
+#if defined(__AVR_ATmega328P__) || defined(__AVR_ATmega2560__)
+  // see comment in function enableDolphinDosSupport
+  if( EIFR & m_handshakeReceivedBit )
+    {
+      EIFR |= m_handshakeReceivedBit;
+      return true;
+    }
+  else
+    return false;
+#else
+  if( _handshakeReceived )
+    {
+      _handshakeReceived = false;
+      return true;
+    }
+  else
+    return false;
+#endif
+}
+
+
+void IECDevice::parallelBusHandshakeTransmit()
+{
+  // Emulate open collector behavior: 
+  // - switch pin to INPUT  mode (high-Z output) for true
+  // - switch pun to OUTPUT mode (LOW output) for false
+  pinModeFastExt(m_pinDolphinHandshakeTransmit, m_regDolphinHandshakeTransmitMode, m_bitDolphinHandshakeTransmit, OUTPUT);
+  delayMicroseconds(2);
+  pinModeFastExt(m_pinDolphinHandshakeTransmit, m_regDolphinHandshakeTransmitMode, m_bitDolphinHandshakeTransmit, INPUT);
+}
+
+
+byte IECDevice::readParallelData()
+{
+  byte res = 0;
+  // loop unrolled for performance
+  if( digitalReadFastExt(m_pinDolphinParallel[0], m_regDolphinParallelRead[0], m_bitDolphinParallel[0]) ) res |= 0x01;
+  if( digitalReadFastExt(m_pinDolphinParallel[1], m_regDolphinParallelRead[1], m_bitDolphinParallel[1]) ) res |= 0x02;
+  if( digitalReadFastExt(m_pinDolphinParallel[2], m_regDolphinParallelRead[2], m_bitDolphinParallel[2]) ) res |= 0x04;
+  if( digitalReadFastExt(m_pinDolphinParallel[3], m_regDolphinParallelRead[3], m_bitDolphinParallel[3]) ) res |= 0x08;
+  if( digitalReadFastExt(m_pinDolphinParallel[4], m_regDolphinParallelRead[4], m_bitDolphinParallel[4]) ) res |= 0x10;
+  if( digitalReadFastExt(m_pinDolphinParallel[5], m_regDolphinParallelRead[5], m_bitDolphinParallel[5]) ) res |= 0x20;
+  if( digitalReadFastExt(m_pinDolphinParallel[6], m_regDolphinParallelRead[6], m_bitDolphinParallel[6]) ) res |= 0x40;
+  if( digitalReadFastExt(m_pinDolphinParallel[7], m_regDolphinParallelRead[7], m_bitDolphinParallel[7]) ) res |= 0x80;
+  return res;
+}
+
+
+void IECDevice::writeParallelData(byte data)
+{
+  // loop unrolled for performance
+  digitalWriteFastExt(m_pinDolphinParallel[0], m_regDolphinParallelWrite[0], m_bitDolphinParallel[0], data & 0x01);
+  digitalWriteFastExt(m_pinDolphinParallel[1], m_regDolphinParallelWrite[1], m_bitDolphinParallel[1], data & 0x02);
+  digitalWriteFastExt(m_pinDolphinParallel[2], m_regDolphinParallelWrite[2], m_bitDolphinParallel[2], data & 0x04);
+  digitalWriteFastExt(m_pinDolphinParallel[3], m_regDolphinParallelWrite[3], m_bitDolphinParallel[3], data & 0x08);
+  digitalWriteFastExt(m_pinDolphinParallel[4], m_regDolphinParallelWrite[4], m_bitDolphinParallel[4], data & 0x10);
+  digitalWriteFastExt(m_pinDolphinParallel[5], m_regDolphinParallelWrite[5], m_bitDolphinParallel[5], data & 0x20);
+  digitalWriteFastExt(m_pinDolphinParallel[6], m_regDolphinParallelWrite[6], m_bitDolphinParallel[6], data & 0x40);
+  digitalWriteFastExt(m_pinDolphinParallel[7], m_regDolphinParallelWrite[7], m_bitDolphinParallel[7], data & 0x80);
+}
+
+
+void IECDevice::setParallelBusModeInput()
+{
+  // set parallel bus data pins to input mode
+  for(int i=0; i<8; i++) 
+    pinModeFastExt(m_pinDolphinParallel[i], m_regDolphinParallelMode[i], m_bitDolphinParallel[i], INPUT);
+}
+
+
+void IECDevice::setParallelBusModeOutput()
+{
+  // set parallel bus data pins to output mode
+  for(int i=0; i<8; i++) 
+    pinModeFastExt(m_pinDolphinParallel[i], m_regDolphinParallelMode[i], m_bitDolphinParallel[i], OUTPUT);
+}
+
+
+bool IECDevice::waitParallelBusHandshakeReceived()
+{
+  while( !parallelBusHandshakeReceived() )
+    if( !readPinATN() )
+      return false;
+
+  return true;
+}
+
+
+void IECDevice::enableDolphinBurstMode(bool enable)
+{
+  if( enable )
+    m_sflags |= S_DOLPHIN_BURST_ENABLED;
+  else
+    m_sflags &= ~S_DOLPHIN_BURST_ENABLED;
+
+  m_sflags &= ~(S_DOLPHIN_BURST_TRANSMIT|S_DOLPHIN_BURST_RECEIVE);
+}
+
+void IECDevice::dolphinBurstReceiveRequest()
+{
+  m_sflags |= S_DOLPHIN_BURST_RECEIVE;
+}
+
+void IECDevice::dolphinBurstTransmitRequest()
+{
+  m_sflags |= S_DOLPHIN_BURST_TRANSMIT;
+}
+
+bool IECDevice::receiveDolphinByte(bool canWriteOk)
+{
+  bool eoi = false;
+  
+  // wait for CLK high (host is ready to send next byte)
+  if( !waitPinCLK(HIGH) ) return false;
+  
+  // we have buffered bytes (see comment below) that need to be
+  // sent on to the higher level handler before we can receive more.
+  // There are two ways to get to m_dolphinCtr==2:
+  // 1) the host never sends a XZ burst request and just keeps sending data
+  // 2) the host sends a burst request but we reject it
+  // note that we must wait for the host to be ready to send the next data 
+  // byte before we can empty our buffer, otherwise we will already empty
+  // it before the host sends the burst (XZ) request
+  if( m_secondary==0x61 && m_dolphinCtr > 0 && m_dolphinCtr <= DOLPHIN_PREBUFFER_BYTES )
+    {
+      // send next buffered byte on to higher level
+      write(m_devnr, m_buffer[m_dolphinCtr-1], false);
+      m_dolphinCtr--;
+      return true;
+    }
+
+  // signal "ready"
+  writePinDATA(HIGH);
+
+  // wait for CLK low
+  if( !waitPinCLK(LOW, 100) ) 
+    {
+      // exit if waitPinCLK returned because of falling edge on ATN
+      if( !readPinATN() ) return false;
+
+      // sender did not set CLK low within 100us after we set DATA high
+      // => it is signaling EOI
+      // acknowledge we received it by setting DATA low for 60us
+      eoi = true;
+      writePinDATA(LOW);
+      if( !waitTimeout(60) ) return false;
+      writePinDATA(HIGH);
+
+      // keep waiting for CLK low
+      if( !waitPinCLK(LOW) ) return false;
+    }
+
+  // get data
+  if( canWriteOk )
+    {
+      // read data from parallel bus
+      byte data = readParallelData();
+
+      // confirm receipt
+      writePinDATA(LOW);
+
+      // when executing a SAVE command, DolphinDos first sends two bytes of data,
+      // and then the "XZ" burst request. If the transmission happens in burst mode then
+      // that data is going to be sent again and the initial data is discarded.
+      // (MultiDubTwo actually sends garbage bytes for the initial two bytes)
+      // so we can't pass the first two bytes on yet because we don't yet know if this is
+      // going to be a burst transmission. If it is NOT a burst then we need to send them
+      // later (see beginning of this function). If it is a burst then we discard them.
+      // Note that the SAVE command always operates on channel 1 (secondary address 0x61)
+      // so we only do the buffering in that case. 
+      if( m_secondary==0x61 && m_dolphinCtr > DOLPHIN_PREBUFFER_BYTES )
+        {
+          m_buffer[m_dolphinCtr-DOLPHIN_PREBUFFER_BYTES-1] = data;
+          m_dolphinCtr--;
+        }
+      else
+        {
+          // pass received data on to higher layer
+          write(m_devnr, data, eoi);
+        }
+
+      return true;
+    }
+  else
+    {
+      // canWrite reported an error
+      return false;
+    }
+}
+
+
+bool IECDevice::transmitDolphinByte(byte numData)
+{
+  // signal "ready"
+  writePinCLK(HIGH);
+  
+  // wait for receiver to confirm
+  if( !waitPinDATA(HIGH) ) return false;
+
+  if( numData==0 ) 
+    {
+      // if we have nothing to send then there was some kind of error 
+      // aborting here will signal the error condition to the receiver
+      return false;
+    }
+  else if( numData==1 )
+    {
+      // last data byte => keep CLK high (signals EOI) and wait for receiver to 
+      // confirm EOI by HIGH->LOW->HIGH pulse on DATA
+      bool ok = (waitPinDATA(LOW) && waitPinDATA(HIGH));
+      if( !ok ) return false;
+    }
+
+  // put data byte on parallel bus
+  byte data = read(m_devnr);
+  setParallelBusModeOutput();
+  writeParallelData(data);
+
+  // set CLK low (signal "data ready")
+  writePinCLK(LOW);
+
+  // remember initial bytes of data sent (see comment in transmitDolphinBurst)
+  if( m_secondary==0x60 && m_dolphinCtr<DOLPHIN_PREBUFFER_BYTES ) 
+    m_buffer[m_dolphinCtr++] = data;
+
+  // wait for receiver to confirm receipt (must confirm within 1ms)
+  bool res = waitPinDATA(LOW, 1000);
+  
+  // release parallel bus
+  setParallelBusModeInput();
+  
+  return res;
+}
+
+
+bool IECDevice::receiveDolphinBurst()
+{
+  byte n = 0;
+
+  // wait for CLK low
+  if( !waitPinCLK(LOW)  ) return false;
+
+  // clear any previous handshakes
+  parallelBusHandshakeReceived();
+
+  // pull DATA low
+  writePinDATA(LOW);
+
+  // confirm burst mode transmission
+  parallelBusHandshakeTransmit();
+
+  // keep going while CLK is low
+  bool eoi = false;
+  while( !eoi )
+    {
+      // wait for "data ready" handshake, return if ATN is asserted (high)
+      if( !waitParallelBusHandshakeReceived() ) return false;
+
+      // CLK=high means EOI ("final byte of data coming")
+      eoi = readPinCLK();
+
+      // get received data byte
+      m_buffer[n++] = readParallelData();
+
+      if( n<m_bufferSize && !eoi )
+        {
+          // data received and buffered  => send handshake
+          parallelBusHandshakeTransmit();
+        }
+      else if( write(m_devnr, m_buffer, n, eoi)==n )
+        {
+          // data written successfully => send handshake
+          parallelBusHandshakeTransmit();
+          n = 0;
+        }
+      else
+        {
+          // error while writing data => release DATA to signal error condition and exit
+          writePinDATA(HIGH);
+          return false;
+        }
+    }
+
+  return true;
+}
+
+
+bool IECDevice::transmitDolphinBurst()
+{
+  // clear previous handshakes
+  parallelBusHandshakeReceived();
+
+  // send handshake to confirm burst transmission (Dolphin kernal EEDA)
+  parallelBusHandshakeTransmit();
+
+  // give the host some time to see our confirmation
+  // if we send the next handshake too quickly then the host will see only one,
+  // the host will be busy printing the load address after seeing the confirmation
+  // so nothing is lost by waiting a good long time before the next handshake
+  delayMicroseconds(1000);
+
+  // switch parallel bus to output
+  setParallelBusModeOutput();
+
+  // when loading a file, DolphinDos switches to burst mode by sending "XQ" after
+  // the transmission has started. The kernal does so after the first two bytes
+  // were sent, MultiDubTwo after one byte. After swtiching to burst mode, the 1541
+  // then re-transmits the bytes that were already sent.
+  for(byte i=0; i<m_dolphinCtr; i++)
+    {
+      writeParallelData(m_buffer[i]);
+      parallelBusHandshakeTransmit();
+      if( !waitParallelBusHandshakeReceived() ) { setParallelBusModeInput(); return false; }
+    }
+
+  // get data from upper layer and transmit it
+  byte n;
+  while( (n=read(m_devnr, m_buffer, m_bufferSize))>0 )
+    for(byte i=0; i<n; i++)
+      {
+        // put data on bus
+        writeParallelData(m_buffer[i]);
+        
+        // send handshake
+        // sending the handshake can induce a pulse on the receive handhake
+        // line so we clear the receive handshake after sending, note that we
+        // can't have an interrupt take up time between sending the handshake
+        // and clearing the receive handshake
+        noInterrupts();
+        parallelBusHandshakeTransmit();
+        parallelBusHandshakeReceived();
+        interrupts();
+
+        // wait for receiver handshake
+        while( !parallelBusHandshakeReceived() )
+          if( !readPinATN() || readPinDATA() )
+            {
+              // if receiver released DATA or pulled ATN low then there 
+              // was an error => release bus and CLK line and return
+              setParallelBusModeInput();
+              writePinCLK(HIGH);
+              return false;
+            }
+      }
+
+  // switch parallel bus back to input
+  setParallelBusModeInput();
+
+  // signal end-of-data
+  writePinCLK(HIGH);
+
+  // wait for receiver to confirm
+  if( !waitPinDATA(HIGH) ) return false;
+
+  // send handshake
+  parallelBusHandshakeTransmit();
+
+  return true;
+}
+
+#endif
+
+
+// ------------------------------------  IEC protocol support routines  ------------------------------------  
+
+
 bool IECDevice::receiveIECByte(bool canWriteOk)
 {
+  bool eoi = false;
+
   // release DATA ("ready-for-data")
   writePinDATA(HIGH);
 
@@ -706,6 +1319,7 @@ bool IECDevice::receiveIECByte(bool canWriteOk)
           // sender did not set CLK=0 within 200us after we set DATA=1
           // => it is signaling EOI (not so if we are under ATN)
           // acknowledge we received it by setting DATA=0 for 80us
+          eoi = true;
           writePinDATA(LOW);
           if( !waitTimeout(80) ) return false;
           writePinDATA(HIGH);
@@ -724,13 +1338,13 @@ bool IECDevice::receiveIECByte(bool canWriteOk)
         {
           if( (m_flags & P_ATN)==0 && !readPinATN() )
             return false;
-          else if( (m_flags & P_ATN) && (m_primary==0) && (((data>>1)&0x0F)==m_devnr) && (m_flags&P_JIFFY)==0 && (m_jiffyBufferSize>0) )
+          else if( (m_flags & P_ATN) && (m_primary==0) && haveDeviceNumber((data>>1)&0x0F) && (m_sflags&S_JIFFY_ENABLED) && (m_sflags&S_JIFFY_DETECTED)==0 )
             {
               // when sending primary address byte under ATN, host delayed
               // CLK=1 by more than 200us => JiffyDOS protocol detection
               // if we are being addressed then respond that we support 
               // the protocol by pulling DATA low for 80us
-              m_flags |= P_JIFFY;
+              m_sflags |= S_JIFFY_DETECTED;
               writePinDATA(LOW);
               if( !waitTimeout(80) ) return false;
               writePinDATA(HIGH);
@@ -742,7 +1356,7 @@ bool IECDevice::receiveIECByte(bool canWriteOk)
 #else
       if( !waitPinCLK(HIGH) ) return false;
 #endif
-      
+
       // read DATA bit
       data >>= 1;
       if( readPinDATA() ) data |= 0x80;
@@ -760,7 +1374,7 @@ bool IECDevice::receiveIECByte(bool canWriteOk)
       else if( m_secondary == 0 )
         m_secondary = data;
 
-      if( (m_primary != 0x3f) && (m_primary != 0x5f) && (((unsigned int) m_primary & 0x1f) != m_devnr) )
+      if( (m_primary != 0x3f) && (m_primary != 0x5f) && !haveDeviceNumber((unsigned int) m_primary & 0x1f) )
         {
           // This is NOT an UNLISTEN (0x3f) or UNTALK (0x5f)
           // command and the primary address is not ours =>
@@ -773,6 +1387,29 @@ bool IECDevice::receiveIECByte(bool canWriteOk)
         {
           // Acknowledge receipt by pulling DATA low
           writePinDATA(LOW);
+
+#if defined(SUPPORT_DOLPHIN)
+          // DolphinDos parallel cable detection:
+          // wait for either:
+          //  HIGH->LOW edge (1us pulse) on incoming parallel handshake signal, 
+          //      if received pull outgoing parallel handshake signal LOW to confirm
+          //  LOW->HIGH edge on ATN, 
+          //      if so then timeout, host does not support DolphinDos
+          if( (m_sflags & S_DOLPHIN_ENABLED) && m_secondary!=0 )
+            {
+              // clear any previous handshakes
+              parallelBusHandshakeReceived();
+
+              // wait for handshake
+              while( !readPinATN() )
+                if( parallelBusHandshakeReceived() )
+                  {
+                    m_sflags |= S_DOLPHIN_DETECTED;
+                    parallelBusHandshakeTransmit(); 
+                    break;
+                  }
+            }
+#endif
           return true;
         }
     }
@@ -782,7 +1419,7 @@ bool IECDevice::receiveIECByte(bool canWriteOk)
       writePinDATA(LOW);
 
       // pass received data on to higher layer
-      write(data);
+      write(m_devnr, data, eoi);
       return true;
     }
   else
@@ -795,41 +1432,27 @@ bool IECDevice::receiveIECByte(bool canWriteOk)
 
 bool IECDevice::transmitIECByte(byte numData)
 {
-  if( readPinDATA() )
+  // check whether ready-to-receive was already signaled by the 
+  // receiver before we signaled ready-to-send. The 1541 ROM 
+  // disassembly (E919-E924) suggests that this signals a "verify error" 
+  // condition and we should send EOI. Note that the C64 kernal does not
+  // actually do this signaling during a "verify" operation so I don't
+  // know whether my interpretation here is correct. However, some 
+  // programs (e.g. "copy 190") lock up if we don't handle this case.
+  bool verifyError = readPinDATA();
+
+  // signal "ready-to-send" (CLK=1)
+  writePinCLK(HIGH);
+
+  // wait for DATA HIGH ("ready-to-receive")
+  if( !waitPinDATA(HIGH) ) return false;
+  
+  if( numData==1 || verifyError )
     {
-      // "ready to receive" (DATA=1) already signaled before we
-      // signaled "ready to send" (CLK=1)
-      // observed when reading disk status (e.g. in "COPY190")
-      // see code in 1541 ROM disassembly $E919-$E923A
-      // (NO EOI handling in this case)
-      writePinCLK(HIGH);
-
-      // wait for DATA LOW
-      if( !waitPinDATA(LOW) ) return false;
-      
-      // receiver set DATA to LOW => wait for it to go HIGH again and send next byte 
-      // (NO EOI handling in this case)
-      writePinCLK(LOW);
-
-      // wait for DATA HIGH (receiver signaling "ready")
+      // only this byte left to send => signal EOI by keeping CLK=1
+      // wait for receiver to acknowledge EOI by setting DATA=0 then DATA=1
+      if( !waitPinDATA(LOW)  ) return false;
       if( !waitPinDATA(HIGH) ) return false;
-    }
-  else
-    {
-      // signal "ready-to-send" (CLK=1)
-      writePinCLK(HIGH);
-
-      // wait for DATA HIGH ("ready-to-receive")
-      //if( !waitTimeout(100) ) return false;
-      if( !waitPinDATA(HIGH) ) return false;
-
-      if( numData==1 ) 
-        {
-          // only this byte left to send => signal EOI by keeping CLK=1
-          // wait for receiver to acknowledge EOI by setting DATA=0 then DATA=1
-          if( !waitPinDATA(LOW)  ) return false;
-          if( !waitPinDATA(HIGH) ) return false;
-        }
     }
 
   // if we have nothing to send then there was some kind of error 
@@ -841,7 +1464,7 @@ bool IECDevice::transmitIECByte(byte numData)
   writePinCLK(LOW);
 
   // get the data byte from upper layer
-  byte data = read();
+  byte data = read(m_devnr);
 
   // transmit the byte
   for(byte i=0; i<8; i++)
@@ -883,7 +1506,8 @@ void IECDevice::atnRequest()
 {
   // falling edge on ATN detected (bus master addressing all devices)
   m_flags |= P_ATN;
-  m_flags &= ~(P_DONE|P_JIFFY|P_JIFFYBLOCK);
+  m_flags &= ~P_DONE;
+  m_sflags &= ~(S_JIFFY_DETECTED|S_JIFFY_BLOCK|S_DOLPHIN_DETECTED);
   m_primary = 0;
   m_secondary = 0;
 
@@ -899,7 +1523,56 @@ void IECDevice::atnRequest()
 
   // disable the hardware that allows ATN to pull DATA low
   writePinCTRL(HIGH);
+
+#ifdef SUPPORT_DOLPHIN
+  // cancel burst mode
+  m_sflags &= ~(S_DOLPHIN_BURST_TRANSMIT|S_DOLPHIN_BURST_RECEIVE);
+#endif
 }
+
+
+// default implementation of "buffer read" function which can/should be overridden
+// (for efficiency) by devices using the JiffyDos or DolphinDos protocol
+#if defined(SUPPORT_JIFFY) || defined(SUPPORT_DOLPHIN)
+byte IECDevice::read(byte devnr, byte *buffer, byte bufferSize) 
+{ 
+  byte i;
+  for(i=0; i<bufferSize; i++)
+    {
+      int8_t n;
+      while( (n = canRead(devnr))<0 );
+
+      if( n==0 )
+        break;
+      else
+        buffer[i] = read(m_devnr);
+    }
+
+  return i;
+}
+#endif
+
+
+#if defined(SUPPORT_DOLPHIN)
+// default implementation of "buffer write" function which can/should be overridden
+// (for efficiency) by devices using the DolphinDos protocol
+byte IECDevice::write(byte devnr, byte *buffer, byte bufferSize, bool eoi)
+{
+  byte i;
+  for(i=0; i<bufferSize; i++)
+    {
+      int8_t n;
+      while( (n = canWrite(devnr))<0 );
+      
+      if( n==0 )
+        break;
+      else
+        write(devnr, buffer[i], eoi && (i==bufferSize-1));
+    }
+  
+  return i;
+}
+#endif
 
 
 void IECDevice::task()
@@ -940,31 +1613,41 @@ void IECDevice::task()
       // allow ATN to pull DATA low in hardware
       writePinCTRL(LOW);
       
-      if (m_primary == 0x20 + m_devnr) 
+      if( (m_primary & 0xE0)==0x20 && haveDeviceNumber(m_primary & 0x1F) )
         {
           // we were told to listen
-          listen(m_secondary);
+          m_devnr  = m_primary & 0x1F;
+          m_devidx = getDeviceIndex(m_devnr);
+          listen(m_devnr, m_secondary);
           m_flags &= ~P_TALKING;
           m_flags |= P_LISTENING;
-          
+#ifdef SUPPORT_DOLPHIN
+          // see comments in function receiveDolphinByte
+          if( m_secondary==0x61 ) m_dolphinCtr = 2*DOLPHIN_PREBUFFER_BYTES;
+#endif
           // set DATA=0 ("I am here")
           writePinDATA(LOW);
         } 
-      else if (m_primary == 0x40 + m_devnr) 
+      if( (m_primary & 0xE0)==0x40 && haveDeviceNumber(m_primary & 0x1F) )
         {
           // we were told to talk
+          m_devnr  = m_primary & 0x1F;
+          m_devidx = getDeviceIndex(m_devnr);
 #ifdef SUPPORT_JIFFY
-          if( (m_flags&P_JIFFY)!=0 && m_secondary==0x61 ) 
+          if( (m_sflags & S_JIFFY_DETECTED)!=0 && m_secondary==0x61 )
             { 
               // in JiffyDOS, secondary 0x61 when talking enables "block transfer" mode
               m_secondary = 0x60; 
-              m_flags |= P_JIFFYBLOCK; 
+              m_sflags |= S_JIFFY_BLOCK; 
             }
 #endif        
-          talk(m_secondary);
+          talk(m_devnr, m_secondary);
           m_flags &= ~P_LISTENING;
           m_flags |= P_TALKING;
-
+#ifdef SUPPORT_DOLPHIN
+          // see comments in function transmitDolphinByte
+          if( m_secondary==0x60 ) m_dolphinCtr = 0;
+#endif
           // wait for bus master to set CLK=1 (and DATA=0) for role reversal
           if( waitPinCLK(HIGH) )
             {
@@ -999,6 +1682,74 @@ void IECDevice::task()
         }
     }
 
+#ifdef SUPPORT_DOLPHIN
+  // ------------------ DolphinDos burst transfer handling -------------------
+
+  if( (m_sflags & S_DOLPHIN_BURST_TRANSMIT)!=0 )
+    {
+      // give other devices on the bus time to release the DATA line
+      // after the UNLISTEN command for "XQ" burst request
+      delayMicroseconds(200);
+
+      // wait for host to pull DATA line LOW
+      waitPinDATA(LOW);
+
+      // pull CLK line LOW (host should have released it by now)
+      writePinCLK(LOW);
+      
+      if( m_sflags & S_DOLPHIN_BURST_ENABLED )
+        {
+          // transmit data in burst mode
+          transmitDolphinBurst();
+          
+          // close the file (usually the host sends these but not in burst mode)
+          listen(m_devnr, 0xE0);
+          unlisten();
+
+          // check whether ATN has been asserted and handle if necessary
+          if( !readPinATN() ) atnRequest();
+        }
+      else
+        {
+          // switch to regular transmit mode
+          m_flags = P_TALKING;
+          m_sflags |= S_DOLPHIN_DETECTED;
+          m_secondary = 0x60;
+        }
+
+      m_sflags &= ~S_DOLPHIN_BURST_TRANSMIT;
+    }
+  else if( m_sflags & S_DOLPHIN_BURST_RECEIVE )
+    {
+      // wait until host has released CLK after sending "XZ" burst request
+      // (Dolphin kernal ef82)
+      delayMicroseconds(500);
+
+      if( m_sflags & S_DOLPHIN_BURST_ENABLED )
+        {
+          // transmit data in burst mode
+          receiveDolphinBurst();
+          
+          // check whether ATN has been asserted and handle if necessary
+          if( !readPinATN() ) atnRequest();
+        }
+      else
+        {
+          // switch to regular receive mode
+          m_flags = P_LISTENING;
+          m_sflags |= S_DOLPHIN_DETECTED;
+          m_secondary = 0x61;
+
+          // see comment in function receiveDolphinByte
+          m_dolphinCtr = (2*DOLPHIN_PREBUFFER_BYTES)-m_dolphinCtr;
+
+          writePinDATA(LOW);
+        }
+
+      m_sflags &= ~S_DOLPHIN_BURST_RECEIVE;
+    }
+#endif
+
   // ------------------ receiving data -------------------
 
   if( (m_flags & (P_ATN | P_LISTENING))!=0 && (m_flags & P_DONE)==0 )
@@ -1008,7 +1759,7 @@ void IECDevice::task()
       // check if we can write (also gives devices a chance to
       // execute time-consuming tasks while bus master waits for ready-for-data)
       m_inTask = false;
-      int8_t numData = canWrite();
+      int8_t numData = canWrite(m_devnr);
       m_inTask = true;
 
       if( !(m_flags & P_ATN) && !readPinATN() )
@@ -1023,7 +1774,7 @@ void IECDevice::task()
           // some time to set CLK=1). m_timeoutStart is set in atnRequest()
         }
 #ifdef SUPPORT_JIFFY
-      else if( (m_flags&P_JIFFY)!=0 && numData>=0 && !(m_flags & P_ATN) )
+      else if( (m_sflags & S_JIFFY_DETECTED)!=0 && numData>=0 && !(m_flags & P_ATN) )
         {
           // receiving under JiffyDOS protocol
           if( !receiveJiffyByte(numData>0) )
@@ -1035,6 +1786,20 @@ void IECDevice::task()
               m_flags |= P_DONE;
             }
           }
+#endif
+#ifdef SUPPORT_DOLPHIN
+      else if( (m_sflags & S_DOLPHIN_DETECTED)!=0 && numData>=0 && !(m_flags & P_ATN) )
+        {
+          // receiving under DolphinDOS protocol
+          if( !receiveDolphinByte(numData>0) )
+            {
+              // receive failed => release DATA 
+              // and stop listening.  This will signal
+              // an error condition to the sender
+              writePinDATA(HIGH);
+              m_flags |= P_DONE;
+            }
+        }
 #endif
       else if( ((m_flags & P_ATN) || numData>=0) && readPinCLK() ) 
         {
@@ -1056,10 +1821,10 @@ void IECDevice::task()
      // we are not under ATN, are in "talking" mode and not done with the transaction
 
 #ifdef SUPPORT_JIFFY
-     if( (m_flags & P_JIFFYBLOCK)!=0 )
+     if( (m_sflags & S_JIFFY_BLOCK)!=0 )
        {
          // JiffyDOS block transfer mode
-         byte numData = read(m_jiffyBuffer, m_jiffyBufferSize);
+         byte numData = read(m_devnr, m_buffer, m_bufferSize);
 
          // delay to make sure receiver sees our CLK LOW and enters "new data block" state.
          // due possible VIC "bad line" it may take receiver up to 120us after
@@ -1067,7 +1832,7 @@ void IECDevice::task()
          // If we make it back into transmitJiffyBlock() during that time period
          // then we may already set CLK HIGH again before receiver sees the CLK LOW, 
          // preventing the receiver from going into "new data block" state
-         if( !waitTimeoutFrom(m_timeoutStart, 150) || !transmitJiffyBlock(m_jiffyBuffer, numData) )
+         if( !waitTimeoutFrom(m_timeoutStart, 150) || !transmitJiffyBlock(m_buffer, numData) )
            {
              // either a transmission error, no more data to send or falling edge on ATN
              m_flags |= P_DONE;
@@ -1084,7 +1849,7 @@ void IECDevice::task()
          // check if we can read (also gives devices a chance to
          // execute time-consuming tasks while bus master waits for ready-to-send)
         m_inTask = false;
-        int8_t numData = canRead();
+        int8_t numData = canRead(m_devnr);
         m_inTask = true;
 
         if( !readPinATN() )
@@ -1097,10 +1862,21 @@ void IECDevice::task()
             // either timeout not yet met or canRead() returned a negative value => do nothing
           }
 #ifdef SUPPORT_JIFFY
-        else if( (m_flags & P_JIFFY)!=0 )
+        else if( (m_sflags & S_JIFFY_DETECTED)!=0 )
           {
             // JiffyDOS byte-by-byte transfer mode
             if( !transmitJiffyByte(numData) )
+              {
+                // either a transmission error, no more data to send or falling edge on ATN
+                m_flags |= P_DONE;
+              }
+          }
+#endif
+#ifdef SUPPORT_DOLPHIN
+        else if( (m_sflags & S_DOLPHIN_DETECTED)!=0 )
+          {
+            // DolphinDOS byte-by-byte transfer mode
+            if( !transmitDolphinByte(numData) || numData==1 )
               {
                 // either a transmission error, no more data to send or falling edge on ATN
                 m_flags |= P_DONE;

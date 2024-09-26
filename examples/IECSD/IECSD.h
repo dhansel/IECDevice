@@ -10,16 +10,16 @@ class IECSD : public IECFileDevice
 {
  public: 
   IECSD(byte pinATN, byte pinCLK, byte pinDATA, byte pinRESET, byte pinChipSelect, byte pinLED);
-  void begin(byte devnr);
+  void begin(byte device);
   void task();
 
  protected:
-  virtual void open(byte channel, const char *name);
-  virtual bool write(byte channel, byte data);
-  virtual byte read(byte channel, byte *buffer, byte bufferSize);
-  virtual void close(byte channel);
-  virtual void getStatus(char *buffer, byte bufferSize);
-  virtual void execute(const char *command, byte len);
+  virtual void open(byte device, byte channel, const char *name);
+  virtual byte read(byte device, byte channel, byte *buffer, byte bufferSize);
+  virtual byte write(byte device, byte channel, byte *buffer, byte bufferSize);
+  virtual void close(byte device, byte channel);
+  virtual void getStatus(byte device, char *buffer, byte bufferSize);
+  virtual void execute(byte device, const char *command, byte len);
   virtual void reset();
 
  private:
@@ -27,11 +27,11 @@ class IECSD : public IECFileDevice
   byte openFile(byte channel, const char *name);
   byte openDir();
   bool readDir(byte *data);
-  bool isMatch(const char *name, const char *pattern);
+  bool isMatch(const char *name, const char *pattern, byte extmatch);
   void toPETSCII(byte *name);
   void fromPETSCII(byte *name);
 
-  const char *findFile(const char *name);
+  const char *findFile(const char *name, char ftype);
 
   SdFat m_sd;
   SdFile m_file, m_dir;

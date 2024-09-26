@@ -61,13 +61,13 @@ class IECCentronics : public IECDevice
   bool printerSelect();
 
  protected:
-  virtual void   listen(byte secondary);
-  virtual void   talk(byte secondary);
+  virtual void   listen(byte device, byte secondary);
+  virtual void   talk(byte device, byte secondary);
   virtual void   unlisten();
-  virtual int8_t canWrite();
-  virtual void   write(byte data);
-  virtual int8_t canRead();
-  virtual byte   read();
+  virtual int8_t canWrite(byte device);
+  virtual void   write(byte device, byte data, bool eoi);
+  virtual int8_t canRead(byte device);
+  virtual byte   read(byte device);
 
  private:
   void printerReadySig();

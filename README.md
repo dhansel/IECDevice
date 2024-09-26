@@ -11,10 +11,12 @@ The library provides two classes:
   - ```IECFileDevice``` for creating higher-level devices that operate more like disk
     drives. The IECFileDevice interface is file-based, providing open/close/read/write functions.
     An example use for this class would be an [SD-card reader](examples/IECSD).
-    Any device created using this class automatically supports the [JiffyDos](#jiffydos-support) protocol for fast data transfers.
+    Any device created using this class automatically supports the [JiffyDos](#jiffydos-support)
+    and [DolphinDos](#dolphindos-support) protocols for fast data transfers.
 
- So far I have tested this library on the following microcontrollers:
-  -  8-bit ATMega devices (Arduino Uno, Mega, Mini, Micro, Leonardo)
+So far I have tested this library on the following microcontrollers:
+  -  Arduino 8-bit ATMega devices (Uno R3, Mega, Mini, Micro, Leonardo)
+  -  Arduino Uno R4
   -  Arduino Due (32-bit)
   -  ESP32
   -  Raspberry Pi Pico
@@ -68,11 +70,11 @@ class IECBasicSerial : public IECDevice
  public:
   IECBasicSerial();
 
-  virtual int8_t canRead();
-  virtual byte   read();
+  virtual int8_t canRead(byte devnum);
+  virtual byte   read(byte devnum);
 
-  virtual int8_t canWrite();
-  virtual void   write(byte data);
+  virtual int8_t canWrite(byte devnum);
+  virtual void   write(byte devnum, byte data, bool eoi);
 };
 ```
 
@@ -87,12 +89,12 @@ The class constructor must call the IECDevice() constructor which defines the mi
 pins (ATN=3, Clock=4, Data=5) to which the IEC bus signals are connected.
 
 ```
-int8_t IECBasicSerial::canRead() {
+int8_t IECBasicSerial::canRead(byte devnum) {
   byte n = Serial.available();
   return n>1 ? 2 : n;
 }
 ```
-The canRead() function is called whenever data is requested from the device. For this device
+The canRead(devnum) function is called whenever data is requested from the device. For this device
 we return 0 if we have nothing to send. This will cause a timeout error condition on the bus
 (there is no provision in the IEC bus protocol for the computer to ask a device whether it
 has data to send at all). On the computer side this will set bit 1 of the status word (i.e.
@@ -101,7 +103,7 @@ blocking the bus until we have something to send. That would prevent us from rec
 data on the bus.
 
 ```
-byte IECBasicSerial::read() { 
+byte IECBasicSerial::read(byte devnum) { 
   return Serial.read();
 }
 ```
@@ -110,7 +112,7 @@ Since canRead() returned non-zero we know that serial data is availabe so we can
 result of Serial.read()
 
 ```
-int8_t IECBasicSerial::canWrite() {
+int8_t IECBasicSerial::canWrite(byte devnum) {
   return Serial.availableForWrite()>0 ? 1 : -1;
 }
 ```
@@ -120,11 +122,11 @@ This will cause canWrite() to be called again until we are ready and return 1.
 Alternatively we could just wait within this function until we are ready.
 
 ```
-void IECBasicSerial::write(byte data) { 
+void IECBasicSerial::write(byte devnum, byte data, bool eoi) { 
   Serial.write(data);
 }
 ```
-The write(data) function will **only** be called if the previous call to canWrite() returned 1. 
+The write() function will **only** be called if the previous call to canWrite() returned 1. 
 So at this point we know already that the serial port can accept data and just pass it on.
 
 To implement our device class in a sketch we must instantiate the class and call the "begin()" and "task()"
@@ -187,10 +189,10 @@ class IECBasicSD : public IECFileDevice
   IECBasicSD();
 
  protected:
-  virtual void open(byte channel, const char *name);
-  virtual byte read(byte channel, byte *buffer, byte bufferSize);
-  virtual bool write(byte channel, byte data);
-  virtual void close(byte channel);
+  virtual void open(byte devnum, byte channel, const char *name);
+  virtual byte read(byte devnum, byte channel, byte *buffer, byte bufferSize);
+  virtual bool write(byte devnum, byte channel, byte data);
+  virtual void close(byte devnum, byte channel);
 
  private:
   SdFat  m_sd;
@@ -212,7 +214,7 @@ The class constructor must call the IECFileDevice() constructor which defines th
 to which the IEC bus signals are connected. We also initialize the SD card interface in the constructor.
 
 ```
-void IECBasicSD::open(byte channel, const char *name)
+void IECBasicSD::open(byte devnum, byte channel, const char *name)
 {
   m_file.open(name, channel==0 ? O_RDONLY : (O_WRONLY | O_CREAT));
 }
@@ -225,7 +227,7 @@ For more information on this see the description of the open() function in
 [IECFileDevice Class Reference](#iecfiledevice-class-reference) section below.
 
 ```
-byte IECBasicSD::read(byte channel, byte *buffer, byte bufferSize)
+byte IECBasicSD::read(byte devnum, byte channel, byte *buffer, byte bufferSize)
 {
   return m_file.isOpen() ? m_file.read(buffer, bufferSize) : 0;
 }
@@ -238,7 +240,7 @@ Returning 0 on the first call after "open()" signals that there was an
 error opening the file.
 
 ```
-bool IECBasicSD::write(byte channel, byte data)
+bool IECBasicSD::write(byte devnum, byte channel, byte data)
 {
   return m_file.isOpen() && m_file.write(&data, 1)==1;
 }
@@ -250,7 +252,7 @@ Returning false on the first call after "open()" signals that there was an
 error opening the file.
 
 ```
-void IECBasicSD::close(byte channel)
+void IECBasicSD::close(byte devnum, byte channel)
 {
   m_file.close(); 
 }
@@ -292,10 +294,16 @@ The IECDevice class has the following functions that may/must be called from you
   for applications where the microcontroller may not be able to respond quickly enough to ATN requests 
   (see [Timing considerations](#timing-considerations) section below).
 
-- ```void begin(byte devnr)```  
-  This function must be called once at startup before the first call to "task", devnr
+- ```void begin(byte devnum)```  
+  This function must be called once at startup before the first call to "task", devnum
   is the IEC bus device number that the device should react to. begin() may be called
   again later to switch to a different device number.
+
+- ```void addDeviceNumber(byte devnum)```  
+  The call to "begin" already defines the device number for your device. If the device should
+  answer to multiple different device numbers, call "addDeviceNumber" to add more numbers.
+  The "devnum" argument passed to the communication functions below (canRead/read/canWrite/write)
+  will indicate the device number that was addressed.
 
 - ```void task()```
   This function must be called periodically to handle IEC bus communication
@@ -304,17 +312,41 @@ The IECDevice class has the following functions that may/must be called from you
   errors when trying to communicate with your device. If ATN is on an interrupt-capable
   pin less frequent calls are ok but bus communication will be slower if called less frequently.
 
-- ```void enableJiffyDosSupport(byte *buffer, byte bufferSize)```  
+- ```void enableJiffyDosSupport(bool enable)```  
   This function must be called **if** your device should support the JiffyDos protocol.
   In most cases devices with JiffyDos support should be derived from the IECFileDevice class
   which handles JiffyDos support internally and you do not have to call enableJiffyDosSupport().
   For more information see the [JiffyDos support](jiffydos-support) section below.
+  You can also use this function to disable JiffyDos support after it has been enabled.
 
-The following functions can be overridden in the derived device class to implement the device functions.
+- ```void enableDolphinDosSupport(byte *buffer, byte bufferSize)```  
+  This function must be called **if** your device should support the DolphinDos parallel protocol.
+  In most cases devices with DolphinDos support should be derived from the IECFileDevice class
+  which handles DolphinDos support internally and you do not have to call enableDolphinDosSupport().
+  For more information see the [DolphinDos support](dolphindos-support) section below.
+  You can also use this function to disable DolphinDos support after it has been enabled.
+
+- ```void setBuffer(byte *buffer, byte bufferSize);```
+  This function shold be called **before** calling enableJiffyDosSupport() or enableDolphinDosSupport()
+  to set the required data buffer for data block transmissions. The IECFileDevice class calls this
+  function, so if your device class is derived from IECFileDevice you do not need to call setBuffer().
+  If not called, a default buffer of size 1 will be used which is very inefficient (but saves memory).
+  A good buffer size is 128.
+
+- ```void setDolphinDosPins(...)```
+  This function can be called before calling enableDolphinDosSupport to specify the pins to be used
+  for the DolphinDos parallel cable. See the [DolphinDos support](dolphindos-support) section below 
+  for more information.
+
+The following functions can be overloaded in the derived device class to implement the device functions.
 None of these function are *required*. For example, if your device only receives data then only the
-canWrite() and write() functions need to be overridden.
+canWrite() and write() functions need to be overloaded.
+
+The devnum argument passed to these functions indicates the device number that the host has addressed.
+Usually this is the device number passed into the "begin()" call (see above). However if more device
+numbers were added via the "addDeviceNumber" function then devnum may show any of those numbers.
   
-- ```int8_t canRead()```  
+- ```int8_t canRead(byte devnum)```  
   This function will be called whenever the device is asked to send data
   to the bus controller (i.e. the computer). It should return one of four values: -1, 0, 1 or 2.  
   Returning -1 signals that we do not know yet whether there is more data to send.
@@ -323,10 +355,10 @@ canWrite() and write() functions need to be overridden.
   Returning 0 signals that there is no data to read.  
   Returning 1 signals that there is **exactly** one byte of data left to read.  
   Returning 2 signals that there are two or more bytes of data left to read.
-- ```byte read()```  
+- ```byte read(byte devnum)```  
   This function is called **only** if the previous call to canRead() returned a value greater than 0.
   read() must return the next data byte.
-- ```int8_t canWrite()```  
+- ```int8_t canWrite(byte devnum)```  
   This function will be called whenever the bus controller (computer) sends data
   to your device. It should return one of three values: -1, 0 or 1.   
   Returning -1 signals that we do not know yet whether we can accept more data.
@@ -335,39 +367,68 @@ canWrite() and write() functions need to be overridden.
   Returning 0 signals that we are not able to accept more data.  
   Returning 1 signals that we can accept data.  
   canWrite() should **only** return 1 if the device is ready to receive and process the data immediately.
-- ```void write(byte data)``` 
+- ```void write(byte devnum, byte data, bool eoi)``` 
   This function is called **only** if the previous call to canWrite() returned 1. The data argument
   is the data byte received on the bus. Note that the write() function must process the data and return 
   immediately (within 1 millisecond), otherwise bus timing errors may occur. 
-- ```void listen(byte secondary)```  
+  The eoi argument will be "true" if the host indicated that this is the last byte of a trasmission.
+- ```void listen(byte devnum, byte secondary)```  
   Called when the bus controller (computer) issues a LISTEN command, i.e. is about to send data to the device.
   This function must return immediately (within 1 millisecond), otherwise bus timing errors may occur. 
-- ```void unlisten()```  
+- ```void unlisten(byte devnum)```  
   Called when the bus controller (computer) issues an UNLISTEN command, i.e. is done sending data.
-- ```void talk(byte secondary) ```  
+- ```void talk(byte devnum, byte secondary) ```  
   Called when the bus controller (computer) issues a TALK command, i.e. is requesting data from the device.
   This function must return immediately (within 1 millisecond), otherwise bus timing errors may occur. 
-- ```void untalk()```  
+- ```void untalk(byte devnum)```  
   Called when the bus controller (computer) issues an UNTALK command, i.e. is done receiving data from the device.
 - ```void reset()```  
   Called when a high->low edge is detected on the the IEC bus RESET signal line (only if pinRESET was given in the constructor).
-- ```byte peek()```  
-  Called when the device is sending data using JiffyDOS byte-by-byte protocol.  
+
+The following functions should be overloaded if the JiffyDos protocol should be supported.
+In most cases devices with JiffyDos support should be derived from the IECFileDevice class
+which handles JiffyDos support internally and you do not have to implement these functions.
+For more information see the [JiffyDos support](jiffydos-support) section below.
+
+- ```byte peek(byte devnum)```  
+  Called when the device is sending data using JiffyDos byte-by-byte protocol.  
   peek() will only be called if the last call to canRead() returned >0.  
   peek() should return the next character that will be read with read().  
   peek() is allowed to take an indefinite amount of time.  
-  In most cases devices with JiffyDos support should be derived from the IECFileDevice class
-  which handles JiffyDos support internally and you do not have to implement peek().
-  For more information see the [JiffyDos support](jiffydos-support) section below.
-- ```byte read(byte *buffer, byte bufferSize)```  
-  This function is only called when the device is sending data using the JiffyDOS block transfer (LOAD protocol).
+- ```byte read(byte devnum, byte *buffer, byte bufferSize)```  
+  This function is only called when the device is sending data using the JiffyDos or DolphinDos block transfer (LOAD protocol).
   read() should fill the buffer with as much data as possible (up to bufferSize).
   read() must return the number of bytes put into the buffer
-  If read() is not overloaded, JiffyDOS load performance will be about 3 times slower than otherwise
+  If read() is **not** overloaded, JiffyDos and DolphinDos load performance will be several times slower than otherwise.
   read() is allowed to take an indefinite amount of time.  
-  In most cases devices with JiffyDos support should be derived from the IECFileDevice class
-  which handles JiffyDos support internally and you do not have to implement peek().
-  For more information see the [JiffyDos support](jiffydos-support) section below.
+
+The following functions should be overloaded if the DolphinDos parallel protocol should be supported.
+In most cases devices with DolphinDos support should be derived from the IECFileDevice class
+which handles DolphinDos support internally and you do not have to implement these functions.
+For more information see the [DolphinDos support](dolphindos-support) section below.
+
+- ```byte write(byte devnr, byte *buffer, byte bufferSize, bool eoi)```
+  This function is only called when the device is receiving data using the DolphinDos block transfer (SAVE protocol).
+  write() should process all the data in the buffer and return the number of bytes processed.
+  Returning a number lower than bufferSize signals an error condition.
+  The "eoi" parameter will be "true" if sender signaled that this is the final part of the transmission
+  If write() is **not** overloaded, DolphinDos save performance will be several times slower than otherwise.
+  write() is allowed to take an indefinite amount of time.
+- ```byte read(byte devnum, byte *buffer, byte bufferSize)```  
+  This function is only called when the device is sending data using the JiffyDos or DolphinDos block transfer (LOAD protocol).
+  read() should fill the buffer with as much data as possible (up to bufferSize).
+  read() must return the number of bytes put into the buffer
+  If read() is **not** overloaded, JiffyDos and DolphinDos load performance will be several times slower than otherwise.
+  read() is allowed to take an indefinite amount of time.  
+- ```void enableDolphinBurstMode(bool enable)```, ```void dolphinBurstReceiveRequest()```, ```void dolphinBurstTransmitRequest()```
+  In DolphinDos, the burst (fast) transfer mode is controlled by commands sent via the command
+  channel (channel 15). During a LOAD/SAVE operation, the host will send "XQ"/"XZ" on the command channel
+  which then should cause the device to confirm the burst transmission. Since the low-level IECDevice
+  class itself does not handle the command channel, it provides functions for a higher-level class
+  to signal the burst request: Call dolphinBurstTransmitRequest() if "XQ" is received on the command channel.
+  Call dolphinBurstReceiveRequest() if "XZ" is received on the command channel. You can also call 
+  enableDolphinBurstMode() to enable/disable support of burst transfers ("XF+"/"XF-" DolphinDos command).
+
 
 ## IECFileDevice class reference
 
@@ -380,10 +441,21 @@ The IECFileDevice class has the following functions that may/must be called from
   for applications where the microcontroller may not be able to respond quickly enough to ATN requests 
   (see [Timing Considerations](#timing-considerations) section below).
 
-- ```void begin(byte devnr)```  
-  This function must be called once at startup before the first call to "task", devnr
+- ```void begin(byte devnum)```  
+  This function must be called once at startup before the first call to "task", devnum
   is the IEC bus device number that the device should react to. begin() may be called
   again later to switch to a different device number.
+
+- ```void addDeviceNumber(byte devnum)```  
+  The call to "begin" already defines the device number for your device. If the device should
+  answer to multiple different device numbers, call "addDeviceNumber" to add more numbers.
+  The "devnum" argument passed to the communication functions below (canRead/read/canWrite/write)
+  will indicate the device number that was addressed.
+
+- ```void setDolphinDosPins(...)```
+  This function can be called before calling enableDolphinDosSupport to specify the pins to be used
+  for the DolphinDos parallel cable. See the [DolphinDos support](dolphindos-support) section below 
+  for more information.
 
 - ```void task()```
   This function must be called periodically to handle IEC bus communication
@@ -392,9 +464,9 @@ The IECFileDevice class has the following functions that may/must be called from
   errors when trying to communicate with your device. If ATN is on an interrupt-capable
   pin less frequent calls are ok but bus communication will be slower if called less frequently.
 
-The following functions can be overridden in the derived device class to implement the device functions.
+The following functions can be overloaded in the derived device class to implement the device functions.
 None of these function are *required*. For example, if your device only receives data then only the
-canWrite() and write() functions need to be overridden.
+canWrite() and write() functions need to be overloaded.
 
 Most of these functions take an argument named *channel* which is the channel number given in
 the OPEN command that opened the file on the computer side, i.e. ```OPEN fileNum, deviceNum, channel, name$```
@@ -404,10 +476,14 @@ the getStatus() function will be called and the result of that call will be sent
 If the computer writes to channel 15 on your device, the execute() function will be called that lets
 the device process the command.
 
+The device number (devnum) passed to these functions indicates the device number that the host has addressed.
+Usually this is the device number passed into the "begin()" call (see above). However if more device
+numbers were added via the "addDeviceNumber" function then devnum may show any of those numbers.
+  
 The channel number will be 0 when the computer executes a LOAD command and 1 when the computer 
 executes a SAVE command.
   
-- ```void open(byte channel, const char *filename)```  
+- ```void open(byte devnum, byte channel, const char *filename)```  
   This function is called whenever the bus controller (computer) issues an OPEN command.
   The *channel* parameter specifies the channel as described above and the *filename* 
   parameter is a zero-terminated string representing the file name given in the OPEN command.
@@ -425,23 +501,23 @@ executes a SAVE command.
   For SAVEing a program, the computer will never show an error even in the case of failure. It is
   expected that the device signals the error condition separately to the user (e.g. the blinking
   LED on a floppy disk drive).
-- ```void close(byte channel)```  
+- ```void close(byte devnum, byte channel)```  
   Close the file that was previously opened on *channel*. The close() function does not have a 
   return value to signal success or failure since the IEC bus protocol does not include a method 
   to transmit this information.  
-- ```bool write(byte channel, byte data)```  
+- ```bool write(byte devnum, byte channel, byte data)```  
   Write the given byte of *data* to then file opened on the given *channel*. Return *true*
   if successfule or *false* if an error occurred (i.e. no more data can be accepted).
-- ```byte read(byte channel, byte *buffer, byte bufferSize)```  
+- ```byte read(byte devnum, byte channel, byte *buffer, byte bufferSize)```  
   Read up to *bufferSize* bytes of data from the file opened for *channel*, returning the number 
   of bytes read. Returning 0 will signal end-of-file to the receiver. Returning 0
   for the FIRST call after open() signals an error condition.
   (LOAD on the computer will show "file not found" in this case)
-- ```void getStatus(char *buffer, byte bufferSize)```  
+- ```void getStatus(byte devnum, char *buffer, byte bufferSize)```  
   Called when the computer reads from channel 15 and the status
   buffer is currently empty. This should populate *buffer* with an appropriate, zero-terminated
   status message of length up to *bufferSize*.
-- ```void execute(const char *command, byte cmdLen)```  
+- ```void execute(byte devnum, const char *command, byte cmdLen)```  
   Called when the computers sends data (i.e. a command) to channel 15.
   The *command* parameter is a 0-terminated string representing the command to execute,
   *commandLen* gives the full length of the received command which can be useful if
@@ -472,7 +548,7 @@ A device implemented using this library has three ways of doing so:
    time in software then a small circuit added to your device can help. This is in fact
    the way that the C1541 floppy drive handles this requirement (albeit using a slightly
    different circuit). Add a 74LS125 buffer to your design and connect it up like this:  
-   <img src="ATNCircuit.png" width="50%">  
+   <img src="hardware/ATNCircuit.png" width="50%">  
    Connect the ATN and Data signals to the bus and the CTRL signal to any available
    pin on your microcontroller. Then in your sketch make sure to add the CTRL pin
    when calling the IECDevice constructor. The purpose of the circuit is to pull
@@ -495,28 +571,84 @@ section below for how to disable JiffyDos support if desired.
 
 ## JiffyDos support
 
-The IECDevice class includes support for the [JiffyDos](https://www.go4retro.com/products/jiffydos/) bus protocol which significantly speeds up
-bus transfers, especially LOAD commands. The library automatically detects when the computer
-requests a JiffyDos transfer and responds correspondingly.
+The IECDevice class includes support for the [JiffyDos](https://www.go4retro.com/products/jiffydos/) 
+bus protocol which significantly speeds up bus transfers, especially LOAD commands. 
+The library automatically detects when the computer requests a JiffyDos transfer and responds correspondingly.
 
 For high-level file-based devices (derived from the IECFileDevice class), all functionality
 for JiffyDos support is already included in the IECFileDevice class. JiffyDos support is 
 automatically enabled. In case you do NOT want your device to support JiffyDos, just add
-the following call in the body of your class constructor: ```enableJiffyDosSupport(NULL, 0)```
+the following call in the body of your class constructor: ```enableJiffyDosSupport(false)```
 
 For low-level devices (derived from the IECDevice class), two additional functions need to 
-be overridden: ```peek()``` must return the next data byte that will be retuned by a call
+be overloaded: ```peek()``` must return the next data byte that will be retuned by a call
 to ```read()``` and ```read(buffer, bufferSize)``` which when called should return 
 a chunk of data to be transferred. See the [IECDevice class reference](#iecdevice-class-reference) section
 for the full function definitions.
 
 Even with these functions being defined, JiffyDos support is initially disabled for low-level devices
-and must be enabled by calling the ```enableJiffyDosSupport(buffer, bufferSize)``` function in your
-class constructor.
-The function parameters define a buffer which the IECDevice needs to store data during JiffyDos
+and must be enabled by calling ```setBuffer(buffer, bufferSize)``` and ```enableJiffyDosSupport(true)```
+in you class constructor.
+
+The ```setBuffer``` function defines a buffer which the IECDevice needs to store data during JiffyDos
 transfers. The size of the given buffer affects performance but sizes above 128 bytes do not
 increase performance much above 128 bytes which is what I would recommend unless memory is
 not an issue (maximum buffer size is 255 bytes).
 
 As mentioned in the timing consideration section, interrupts will be disabled during JiffyDos transfers 
 which may cause your program to not be able to respond to interrupts for up to 20ms at a time.
+
+Note that in order to use the fast JiffyDos routins you need a C64 replacement kernal that includes 
+the JiffyDos transfer routines which can be purchased [here](https://store.go4retro.com/categories/Commodore/Firmware/JiffyDOS).
+
+Tto completely disable JiffyDos support (for example to save memory space on small controllers
+like the Arduino UNO), comment out the "#define SUPPORT_JIFFY" line at the top of file IECDevice.h
+
+## DolphinDos support
+
+The IECDevice class includes support for the [DolphinDos](https://rr.pokefinder.org/wiki/Dolphin_DOS)
+parallel protocol.
+
+I recommend deriving any device class with DolphinDos support from the higher-level file-based
+IECFileDevice class. It is possible to use the lower-level IECDevice class (with steps similar
+to those described in the JiffyDos) section above but DolphinDos requires additional steps for
+handling burst transfer requests (XQ and XZ) on the command channel. If you really want to 
+develop your own low-level DolphinDos class, search for "dolphin" in the IECFileDevice.cpp file
+to see what additional steps are taken there.
+
+Like JiffyDos, DolphinDos needs a replacement kernal in the C64 for its fast transmission routines.
+The DolphinDos V2 C64 kernal can be downloaded [here](https://e4aws.silverdr.com/projects/dolphindos2/).
+
+DolphinDos relies on a parallel connection between the computer and device for its improved
+transmission speed. It will work without parallel cable will not provide any speed improvement.
+
+IECDevice has pre-defined pins for the different hardware platforms but those can be changed
+by calling the ```setDolphinDosPins(HT,HR,D0,D1,D2,D3,D4,D5,D6,D7)``` function. The pre-defined
+pin numbers are as follows:
+
+C64 User Port pin | Signal | Arduino Uno | Mega | Due | Raspberry Pi Pico | ESP32
+------------------|--------|-------------|------|-----|-------------------|------
+C (PB0)           | D0     | A0          | 22   | 51  | 7                 | IO13
+D (PB1)           | D1     | A1          | 23   | 50  | 8                 | IO14   
+E (PB2)           | D2     | A2          | 24   | 49  | 9                 | IO15   
+F (PB3)           | D3     | A3          | 25   | 48  | 10                | IO16   
+H (PB4)           | D4     | A4          | 26   | 47  | 11                | IO17   
+J (PB5)           | D5     | A5          | 27   | 46  | 12                | IO25   
+K (PB6)           | D6     | 8           | 28   | 45  | 13                | IO26   
+L (PB7)           | D7     | 9           | 29   | 44  | 14                | IO27   
+8 (PC2)           | HR     | 2           | 2    | 53  | 15                | IO36 (VP)  
+B (FLAG2)         | HT     | 7           | 30   | 52  | 6                 | IO4    
+
+Instructions for making a breakout board for the C64 user port that allows for easy connection 
+to the parallel port pins are available [here](hardware/README.md#user-port-breakout-board)
+
+To completely disable DolphinDos support (for example to save memory space on small controllers
+like the Arduino UNO), comment out the "#define SUPPORT_DOLPHIN" line at the top of file IECDevice.h
+
+## Raspberry Pi Pico development board
+
+Instructions for a development board to connect a Raspberry Pi Pico to a C64 are available 
+[here](hardware/README.md#raspberry-pi-pico-development-board)
+
+
+

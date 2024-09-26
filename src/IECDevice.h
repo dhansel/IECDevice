@@ -11,7 +11,7 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 //
-// You should have received a copy of the GNU General Public License
+// You should have receikved a copy of the GNU General Public License
 // along with this program; if not, write to the Free Software Foundation,
 // Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301  USA
 // -----------------------------------------------------------------------------
@@ -22,11 +22,25 @@
 #include <Arduino.h>
 
 #define SUPPORT_JIFFY
+#define SUPPORT_DOLPHIN
+
+// defines the maximum number of device numbers that the device
+// will be able to recognize - this is set to 1 by default but can
+// be increased to up to 16 devices, note that increasing this will
+// take up more SRAM and flash memory (only an issue on small platforms
+// such as Arduino Uno)
+#define MAX_DEVICES 1
 
 #if defined(__AVR__)
 #define IOREG_TYPE uint8_t
+#elif defined(ARDUINO_UNOR4_MINIMA) || defined(ARDUINO_UNOR4_WIFI)
+#define IOREG_TYPE uint16_t
 #elif defined(ARDUINO_ARCH_ESP32) || defined(__SAM3X8E__)
 #define IOREG_TYPE uint32_t
+#endif
+
+#ifndef NOT_AN_INTERRUPT
+#define NOT_AN_INTERRUPT -1
 #endif
 
 
@@ -43,6 +57,11 @@ class IECDevice
   // is the IEC bus device number that this device should react to
   void begin(byte devnr);
 
+  // the "begin" call defines one device number that this device will recognize,
+  // call "addDeviceNumber" if you want the device to recognize more than one device 
+  // number, make sure to set MAX_DEVICES (top of this file) appropriately
+  bool addDeviceNumber(byte devnr);
+
   // task must be called periodically to handle IEC bus communication
   // if the ATN signal is NOT on an interrupt-capable pin then task() must be
   // called at least once every millisecond, otherwise less frequent calls are
@@ -50,21 +69,41 @@ class IECDevice
   void task();
 
 #ifdef SUPPORT_JIFFY 
-  // call this to enable JiffyDOS support for your device. 
-  // larger buffers result in improved performance for LOAD operations, 
-  // other operations (SAVE, DIR, STATUS) are not affected
-  // calling with bufferSize=0 will disable JiffyDOS support
-  void enableJiffyDosSupport(byte *buffer, byte bufferSize);
+  // call this to enable or disable JiffyDOS support for your device. 
+  // you must call setBuffer() before calling this, otherwise this call will fail
+  // and JiffyDos support will not be enabled.
+  bool enableJiffyDosSupport(bool enable);
+#endif
+
+#ifdef SUPPORT_DOLPHIN 
+  // call this to enable or disable DolphinDOS support for your device. 
+  // you must call setBuffer() before calling this, otherwise this call will fail
+  // and DolphinDos support will not be enabled.
+  // this function will also fail if any of the pins used for ATN/CLK/DATA
+  // are the same as the hardcoded pins for the parallel cable
+  bool enableDolphinDosSupport(bool enable);
+  
+  // call this BEFORE enableDolphinDosSupport if you do not want to use the default
+  // pins for the DolphinDos cable
+  void setDolphinDosPins(byte pinHT, byte pinHR, byte pinD0, byte pinD1, byte pinD2, byte pinD3, 
+                         byte pinD4, byte pinD5, byte pinD6, byte pinD7);
+#endif
+
+#if defined(SUPPORT_JIFFY) || defined(SUPPORT_DOLPHIN)
+  // call this if you are using either JiffyDos or DolphinDos support
+  // to save memory, the default buffer is of size 1 which is very
+  // inefficient for tranmsissions. A good buffer size is 128.
+  void setBuffer(byte *buffer, byte bufferSize);
 #endif
 
  protected:
   // called when bus master sends TALK command
   // talk() must return within 1 millisecond
-  virtual void talk(byte secondary)   {}
+  virtual void talk(byte devnr, byte secondary)   {}
 
   // called when bus master sends LISTEN command
   // listen() must return within 1 millisecond
-  virtual void listen(byte secondary) {}
+  virtual void listen(byte devnr, byte secondary) {}
 
   // called when bus master sends UNTALK command
   // untalk() must return within 1 millisecond
@@ -81,7 +120,7 @@ class IECDevice
   //  <0 if more time is needed before data can be accepted (call again later), blocks IEC bus
   //   0 if no data can be accepted (error)
   //  >0 if at least one byte of data can be accepted
-  virtual int8_t canWrite() { return 0; }
+  virtual int8_t canWrite(byte devnr) { return 0; }
 
   // called before a read() call to see how many bytes are available to read
   // canRead() is allowed to take an indefinite amount of time
@@ -90,37 +129,63 @@ class IECDevice
   //   0 if no data is available to read (error)
   //   1 if one byte of data is available
   //  >1 if more than one byte of data is available
-  virtual int8_t canRead() { return 0; }
+  virtual int8_t canRead(byte devnr) { return 0; }
 
   // called when the device received data
   // write() will only be called if the last call to canWrite() returned >0
   // write() must return within 1 millisecond
-  virtual void write(byte data) {}
+  // the "eoi" parameter will be "true" if sender signaled that this is the last 
+  // data byte of a transmission
+  virtual void write(byte devnr, byte data, bool eoi) {}
 
   // called when the device is sending data
   // read() will only be called if the last call to canRead() returned >0
   // read() is allowed to take an indefinite amount of time
-  virtual byte read() { return 0; }
+  virtual byte read(byte devnr) { return 0; }
 
 #ifdef SUPPORT_JIFFY 
   // called when the device is sending data using JiffyDOS byte-by-byte protocol
   // peek() will only be called if the last call to canRead() returned >0
   // peek() should return the next character that will be read with read()
   // peek() is allowed to take an indefinite amount of time
-  virtual byte peek() { return 0; }
+  virtual byte peek(byte devnr) { return 0; }
+#endif
 
-  // only called when the device is sending data using the JiffyDOS block transfer (LOAD protocol):
+#ifdef SUPPORT_DOLPHIN
+  // called when the device is sending data using the DolphinDos burst transfer (SAVE protocol)
+  // should write all the data in the buffer and return the number of bytes written
+  // returning less than bufferSize signals an error condition
+  // the "eoi" parameter will be "true" if sender signaled that this is the final part of the transmission
+  // write() is allowed to take an indefinite amount of time
+  // the default implementation within IECDevice uses the canWrite() and write(data,eoi) functions,
+  // which is not efficient.
+  // it is highly recommended to override this function in devices supporting DolphinDos
+  virtual byte write(byte devnr, byte *buffer, byte bufferSize, bool eoi);
+
+  void enableDolphinBurstMode(bool enable);
+  void dolphinBurstReceiveRequest();
+  void dolphinBurstTransmitRequest();
+#endif
+
+#if defined(SUPPORT_JIFFY) || defined(SUPPORT_DOLPHIN)
+  // called when the device is sending data using the JiffyDOS block transfer
+  // or DolphinDos burst transfer (LOAD protocols)
   // - should fill the buffer with as much data as possible (up to bufferSize)
   // - must return the number of bytes put into the buffer
-  // - if not overloaded, JiffyDOS load performance will be about 3 times slower than otherwise
   // read() is allowed to take an indefinite amount of time
-  virtual byte read(byte *buffer, byte bufferSize) { *buffer = read(); return 1; }
+  // the default implementation within IECDevice uses the canRead() and read() functions,
+  // which is not efficient.
+  // it is highly recommended to override this function in devices supporting JiffyDos or DolphinDos.
+  virtual byte read(byte devnr, byte *buffer, byte bufferSize);
 #endif
 
   // called on falling edge of RESET line
   virtual void reset() {}
 
-  byte m_devnr;
+  bool haveDeviceNumber(byte devnr);
+  byte getDeviceIndex(byte devnr);
+
+  byte m_devnr, m_devidx, m_numDevices, m_devices[MAX_DEVICES];
   int  m_atnInterrupt;
   byte m_pinATN, m_pinCLK, m_pinDATA, m_pinRESET, m_pinCTRL;
 
@@ -143,27 +208,60 @@ class IECDevice
   bool receiveIECByte(bool canWriteOk);
   bool transmitIECByte(byte numData);
 
-#ifdef IOREG_TYPE
-  volatile IOREG_TYPE *m_regATNread, *m_regRESETread;
-  volatile IOREG_TYPE *m_regCLKread, *m_regCLKwrite, *m_regCLKmode;
-  volatile IOREG_TYPE *m_regDATAread, *m_regDATAwrite, *m_regDATAmode;
-  IOREG_TYPE m_bitATN, m_bitCLK, m_bitDATA, m_bitRESET;
-#endif
-
   volatile uint16_t m_timeoutDuration; 
   volatile uint32_t m_timeoutStart;
   volatile bool m_inTask;
-  volatile byte m_flags, m_primary, m_secondary;
+  volatile byte m_flags, m_sflags, m_primary, m_secondary;
+
+#ifdef IOREG_TYPE
+  volatile IOREG_TYPE *m_regCLKwrite, *m_regCLKmode, *m_regDATAwrite, *m_regDATAmode;
+  volatile const IOREG_TYPE *m_regATNread, *m_regCLKread, *m_regDATAread, *m_regRESETread;
+  IOREG_TYPE m_bitATN, m_bitCLK, m_bitDATA, m_bitRESET;
+#endif
 
 #ifdef SUPPORT_JIFFY 
   bool receiveJiffyByte(bool canWriteOk);
   bool transmitJiffyByte(byte numData);
   bool transmitJiffyBlock(byte *buffer, byte numBytes);
-  byte m_jiffyBufferSize, *m_jiffyBuffer;
 #endif
 
-  static IECDevice *s_iecdevice;
-  static void atnInterruptFcn();
+#ifdef SUPPORT_DOLPHIN
+  bool transmitDolphinByte(byte numData);
+  bool receiveDolphinByte(bool canWriteOk);
+  bool transmitDolphinBurst();
+  bool receiveDolphinBurst();
+
+  bool parallelBusHandshakeReceived();
+  bool waitParallelBusHandshakeReceived();
+  void parallelBusHandshakeTransmit();
+  void setParallelBusModeInput();
+  void setParallelBusModeOutput();
+  byte readParallelData();
+  void writeParallelData(byte data);
+  bool isDolphinPin(byte pin);
+
+  byte m_pinDolphinHandshakeTransmit;
+  byte m_pinDolphinHandshakeReceive;
+  byte m_dolphinCtr, m_pinDolphinParallel[8];
+
+#ifdef IOREG_TYPE
+  volatile IOREG_TYPE *m_regDolphinHandshakeTransmitMode;
+  volatile IOREG_TYPE *m_regDolphinParallelMode[8], *m_regDolphinParallelWrite[8];
+  volatile const IOREG_TYPE *m_regDolphinParallelRead[8];
+  IOREG_TYPE m_bitDolphinHandshakeTransmit, m_bitDolphinParallel[8];
+#if defined(__AVR_ATmega328P__) || defined(__AVR_ATmega2560__)
+  IOREG_TYPE m_handshakeReceivedBit = 0;
+#endif
+#endif
+#endif
+  
+#if defined(SUPPORT_JIFFY) || defined(SUPPORT_DOLPHIN)
+  byte m_bufferSize, *m_buffer;
+#endif
+
+  static IECDevice *s_iecdevice1,  *s_iecdevice2;
+  static void atnInterruptFcn1();
+  static void atnInterruptFcn2();
 };
 
 #endif

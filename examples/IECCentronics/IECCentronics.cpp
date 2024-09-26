@@ -314,13 +314,13 @@ void IECCentronics::sendByte(byte data)
 }
 
 
-void IECCentronics::talk(byte secondary)
+void IECCentronics::talk(byte device, byte secondary)
 {
   m_channel = secondary & 0x0F;
 }
 
 
-void IECCentronics::listen(byte secondary)
+void IECCentronics::listen(byte device, byte secondary)
 {
   m_channel = secondary & 0x0F;
 
@@ -347,13 +347,13 @@ void IECCentronics::unlisten()
 }
 
 
-int8_t IECCentronics::canWrite()
+int8_t IECCentronics::canWrite(byte device)
 {
   return m_receive.full() ? -1 : 1;
 }
 
 
-void IECCentronics::write(byte data)
+void IECCentronics::write(byte device, byte data, bool eoi)
 {
   m_receive.enqueue(data);
 
@@ -361,7 +361,7 @@ void IECCentronics::write(byte data)
 }
 
 
-int8_t IECCentronics::canRead()
+int8_t IECCentronics::canRead(byte device)
 {
   if( m_channel==15 )
     {
@@ -380,7 +380,7 @@ int8_t IECCentronics::canRead()
 }
 
 
-byte IECCentronics::read()
+byte IECCentronics::read(byte device)
 {
   return m_statusBuffer[m_statusBufferPtr++];
 }

@@ -53,7 +53,14 @@ void IECFDC::begin(byte devnr)
     }
   IECFileDevice::begin(devnr);
 
-  if( m_pinLED<0xFF ) pinMode(m_pinLED, OUTPUT);
+  if( m_pinLED<0xFF ) 
+    {
+      pinMode(m_pinLED, OUTPUT);
+      digitalWrite(m_pinLED, HIGH);
+      delay(500);
+      digitalWrite(m_pinLED, LOW);
+    }
+
   m_ferror = FR_SPLASH;
   m_errorTrack = 0;
   m_errorSector = 0;
@@ -379,7 +386,7 @@ void IECFDC::openFile(byte channel, const char *name)
 }
 
 
-void IECFDC::open(byte channel, const char *name)
+void IECFDC::open(byte devnr, byte channel, const char *name)
 {
   // The "~" (0x7E) used by FAT in shortened file names translates
   // to the "pi" symbol in PETSCII (when listing the directory).
@@ -395,11 +402,11 @@ void IECFDC::open(byte channel, const char *name)
     openDir(name);
 
   // clear the status buffer so getStatus() is called again next time the buffer is queried
-  clearStatus();
+  clearStatus(devnr);
 }
 
 
-byte IECFDC::read(byte channel, byte *buffer, byte bufferSize)
+byte IECFDC::read(byte devnr, byte channel, byte *buffer, byte bufferSize)
 {
   if( m_fatFsFile.obj.fs!=0 )
     {
@@ -413,21 +420,25 @@ byte IECFDC::read(byte channel, byte *buffer, byte bufferSize)
 }
 
 
-bool IECFDC::write(byte channel, byte data)
+byte IECFDC::write(byte devnr, byte channel, byte *buffer, byte bufferSize)
 {
+  byte res = 0;
+
   if( m_fatFsFile.obj.fs!=0 )
     {
       UINT count;
-      m_ferror = f_write(&m_fatFsFile, &data, 1, &count);
-      if( m_ferror != FR_OK ) f_close(&m_fatFsFile);
-      return count>0;
+      m_ferror = f_write(&m_fatFsFile, buffer, bufferSize, &count);
+      if( m_ferror != FR_OK ) 
+        f_close(&m_fatFsFile);
+      else
+        res = count;
     }
-  else
-    return false;
+
+  return res;
 }
 
 
-void IECFDC::close(byte channel)
+void IECFDC::close(byte devnr, byte channel)
 {
   if( m_fatFsFile.obj.fs!=0 )
     f_close(&m_fatFsFile);
@@ -439,8 +450,11 @@ void IECFDC::close(byte channel)
 }
 
 
-void IECFDC::execute(const char *command, byte len)
+void IECFDC::execute(byte devnr, const char *command, byte len)
 {
+  // clear the status buffer so getStatus() is called again next time the buffer is queried
+  clearStatus(devnr);
+
   // The "~" (0x7E) used by FAT in shortened file names translates
   // to the "pi" symbol in PETSCII (when listing the directory).
   // But when "pi" is sent as part of a file name it arrives as 0xFF
@@ -576,7 +590,7 @@ void IECFDC::execute(const char *command, byte len)
       if( len>=2 )
         {
           word addr = ((byte) command[0]) + (((byte) command[1])<<8);
-          byte len  = len<3 ? 1 : command[2];
+          len  = len<3 ? 1 : command[2];
 #if DEBUG>0
           Serial.print(F("MEMREAD ")); Serial.print(addr); Serial.write(':'); Serial.println(len, HEX); 
 #endif
@@ -584,7 +598,7 @@ void IECFDC::execute(const char *command, byte len)
             {
               // identify as C1541
               byte data[2] = {254, 0};
-              setStatus((char *) data, 2);
+              setStatus(devnr, (char *) data, 2);
             }
           else
             m_ferror = FR_MEMOP; // general memory read not supported
@@ -613,7 +627,7 @@ void IECFDC::execute(const char *command, byte len)
 }
 
 
-void IECFDC::getStatus(char *buffer, byte bufferSize)
+void IECFDC::getStatus(byte devnr, char *buffer, byte bufferSize)
 {
   byte code = 0;
   const char *message = NULL;
@@ -672,4 +686,11 @@ void IECFDC::reset()
   m_ferror = FR_SPLASH;
   m_errorTrack = 0;
   m_errorSector = 0;
+
+  if( m_pinLED<0xFF ) 
+    {
+      digitalWrite(m_pinLED, HIGH);
+      delay(250);
+      digitalWrite(m_pinLED, LOW);
+    }
 }

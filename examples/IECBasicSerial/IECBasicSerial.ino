@@ -21,7 +21,7 @@
 
 #define DEVICE_NUMBER 4
 
-#if defined(__AVR__) || defined(__SAM3X8E__)
+#if defined(__AVR__) || defined(__SAM3X8E__) || defined(ARDUINO_UNOR4_MINIMA) || defined(ARDUINO_UNOR4_WIFI)
 
 #define PIN_ATN   3
 #define PIN_CLK   4
@@ -59,15 +59,15 @@ class IECBasicSerial : public IECDevice
  public:
   IECBasicSerial() : IECDevice(PIN_ATN, PIN_CLK, PIN_DATA) {}
 
-  virtual int8_t canRead();
-  virtual byte   read();
+  virtual int8_t canRead(byte devnum);
+  virtual byte   read(byte devnum);
 
-  virtual int8_t canWrite();
-  virtual void   write(byte data);
+  virtual int8_t canWrite(byte devnum);
+  virtual void   write(byte devnum, byte data, bool eoi);
 };
 
 
-int8_t IECBasicSerial::canWrite()
+int8_t IECBasicSerial::canWrite(byte devnum)
 {
   // Return -1 if we can't receive IEC bus data right now which will cause this
   // to be called again until we are ready and return 1.
@@ -76,14 +76,14 @@ int8_t IECBasicSerial::canWrite()
 }
 
 
-void IECBasicSerial::write(byte data)
+void IECBasicSerial::write(byte devnum, byte data, bool eoi)
 { 
   // write() will only be called if canWrite() returned >0.
   Serial.write(data);
 }
 
 
-int8_t IECBasicSerial::canRead()
+int8_t IECBasicSerial::canRead(byte devnum)
 {
   // Return 0 if we have nothing to send. This will indicate a "nothing to send"
   // (error) condition on the bus. If we returned -1 instead then canRead()
@@ -94,7 +94,7 @@ int8_t IECBasicSerial::canRead()
 }
 
 
-byte IECBasicSerial::read()
+byte IECBasicSerial::read(byte devnum)
 { 
   // read() will only be called if canRead() returned >0.
   return Serial.read();

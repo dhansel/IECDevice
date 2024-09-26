@@ -31,12 +31,12 @@ class IECFDC : public IECFileDevice
   void task();
 
  protected:
-  virtual void open(byte channel, const char *name);
-  virtual bool write(byte channel, byte data);
-  virtual byte read(byte channel, byte *buffer, byte bufferSize);
-  virtual void close(byte channel);
-  virtual void getStatus(char *buffer, byte bufferSize);
-  virtual void execute(const char *command, byte len);
+  virtual void open(byte devnr, byte channel, const char *name);
+  virtual byte write(byte devnr, byte channel, byte *buffer, byte bufferSize);
+  virtual byte read(byte devnr, byte channel, byte *buffer, byte bufferSize);
+  virtual void close(byte devnr, byte channel);
+  virtual void getStatus(byte devnr, char *buffer, byte bufferSize);
+  virtual void execute(byte devnr, const char *command, byte len);
   virtual void reset();
 
  private:

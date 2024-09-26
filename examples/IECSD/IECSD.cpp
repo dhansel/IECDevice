@@ -49,18 +49,35 @@ IECSD::IECSD(byte pinATN, byte pinCLK, byte pinDATA, byte pinRESET, byte pinChip
 }
 
 
-void IECSD::begin(byte devnr)
+void IECSD::begin(byte device)
 {
-  IECFileDevice::begin(devnr);
-  if( m_pinLED<0xFF ) pinMode(m_pinLED, OUTPUT);
+  IECFileDevice::begin(device);
+  if( m_pinChipSelect<0xFF ) pinMode(m_pinChipSelect, OUTPUT);
+
+  unsigned long ledTestEnd = millis() + 500;
+  if( m_pinLED<0xFF ) { pinMode(m_pinLED, OUTPUT); digitalWrite(m_pinLED, HIGH); }
+
   m_errorCode = E_SPLASH;
   if( !checkCard() ) m_errorCode = E_NOTREADY;
+
+  if( m_pinLED<0xFF ) 
+    {
+      unsigned long t = millis();
+      if( t<ledTestEnd ) delay(ledTestEnd-t);
+      digitalWrite(m_pinLED, LOW); 
+    }
 }
 
 
 bool IECSD::checkCard()
 {
-  if( !m_cardOk ) m_cardOk = m_sd.begin(m_pinChipSelect, SD_SCK_MHZ(1));
+  if( !m_cardOk ) 
+#if defined(__SAM3X8E__) || defined(ARDUINO_ARCH_ESP32)
+    m_cardOk = m_sd.begin(m_pinChipSelect, SD_SCK_MHZ(8));
+#else
+    m_cardOk = m_sd.begin(m_pinChipSelect);
+#endif
+
   return m_cardOk;
 }
 
@@ -109,7 +126,7 @@ void IECSD::fromPETSCII(byte *name)
       else if( *name>=192 ) 
         *name -= 96;
 
-      if( *name>=65 && *name<=90 && SHOW_LOWERCASE )
+      if( *name>=65 && *name<=90 )
         *name += 32;
       else if( *name>=97 && *name<=122 )
         *name -= 32;
@@ -122,31 +139,22 @@ byte IECSD::openDir()
 {
   byte res = E_OK;
 
-  if( m_dir.open("/", O_RDONLY) )
+  if( m_dir.openCwd() )
     {
-      m_dirBufferLen = 0;
-      m_dirBufferPtr = 0;
-
       m_dirBuffer[0] = 0x01;
       m_dirBuffer[1] = 0x08;
-      m_dirBufferLen = 2;
+      m_dirBuffer[2] = 1;
+      m_dirBuffer[3] = 1;
+      m_dirBuffer[4] = 0;
+      m_dirBuffer[5] = 0;
+      m_dirBuffer[6] = 18;
+      m_dirBuffer[7] = '"';
+      size_t n = m_dir.getName(m_dirBuffer+8, 16);
+      toPETSCII((byte *) m_dirBuffer+8);
+      while( n<16 ) { m_dirBuffer[8+n] = ' '; n++; }
+      strcpy_P(m_dirBuffer+24, PSTR("\" 00 2A"));
+      m_dirBufferLen = 32;
       m_dirBufferPtr = 0;
-      m_dirBuffer[m_dirBufferLen++] = 1;
-      m_dirBuffer[m_dirBufferLen++] = 1;
-      m_dirBuffer[m_dirBufferLen++] = 0;
-      m_dirBuffer[m_dirBufferLen++] = 0;
-      m_dirBuffer[m_dirBufferLen++] = 18;
-      m_dirBuffer[m_dirBufferLen++] = '"';
-      size_t n = m_dir.getName(m_dirBuffer+m_dirBufferLen, 16);
-      toPETSCII((byte *) m_dirBuffer+m_dirBufferLen);
-      m_dirBufferLen += strlen(m_dirBuffer+m_dirBufferLen);
-      if( m_dirBuffer[m_dirBufferLen-1]=='/' ) m_dirBuffer[--m_dirBufferLen]=0; 
-      n = 17-n;
-      while( n-->0 ) m_dirBuffer[m_dirBufferLen++] = ' ';
-      m_dirBuffer[m_dirBufferLen++] = '"';
-      strcpy(m_dirBuffer+m_dirBufferLen, " 00 2A");
-      m_dirBufferLen += strlen(m_dirBuffer+m_dirBufferLen);
-      m_dirBuffer[m_dirBufferLen++] = 0;
       res = E_OK;
     }
   else
@@ -160,54 +168,77 @@ bool IECSD::readDir(byte *data)
 {
   if( m_dirBufferPtr==m_dirBufferLen && m_dir )
     {
-      m_dirBufferPtr = 0;
-      m_dirBufferLen = 0;
-
-      SdFile f;
-      if( f.openNext(&m_dir, O_RDONLY) )
+      bool repeat = true;
+      while( repeat )
         {
-          uint16_t size = f.fileSize()==0 ? 0 : min(f.fileSize()/254+1, 65535);
-          m_dirBuffer[m_dirBufferLen++] = 1;
-          m_dirBuffer[m_dirBufferLen++] = 1;
-          m_dirBuffer[m_dirBufferLen++] = size&255;
-          m_dirBuffer[m_dirBufferLen++] = size/256;
-          if( size<10 )    m_dirBuffer[m_dirBufferLen++] = ' ';
-          if( size<100 )   m_dirBuffer[m_dirBufferLen++] = ' ';
-          if( size<1000 )  m_dirBuffer[m_dirBufferLen++] = ' ';
-          if( size<10000 ) m_dirBuffer[m_dirBufferLen++] = ' ';
+          m_dirBufferPtr = 0;
+          m_dirBufferLen = 0;
 
-          m_dirBuffer[m_dirBufferLen++] = '"';
-          size_t n = f.getName(m_dirBuffer+m_dirBufferLen, 16);
-#if SDFAT_FILE_TYPE == 1
-          if( n==0 ) n = f.getSFN(m_dirBuffer+m_dirBufferLen, 16);
+          SdFile f;
+          if( f.openNext(&m_dir, O_RDONLY) )
+            {
+              uint16_t size = f.fileSize()==0 ? 0 : min(f.fileSize()/254+1, 9999);
+              m_dirBuffer[m_dirBufferLen++] = 1;
+              m_dirBuffer[m_dirBufferLen++] = 1;
+              m_dirBuffer[m_dirBufferLen++] = size&255;
+              m_dirBuffer[m_dirBufferLen++] = size/256;
+              if( size<10 )    m_dirBuffer[m_dirBufferLen++] = ' ';
+              if( size<100 )   m_dirBuffer[m_dirBufferLen++] = ' ';
+              if( size<1000 )  m_dirBuffer[m_dirBufferLen++] = ' ';
+
+              m_dirBuffer[m_dirBufferLen++] = '"';
+              size_t n = f.getName(m_dirBuffer+m_dirBufferLen, 22);
+#if SDFAT_FILE_TYPE == 3
+              if( (f.attrib() & (FS_ATTRIB_SYSTEM | FS_ATTRIB_HIDDEN))!=0 ) n = 0;
+#else
+              if( f.isSystem() ) 
+                n = 0;
+              else if( n==0 ) 
+                n = f.getSFN(m_dirBuffer+m_dirBufferLen, 22);
 #endif
-          toPETSCII((byte *) m_dirBuffer+m_dirBufferLen);
+              if( n>0 )
+                {
+                  toPETSCII((byte *) m_dirBuffer+m_dirBufferLen);
 
-          m_dirBufferLen += n;
-          m_dirBuffer[m_dirBufferLen++] = '"';
-          m_dirBuffer[m_dirBufferLen] = 0;
-                
-          m_dirBufferLen += strlen(m_dirBuffer+m_dirBufferLen);
-          n = 17-n;
-          while(n-->0) m_dirBuffer[m_dirBufferLen++] = ' ';
-          strcpy(m_dirBuffer+m_dirBufferLen, f.isDir() ? "DIR" : "PRG");
-          m_dirBufferLen+=4;
-          f.close();
+                  const char *ftype = NULL;
+                  if( n>4 && strcasecmp_P(m_dirBuffer+m_dirBufferLen+n-4, PSTR(".prg"))==0 )
+                    { n -= 4; ftype = PSTR("PRG"); }
+                  else if( n>4 && strcasecmp(m_dirBuffer+m_dirBufferLen+n-4, PSTR(".seq"))==0 )
+                    { n -= 4; ftype = PSTR("SEQ"); }
+
+                  m_dirBufferLen += n;
+                  m_dirBuffer[m_dirBufferLen++] = '"';
+                  m_dirBuffer[m_dirBufferLen] = 0;
+                  
+                  m_dirBufferLen += strlen(m_dirBuffer+m_dirBufferLen);
+                  n = 17-n;
+                  while(n-->0) m_dirBuffer[m_dirBufferLen++] = ' ';
+                  strcpy_P(m_dirBuffer+m_dirBufferLen, ftype!=NULL ? ftype : (f.isDir() ? PSTR("DIR") : PSTR("PRG")));
+                  m_dirBufferLen+=3;
+                  while( m_dirBufferLen<31 ) m_dirBuffer[m_dirBufferLen++] = ' ';
+                  m_dirBuffer[m_dirBufferLen++] = 0;
+                  repeat = false;
+                }
+
+              f.close();
+            }
+          else
+            {
+              uint32_t free = min(65535, m_sd.bytesPerCluster() * m_sd.clusterCount() / 254);
+              m_dirBuffer[0] = 1;
+              m_dirBuffer[1] = 1;
+              m_dirBuffer[2] = free&255;
+              m_dirBuffer[3] = free/256;
+              strcpy_P(m_dirBuffer+4, PSTR("BLOCKS FREE.             "));
+              m_dirBuffer[29] = 0;
+              m_dirBuffer[30] = 0;
+              m_dirBuffer[31] = 0;
+              m_dirBufferLen = 32;
+              m_dir.close();
+              repeat = false;
+            }
         }
-      else
-        {
-          uint32_t free = min(65535, /*m_sd.bytesPerSector() **/ m_sd.bytesPerCluster() * m_sd.clusterCount() / 254);
-          m_dirBuffer[m_dirBufferLen++] = 1;
-          m_dirBuffer[m_dirBufferLen++] = 1;
-          m_dirBuffer[m_dirBufferLen++] = free&255;
-          m_dirBuffer[m_dirBufferLen++] = free/256;
-          strcpy(m_dirBuffer+m_dirBufferLen, "BLOCKS FREE.");
-          m_dirBufferLen += strlen(m_dirBuffer+m_dirBufferLen)+1;
-          m_dirBuffer[m_dirBufferLen++] = 0;
-          m_dirBuffer[m_dirBufferLen++] = 0;
-          m_dir.close();
-        }
-    }
+    } 
       
   if( m_dirBufferPtr<m_dirBufferLen )
     {
@@ -219,7 +250,7 @@ bool IECSD::readDir(byte *data)
 }
 
 
-bool IECSD::isMatch(const char *name, const char *pattern)
+bool IECSD::isMatch(const char *name, const char *pattern, byte extmatch)
 {
   signed char found = -1;
 
@@ -227,30 +258,40 @@ bool IECSD::isMatch(const char *name, const char *pattern)
     {
       if( pattern[i]=='*' )
         found = 1;
-      else if( pattern[i]!='?' && tolower(pattern[i])!=tolower(name[i]) && !(name[i]=='~' && (pattern[i] & 0xFF)==0xFF) )
-        found = 0;
+      else if( pattern[i]==0 && name[i]=='.' )
+        {
+          if( (extmatch & 1) && strcasecmp_P(name+i+1, PSTR("prg"))==0 )
+            found = 1;
+          else if( (extmatch & 2) && strcasecmp_P(name+i+1, PSTR("seq"))==0 )
+            found = 1;
+          else
+            found = 0;
+        }
       else if( pattern[i]==0 || name[i]==0 )
         found = (pattern[i]==name[i]) ? 1 : 0;
+      else if( pattern[i]!='?' && tolower(pattern[i])!=tolower(name[i]) && !(name[i]=='~' && (pattern[i] & 0xFF)==0xFF) )
+        found = 0;
     }
 
   return found==1;
 }
 
 
-const char *IECSD::findFile(const char *pattern)
+const char *IECSD::findFile(const char *pattern, char ftype)
 {
   bool found = false;
+  static char name[22];
 
-  char name[17];
-  if( m_dir.open("/", O_RDONLY) )
+  if( m_dir.openCwd() )
     {
+
       m_file.close();
       while( !found && m_file.openNext(&m_dir, O_RDONLY) )
         {
-          found = !m_file.isDir() && m_file.getName(name, 16) && isMatch(name, pattern);
+          found = !m_file.isDir() && m_file.getName(name, 22) && isMatch(name, pattern, ftype=='P' ? 1 : 2);
           m_file.close();
         }
-
+      
       m_dir.close();
     }
 
@@ -268,25 +309,23 @@ byte IECSD::openFile(byte channel, const char *constName)
   strcpy(name, constName);
   fromPETSCII((byte *) name);
 
-  if( channel==0 )
+  char *comma = strchr(name, ',');
+  if( comma!=NULL )
+    {
+      char *c = comma;
+      do { *c-- = 0; } while( c!=name && ((*c) & 0x7f)==' ');
+      ftype  = toupper(*(comma+1));
+      comma  = strchr(comma+1, ',');
+      if( comma!=NULL )
+        mode = toupper(*(comma+1));
+    }
+  else if( channel==0 )
     mode = 'R';
   else if( channel==1 )
     mode = 'W';
-  else
-    {
-      char *comma = strchr(name, ',');
-      if( comma!=NULL )
-        {
-          *comma = 0;
-          ftype  = *(comma+1);
-          comma  = strchr(comma+1, ',');
-          if( comma!=NULL )
-            mode = *(comma+1);
-        }
-
-      if( (ftype!='P' && ftype!='S') || (mode!='R' && mode!='W') )
-        res = E_INVNAME;
-    }
+  
+  if( (ftype!='P' && ftype!='S') || (mode!='R' && mode!='W') )
+    res = E_INVNAME;
 
   if( res == E_OK )
     {
@@ -299,9 +338,8 @@ byte IECSD::openFile(byte channel, const char *constName)
               && !m_file.openExistingSFN(name) 
 #endif
               )
-
             {
-              const char *fn = findFile(name);
+              const char *fn = findFile(name, ftype);
               if( fn ) m_file.open(fn, O_RDONLY);
             }
           
@@ -318,12 +356,22 @@ byte IECSD::openFile(byte channel, const char *constName)
           else if( name[0]!=0 && name[1]==':' )
             { name+=2; }
 
+          // if we are overwriting a file whose name exists without PRG/SEQ extension 
+          // then delete the existing version (so we don't get two files with the same name)
+          if( overwrite && findFile(name, '\0')!=NULL )
+            {
+              m_dir.openCwd();
+              m_dir.remove(name);
+              m_dir.close();
+            }
+          
+          strcat_P(name, ftype=='P' ? PSTR(".prg") : PSTR(".seq"));
           if( m_file.open(name, O_WRONLY | O_CREAT | (overwrite ? 0 : O_EXCL)) )
             res = E_OK;
           else
             {
               res = E_WRITE;
-              if( !overwrite && m_dir.open("/", O_RDONLY) )
+              if( !overwrite && m_dir.openCwd() )
                 {
                   if( m_dir.exists(name) ) res = E_EXISTS;
                   m_dir.close();
@@ -336,7 +384,7 @@ byte IECSD::openFile(byte channel, const char *constName)
 }
 
 
-void IECSD::open(byte channel, const char *name)
+void IECSD::open(byte device, byte channel, const char *name)
 {
   if( !checkCard() )
     m_errorCode = E_NOTREADY;
@@ -351,11 +399,11 @@ void IECSD::open(byte channel, const char *name)
     }
 
   // clear the status buffer so getStatus() is called again next time the buffer is queried
-  clearStatus();
+  clearStatus(device);
 }
 
 
-byte IECSD::read(byte channel, byte *buffer, byte bufferSize)
+byte IECSD::read(byte device, byte channel, byte *buffer, byte bufferSize)
 {
   if( m_file.isOpen() )
     return m_file.read(buffer, bufferSize);
@@ -364,13 +412,16 @@ byte IECSD::read(byte channel, byte *buffer, byte bufferSize)
 }
 
 
-bool IECSD::write(byte channel, byte data)
+byte IECSD::write(byte device, byte channel, byte *buffer, byte bufferSize)
 {
-  return m_file.isOpen() && m_file.write(&data, 1)==1;
+  if( m_file.isOpen() )
+    return m_file.write(buffer, bufferSize);
+  else
+    return 0;
 }
 
 
-void IECSD::close(byte channel)
+void IECSD::close(byte device, byte channel)
 {
   if( m_dir )
     { 
@@ -382,14 +433,13 @@ void IECSD::close(byte channel)
 }
 
 
-void IECSD::execute(const char *command, byte len)
+void IECSD::execute(byte device, const char *command, byte len)
 {
   if( strncmp(command, "S:", 2)==0 )
     {
-      if( m_dir.open("/", O_RDONLY) )
+      if( m_dir.openCwd() )
         {
           char pattern[17];
-          char name[17];
           m_errorCode = E_SCRATCHED;
           m_scratched = 0;
 
@@ -399,9 +449,9 @@ void IECSD::execute(const char *command, byte len)
           
           while( m_file.openNext(&m_dir, O_RDONLY) )
             {
-              size_t n = m_file.getName(name, 16);
+              size_t n = m_file.getName(m_dirBuffer, 22);
               m_file.close();
-              if( n>0 && isMatch(name, pattern) && m_dir.remove(name) )
+              if( n>0 && isMatch(m_dirBuffer, pattern, 1+2) && m_dir.remove(m_dirBuffer) )
                 m_scratched++;
             }
           
@@ -410,14 +460,45 @@ void IECSD::execute(const char *command, byte len)
       else
         m_errorCode = E_NOTREADY;
     }
-  else if( strcmp(command, "I")==0 )
+  else if( strncmp_P(command, PSTR("M-R\xfa\x02\x03"), 6)==0 )
+    {
+      // hack: DolphinDos' MultiDubTwo reads 02FA-02FC to determine
+      // number of free blocks => pretend we have 664 (0298h) blocks available
+      byte data[3] = {0x98, 0, 0x02};
+      setStatus(device, (char *) data, 3);
+      m_errorCode = E_OK;
+    }
+  else if( (strncmp_P(command, PSTR("CD:"),3)==0 || strncmp_P(command, PSTR("MD:"),3)==0 || strncmp_P(command, PSTR("RD:"),3)==0) && command[3]!=0 )
+    {
+      strncpy(m_dirBuffer, command+3, 16);
+      m_dirBuffer[16]=0;
+      fromPETSCII((byte *) m_dirBuffer);
+
+      if( command[0]=='C' )
+        {
+          // The SdFat library keeps track of the current directory but it does
+          // not provide a way to go one directory up (i.e. "cd .."). As a workaround
+          // we just always go back to the root directory after a "cd .."
+          if( strcmp_P(m_dirBuffer, PSTR(".."))==0 )
+            m_errorCode = m_sd.chdir("/") ? E_OK : E_NOTREADY;
+          else
+            m_errorCode = m_sd.chdir(m_dirBuffer) ? E_OK : E_NOTFOUND;
+        }
+      else if( command[0]=='M' )
+        m_errorCode = m_sd.mkdir(m_dirBuffer, true) ? E_OK : E_EXISTS;
+      else if( command[0]=='R' )
+        m_errorCode = m_sd.rmdir(m_dirBuffer) ? E_OK : E_NOTFOUND;
+    }
+  else if( strcmp_P(command, PSTR("CD_"))==0 )
+    m_errorCode = m_sd.chdir("/") ? E_OK : E_NOTREADY;
+  else if( strcmp(command, "I")==0 || strcmp_P(command, PSTR("X+\x0dUJ"))==0 )
     m_errorCode = E_OK;
   else
     m_errorCode = E_INVCMD;
 }
 
 
-void IECSD::getStatus(char *buffer, byte bufferSize)
+void IECSD::getStatus(byte device, char *buffer, byte bufferSize)
 {
   const char *message = NULL;
   switch( m_errorCode )
@@ -455,6 +536,9 @@ void IECSD::getStatus(char *buffer, byte bufferSize)
 
 void IECSD::reset()
 {
+  unsigned long ledTestEnd = millis() + 250;
+  if( m_pinLED<0xFF ) digitalWrite(m_pinLED, HIGH);
+
   IECFileDevice::reset();
 
   m_cardOk = false;
@@ -463,5 +547,11 @@ void IECSD::reset()
 
   m_file.close();
   m_dir.close();
-  digitalWrite(m_pinLED, LOW);
+
+  if( m_pinLED<0xFF ) 
+    { 
+      unsigned long t = millis();
+      if( t<ledTestEnd ) delay(ledTestEnd-t);
+      digitalWrite(m_pinLED, LOW); 
+    }
 }

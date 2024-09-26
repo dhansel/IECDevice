@@ -33,7 +33,7 @@ static const char *driveTypes[] = { "5DD", "5DDHD", "5HD", "3DD", "3HD", "8SS", 
 // defined in diskio.c
 void disk_motor_check_timeout();
 
-#define DEBUG 1
+#define DEBUG 0
 
 
 const char *IECFDC::getDriveSpec(byte unit)
@@ -70,7 +70,13 @@ void IECFDC::begin(byte devnr)
       if( devnr<3 || devnr>15 ) { devnr = 9; EEPROM.write(0, devnr); }
     }
   IECFileDevice::begin(devnr);
-  if( m_pinLED<0xFF ) pinMode(m_pinLED, OUTPUT);
+  if( m_pinLED<0xFF ) 
+    {
+      pinMode(m_pinLED, OUTPUT);
+      digitalWrite(m_pinLED, HIGH);
+      delay(500);
+      digitalWrite(m_pinLED, LOW);
+    }
 
   m_curDrive = EEPROM.read(1);
   if( m_curDrive>1 ) m_curDrive = 0;
@@ -119,13 +125,11 @@ void IECFDC::task()
 }
 
 
-void IECFDC::startDiskOp()
+void IECFDC::startDiskOp(byte drive)
 {
   // if the disk has changed then re-mount it
-  ArduinoFDC.selectDrive(0);
-  if( ArduinoFDC.diskChanged() ) f_mount(&(m_fatFs[0]), "0:", 0);
-  ArduinoFDC.selectDrive(1);
-  if( ArduinoFDC.diskChanged() ) f_mount(&(m_fatFs[1]), "1:", 0);
+  ArduinoFDC.selectDrive(drive);
+  if( ArduinoFDC.diskChanged() ) f_mount(&(m_fatFs[0]), getDriveSpec(drive), 0);
  
   // if we have an LED then turn it on now
   if( m_pinLED<0xFF ) digitalWrite(m_pinLED, HIGH);
@@ -302,7 +306,7 @@ void IECFDC::openDir(FIL *f, const char *name)
   else
     name = "*";
   
-  startDiskOp();
+  startDiskOp(drive);
   dirBuffer[0] = 0x01;
   dirBuffer[1] = 0x08;
   m_dirBufferLen = 2;
@@ -375,14 +379,15 @@ bool IECFDC::readDir(FIL *f, byte *data)
           FATFS *fs = dir->obj.fs;
           f_getfree (getDriveSpec(fs->pdrv), &free, &fs);
           free = free*fs->csize*2;
-          dirBuffer[m_dirBufferLen++] = 1;
-          dirBuffer[m_dirBufferLen++] = 1;
-          dirBuffer[m_dirBufferLen++] = free&255;
-          dirBuffer[m_dirBufferLen++] = free/256;
-          strcpy_P(dirBuffer+m_dirBufferLen, PSTR("BLOCKS FREE.             "));
-          m_dirBufferLen += strlen(dirBuffer+m_dirBufferLen)+1;
-          dirBuffer[m_dirBufferLen++] = 0;
-          dirBuffer[m_dirBufferLen++] = 0;
+          dirBuffer[0] = 1;
+          dirBuffer[1] = 1;
+          dirBuffer[2] = free&255;
+          dirBuffer[3] = free/256;
+          strcpy_P(dirBuffer+4, PSTR("BLOCKS FREE.             "));
+          dirBuffer[29] = 0;
+          dirBuffer[30] = 0;
+          dirBuffer[31] = 0;
+          m_dirBufferLen = 32;
           f_closedir(dir);
         }
       else
@@ -407,7 +412,9 @@ bool IECFDC::readDir(FIL *f, byte *data)
           int n = 17-strlen(fileInfo->fname);
           while(n-->0) dirBuffer[m_dirBufferLen++] = ' ';
           strcpy_P(dirBuffer+m_dirBufferLen, (fileInfo->fattrib & AM_DIR) ? PSTR("DIR") : PSTR("PRG"));
-          m_dirBufferLen+=4;
+          m_dirBufferLen+=3;
+          while( m_dirBufferLen<31 ) dirBuffer[m_dirBufferLen++] = ' ';
+          dirBuffer[m_dirBufferLen++] = 0;
         }
     }
 
@@ -436,7 +443,7 @@ void IECFDC::openRawDir(FIL *f, const char *name)
   byte drive = m_curDrive;
   if( name[1]=='0' || name[1]=='1' ) drive = name[1]-'0';
 
-  startDiskOp();
+  startDiskOp(drive);
   m_ferror = f_opendir(dir, getDriveSpec(drive));
   if( m_ferror == FR_OK )
     {
@@ -521,33 +528,32 @@ void IECFDC::openFile(FIL *f, byte channel, const char *name)
   byte mode  = FA_READ;
   m_ferror = FR_OK;
   
-  if( channel==0 )
+  char *comma = strchr((char *) name, ',');
+  if( comma!=NULL )
+    {
+      char *c = comma;
+      do { *c-- = 0; } while( c!=name && ((*c) & 0x7f)==' ');
+
+      //ftype  = *(comma+1);
+      comma  = strchr(comma+1, ',');
+      if( comma!=NULL )
+        {
+          if( *(comma+1)=='R' )
+            mode = FA_READ;
+          else if( *(comma+1)=='W' )
+            mode = FA_WRITE;
+          else
+            m_ferror = FR_INVALID_PARAMETER;
+        }
+    }
+  else if( channel==0 )
     mode = FA_READ;
   else if( channel==1 )
     mode = FA_WRITE;
-  else
-    {
-      char *comma = strchr((char *) name, ',');
-      if( comma!=NULL )
-        {
-          *comma = 0;
-          //ftype  = *(comma+1);
-          comma  = strchr(comma+1, ',');
-          if( comma!=NULL )
-            {
-              if( *(comma+1)=='R' )
-                mode = FA_READ;
-              else if( *(comma+1)=='W' )
-                mode = FA_WRITE;
-              else
-                m_ferror = FR_INVALID_PARAMETER;
-            }
-        }
-    }
 
   if( m_ferror==FR_OK )
     {
-      startDiskOp();
+      byte drive = m_curDrive;
 
       if( mode==FA_WRITE )
         {
@@ -558,10 +564,14 @@ void IECFDC::openFile(FIL *f, byte channel, const char *name)
           else
             mode |= FA_CREATE_NEW;
 
+          if( name[1]=='0' || name[1]=='1' ) drive = name[1]-'0';
+          startDiskOp(drive);
           m_ferror = f_open(f, name, mode);
         }
       else
         {
+          if( name[1]=='0' || name[1]=='1' ) drive = name[1]-'0';
+          startDiskOp(drive);
           m_ferror = f_open(f, name, mode);
           if( m_ferror != FR_OK )
             {
@@ -581,7 +591,7 @@ void IECFDC::openFile(FIL *f, byte channel, const char *name)
 }
 
 
-void IECFDC::open(byte channel, const char *name)
+void IECFDC::open(byte device, byte channel, const char *name)
 {
   byte fileIdx = 0;
   m_ferror = FR_OK;
@@ -613,11 +623,11 @@ void IECFDC::open(byte channel, const char *name)
     }
 
   // clear the status buffer so getStatus() is called again next time the buffer is queried
-  clearStatus();
+  clearStatus(device);
 }
 
 
-byte IECFDC::read(byte channel, byte *buffer, byte bufferSize)
+byte IECFDC::read(byte device, byte channel, byte *buffer, byte bufferSize)
 {
   byte res = 0;
   FIL *f = m_channelFiles[channel]==0xFF ? NULL : &(m_fatFsFile[m_channelFiles[channel]&0x0F]);
@@ -650,18 +660,18 @@ byte IECFDC::read(byte channel, byte *buffer, byte bufferSize)
 }
 
 
-bool IECFDC::write(byte channel, byte data)
+byte IECFDC::write(byte device, byte channel, byte *buffer, byte bufferSize)
 {
-  bool res = false;
+  byte res = 0;
   FIL *f = m_channelFiles[channel]==0xFF ? NULL : &(m_fatFsFile[m_channelFiles[channel] & 0x0F]);
 
   if( f!=NULL )
     {
       UINT count;
-      m_ferror = f_write(f, &data, 1, &count);
+      m_ferror = f_write(f, buffer, bufferSize, &count);
 
       if( m_ferror == FR_OK )
-        res = true;
+        res = count;
       else
         {
           f_close(f);
@@ -674,7 +684,7 @@ bool IECFDC::write(byte channel, byte data)
 }
 
 
-void IECFDC::close(byte channel)
+void IECFDC::close(byte device, byte channel)
 {
   FIL *f = m_channelFiles[channel]==0xFF ? NULL : &(m_fatFsFile[m_channelFiles[channel] & 0x0F]);
 
@@ -694,13 +704,13 @@ void IECFDC::close(byte channel)
 }
 
 
-void IECFDC::execute(const char *command, byte len)
+void IECFDC::execute(byte device, const char *command, byte len)
 {
   byte drive = 0;
   m_ferror = FR_OK;
 
   // clear the status buffer so getStatus() is called again next time the buffer is queried
-  clearStatus();
+  clearStatus(device);
 
   if( command[0]=='X' || command[0]=='E' )
     {
@@ -771,7 +781,7 @@ void IECFDC::execute(const char *command, byte len)
           DIR *dir = (DIR *) f->buf;
           FILINFO *fileInfo = (FILINFO *) (f->buf+sizeof(DIR));
 
-          startDiskOp();
+          startDiskOp(drive);
           
           byte n = 0;
           m_ferror = f_findfirst(dir, fileInfo, getDriveSpec(drive), command);
@@ -790,7 +800,7 @@ void IECFDC::execute(const char *command, byte len)
     }
   else if( parseCommand("R", &command, &drive) && *command!=0 )
     {
-      startDiskOp();
+      startDiskOp(drive);
 
       char *equals = strchr(command, '=');
       if( equals==NULL )
@@ -823,7 +833,7 @@ void IECFDC::execute(const char *command, byte len)
         m_ferror = FR_INVALID_PARAMETER;
       else
         {
-          startDiskOp();
+          startDiskOp(drive);
 
           *equals = 0;
           FIL *f1 = getAvailableFile();
@@ -863,12 +873,12 @@ void IECFDC::execute(const char *command, byte len)
     }
   else if( parseCommand("I", &command, &drive) )
     {
-      startDiskOp();
+      startDiskOp(drive);
       m_ferror = f_mount(&(m_fatFs[drive]), getDriveSpec(drive), 1);
     }
   else if( parseCommand("N", &command, &drive) && *command!=0 )
     {
-      startDiskOp();
+      startDiskOp(drive);
       // default interleave of 7 determined experimentally for 
       // maximum load performance with JiffyDOS on a 3.5" HD disk
       byte interleave = 7;
@@ -884,12 +894,12 @@ void IECFDC::execute(const char *command, byte len)
     }
   else if( parseCommand("MD", &command, &drive) && *command!=0 )
     {
-      startDiskOp();
+      startDiskOp(drive);
       m_ferror = f_mkdir(prefixDriveSpec(drive, command));
     }
   else if( parseCommand("RD", &command, &drive) && *command!=0 )
     {
-      startDiskOp();
+      startDiskOp(drive);
       m_ferror = f_rmdir(prefixDriveSpec(drive, command));
     }
   else if( parseCommand("CD", &command, &drive) && *command!=0 )
@@ -933,7 +943,7 @@ void IECFDC::execute(const char *command, byte len)
       if( len>=2 )
         {
           word addr = ((byte) command[0]) + (((byte) command[1])<<8);
-          byte len  = len<3 ? 1 : command[2];
+          len = len<3 ? 1 : command[2];
 #if DEBUG>0
           Serial.print(F("MEMREAD ")); Serial.print(addr); Serial.write(':'); Serial.println(len, HEX); 
 #endif
@@ -941,7 +951,14 @@ void IECFDC::execute(const char *command, byte len)
             {
               // identify as C1541
               byte data[2] = {254, 0};
-              setStatus((char *) data, 2);
+              setStatus(device, (char *) data, 2);
+            }
+          else if( addr==0x02FA && len==3 )
+            {
+              // hack: DolphinDos' MultiDubTwo reads 02FA-02FC to determine
+              // number of free blocks => pretend we have 664 (0x0298) blocks available
+              byte data[3] = {0x98, 0, 0x02};
+              setStatus(device, (char *) data, 3);
             }
           else
             m_ferror = FR_MEMOP; // general memory read not supported
@@ -956,7 +973,7 @@ void IECFDC::execute(const char *command, byte len)
 }
 
 
-void IECFDC::getStatus(char *buffer, byte bufferSize)
+void IECFDC::getStatus(byte device, char *buffer, byte bufferSize)
 {
   byte code = 0;
   const char *message = NULL;
@@ -1033,4 +1050,11 @@ void IECFDC::reset()
   if( m_ferror==FR_OK ) m_ferror = FR_SPLASH;
 
   IECFileDevice::begin(EEPROM.read(0));  
+
+  if( m_pinLED<0xFF ) 
+    {
+      digitalWrite(m_pinLED, HIGH);
+      delay(250);
+      digitalWrite(m_pinLED, LOW);
+    }
 }

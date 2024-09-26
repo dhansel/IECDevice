@@ -23,35 +23,48 @@
 
 // --- IEC bus connections
 //
-//       Uno    Mega   Mico   Due   PiPico   ESP32  WT32-ETH01
-// ATN   3      3      3      3     GPIO2    IO34   IO35
-// CLK   4      4      4      4     GPIO3    IO32   IO14
-// DATA  5      5      5      5     GPIO4    IO33   IO15
-// RESET 6      6      6      6     GPIO5    IO35   IO39
-//
+//       Uno    Mega   Micro   Due   PiPico   ESP32  WT32-ETH01
+// ATN   3      3      3       3     GPIO2    IO34   IO35
+// CLK   4      4      4       4     GPIO3    IO32   IO14
+// DATA  5      5      5       5     GPIO4    IO33   IO15
+// RESET 6      6      6       6     GPIO5    IO35   IO39
 //
 // --- SD card module connections (*=use on-board 6-pin SPI header)
 //
-//       Uno    Mega   Mico   Due   PiPico   ESP32  WT32-ETH01
-// SCK   13/*   52/*   15     *     GPIO18   IO18   IO2
-// MISO  12/*   50/*   14     *     GPIO16   IO19   IO36
-// MOSI  11/*   51/*   16     *     GPIO19   IO23   IO12
-// CS    8      8      8      8     GPIO17   IO5    IO4
+//       Uno    Mega   Micro   Due   PiPico   ESP32  WT32-ETH01
+// SCK   13/*   52/*   15      *     GPIO18   IO18   IO2
+// MISO  12/*   50/*   14      *     GPIO16   IO19   IO36
+// MOSI  11/*   51/*   16      *     GPIO19   IO23   IO12
+// CS    10     10     10      10    GPIO17   IO5    IO4
 //
 // --- Activity LED connection (*=on-board LED)
 //
-//       Uno    Mega   Mico   Due   PiPico   ESP32
-// LED   A0     13/*   *      13/*  *        IO21   -
+//       Uno    Mega   Micro   Due   PiPico   ESP32  WT-ETH01
+// LED   10     13/*   *       13/*  *        IO21   -
 
 
 
-#if defined(__AVR__) || defined(__SAM3X8E__)
+#if defined(__AVR__) || defined(__SAM3X8E__) || defined(ARDUINO_UNOR4_MINIMA) || defined(ARDUINO_UNOR4_WIFI)
 
+#undef PIN_SPI_CS
+
+// pins D0,D1 used for serial (debugging)
+// pins A0-A5,D8-D9 used for 8-bit parallel data
+// pins D2, D7 used for parallel handshake lines
+// pins D10-D13 used for SPI
 #define PIN_IEC_ATN    3
 #define PIN_IEC_CLK    4
 #define PIN_IEC_DATA   5
 #define PIN_IEC_RESET  6
-#define PIN_SPI_CS     8
+#define PIN_SPI_CS     10
+
+#if defined(__AVR_ATmega328P__) || defined(ARDUINO_UNOR4_MINIMA) || defined(ARDUINO_UNOR4_WIFI)
+#undef PIN_LED
+#define PIN_LED  PIN_SPI_CS      // LED shares pin with SPI CS
+#elif defined(ARDUINO_AVR_MICRO)
+#undef PIN_LED
+#define PIN_LED  LED_BUILTIN_TX  // use "TX" LED on PRO MICRO
+#endif
 
 #elif defined(ARDUINO_ARCH_RP2040)
 
@@ -93,11 +106,7 @@
 
 // activity LED pin
 #if !defined(PIN_LED)
-#if defined(ARDUINO_AVR_UNO)
-#define PIN_LED  A0              // on UNO, LED_BUILTIN (pin 13) conflicts with SPI SCK
-#elif defined(ARDUINO_AVR_MICRO)
-#define PIN_LED  LED_BUILTIN_TX  // use "TX" LED on PRO MICRO
-#elif defined(LED_BUILTIN)
+#if defined(LED_BUILTIN)
 #define PIN_LED  LED_BUILTIN     // use built-in LED
 #else
 #define PIN_LED  0xFF            // no LED

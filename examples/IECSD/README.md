@@ -31,12 +31,23 @@ Signal | Arduino Uno | Mega | Mico | Due | Raspberry Pi Pico | ESP32
 SCK    | 13/*        | 52   | 15   |  *  |  GPIO18           | IO18
 MISO   | 12/*        | 50   | 14   |  *  |  GPIO16           | IO19
 MOSI   | 11/*        | 51   | 16   |  *  |  GPIO19           | IO23
-CS     | 8           | 8    |  8   |  8  |  GPIO17           | IO5
+CS     | 10          | 10   | 10   | 10  |  GPIO17           | IO5
+
+
+An activity LED that turns on during data transfers can be connected on the following pins
+(*=uses on-board LED):
+
+Arduino Uno | Mega | Mico | Due  | Raspberry Pi Pico | ESP32
+------------|------|------|------|-------------------|------
+10          | 13/* |  *   | 13/* |  *                | IO21
 
 As described in the Wiring section for the IECDevice library, controllers running
 at 5V (Arduino Uno, Mega or Micro) can be connected directly to the IEC bus.
 Controllers running at 3.3V (Arduino Due, Raspberry Pi Pico or ESP32) require a 
 [voltage level converter](https://www.sparkfun.com/products/12009).
+
+To support DolphinDos fast transmissions via a parallel cable, connect the cable as
+described in the DolphinDos section for the IECDevice library.
 
 Note that the IEC bus does supply 5V power so you will need to power
 your device either from an external 5V supply or use the 5V output available on

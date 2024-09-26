@@ -33,12 +33,12 @@ class IECFDC : public IECFileDevice
   void task();
 
  protected:
-  virtual void open(byte channel, const char *name);
-  virtual bool write(byte channel, byte data);
-  virtual byte read(byte channel, byte *buffer, byte bufferSize);
-  virtual void close(byte channel);
-  virtual void getStatus(char *buffer, byte bufferSize);
-  virtual void execute(const char *command, byte len);
+  virtual void open(byte device, byte channel, const char *name);
+  virtual byte write(byte device, byte channel, byte *buffer, byte bufferSize);
+  virtual byte read(byte device, byte channel, byte *buffer, byte bufferSize);
+  virtual void close(byte device, byte channel);
+  virtual void getStatus(byte device, char *buffer, byte bufferSize);
+  virtual void execute(byte device, const char *command, byte len);
   virtual void reset();
 
  private:
@@ -48,7 +48,7 @@ class IECFDC : public IECFileDevice
   void openRawDir(FIL *f, const char *name);
   bool readRawDir(FIL *f, byte *data);
 
-  void startDiskOp();
+  void startDiskOp(byte drive);
   void format(byte drive, const char *name, bool lowLevel, byte interleave);
   char *findFile(FIL *f, char *fname);
 
