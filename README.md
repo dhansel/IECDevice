@@ -40,10 +40,14 @@ connected to the microcontroller. The pins can be freely chosen and are configur
 constructor (see [class reference](#iecdevice-class-reference) below). It is recommended to choose an interrupt-capable pin for the ATN 
 signal (see [timing considerations](#timing-considerations) section below). 
 
-When looking at the IEC bus connector at the back of your computer, the pins are as follows:
+When looking at the IEC bus connector at the back of your computer, the pins are as follows:<br>
+(1=SRQ [not used], 2=GND, 3=ATN, 4=Clock, 5=Data, 6=Reset)
 
-<img src="IECBusPins.jpg" width="25%" align="center">   
-(1=SRQ [not used], 2=GND, 3=ATN, 4=Clock, 5=Data, 6=Reset)<br><br>
+<img src="IECBusPins.jpg" width="25%" align="center">
+
+Here is a picture of an Arduino UNO directly connected to the IEC bus of a C64 (the red circuit
+board is an SD Card breakout board):
+<img src="hardware/pictures/UnoSD.jpg" width="50%" align="center">
   
 For 3.3V platforms (Raspberry Pi Pico, ESP32, Arduino Due) a level shifter is required to isolate the
 microcontroller from the 5V signals on the IEC bus. I am using this [SparkFun level converter](https://www.sparkfun.com/products/12009) 
@@ -655,8 +659,7 @@ like the Arduino UNO), comment out the "#define SUPPORT_DOLPHIN" line at the top
 
 ## Raspberry Pi Pico development board
 
+<img src="hardware/pictures/PiPicoSD.jpg" width="48%" align="left"><img src="hardware/pictures/PiPicoSDParallel.jpg" width="48%" align="right">  
+
 Instructions for a development board to connect a Raspberry Pi Pico to a C64 are available 
 [here](hardware/README.md#raspberry-pi-pico-development-board)
-
-
-
