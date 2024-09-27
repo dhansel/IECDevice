@@ -33,11 +33,12 @@ you can leave the following components unpopulated:
 The BusReset jumper allows to configure how the board reacts to a reset signal coming
 from the IEC bus:
   - Not installed: no reset
-  - Connecting middle pin and Hard: PiPico reset pin is pulled low
-
+  - Connecting middle pin to "Hard": PiPico reset pin is pulled low (PiPico hard reset)
+  - Connecting middle pin to "Soft": PiPico GPIO5 pin is pulled low (detected by the IECDevice class, calls reset() callback)
+    
 ## User Port Breakout Board
 
-For an easy connecting of the parallel cable to the C64 user port (while leaving
+To easily connect the parallel cable to the C64 user port (while leaving
 the user port itself available for the parallel cable coming from the C1541 disk drive),
 you can use this user port breakout board and cable assembly:
 
