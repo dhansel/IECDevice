@@ -31,7 +31,7 @@ A number of examples are included to demonstrate how to implement devices using 
 
 To install this library, click the green "Code" button on the top of this page and select "Download ZIP".
 Then in the Arduino IDE select "Sketch->Include Library->Add ZIP Library" and select the downloaded ZIP file.
-After doing so you will find the included examples in File->Examples->IECDevice->...".
+After doing so you will find the included [examples](examples) in File->Examples->IECDevice->...".
 
 ## Wiring
 
