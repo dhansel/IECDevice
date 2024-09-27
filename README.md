@@ -27,10 +27,6 @@ A number of examples are included to demonstrate how to implement devices using 
   - [IECCentronics](examples/IECCentronics) is a converter to connect Centronics printers to via the IEC bus
   - [IECFDC](examples/IECFDC)/[IECFDCMega](examples/IECFDCMega) combines this library with my [ArduinoFDC  library](https://github.com/dhansel/ArduinoFDC) to connect PC floppy disk drives (3.5" or 5") to the IEC bus.
 
-Instructions for building a development board to connect a Raspberry Pi Pico to a C64 are available 
-[here](hardware/README.md#raspberry-pi-pico-development-board)
-<img src="hardware/pictures/PiPicoSD.jpg" width="50%" align="center">
-
 ## Installation
 
 To install this library, click the green "Code" button on the top of this page and select "Download ZIP".
@@ -60,6 +56,9 @@ microcontroller from the 5V signals on the IEC bus. I am using this [SparkFun le
 but other models should do just fine as the IEC bus is not particularly fast. Connect the IEC bus signals
 and 5V supply to the "High Voltage" side and microcontroller pins and 3.3V supply to the "Low Voltage" side.
 
+For a Raspberry Pi Pico I made [a development board ](hardware/README.md#raspberry-pi-pico-development-board)
+to simplifiy the level converter wiring:
+<img src="hardware/pictures/PiPicoSD.jpg" width="50%" align="center">
 
 ## Implementing a simple low-level device
 
