@@ -27,6 +27,10 @@ A number of examples are included to demonstrate how to implement devices using 
   - [IECCentronics](examples/IECCentronics) is a converter to connect Centronics printers to via the IEC bus
   - [IECFDC](examples/IECFDC)/[IECFDCMega](examples/IECFDCMega) combines this library with my [ArduinoFDC  library](https://github.com/dhansel/ArduinoFDC) to connect PC floppy disk drives (3.5" or 5") to the IEC bus.
 
+Instructions for building a development board to connect a Raspberry Pi Pico to a C64 are available 
+[here](hardware/README.md#raspberry-pi-pico-development-board)
+<img src="hardware/pictures/PiPicoSD.jpg" width="50%" align="center">
+
 ## Installation
 
 To install this library, click the green "Code" button on the top of this page and select "Download ZIP".
@@ -45,9 +49,11 @@ When looking at the IEC bus connector at the back of your computer, the pins are
 
 <img src="IECBusPins.jpg" width="25%" align="center">
 
-Here is a picture of an Arduino UNO directly connected to the IEC bus of a C64 (the red circuit
-board is an SD Card breakout board):
-<img src="hardware/pictures/UnoSD.jpg" width="50%" align="center">
+Here is a picture of an Arduino UNO directly connected to the IEC bus of a C64:
+
+<table>
+<tr><td><img src="hardware/pictures/UnoBasicSerial2.jpg" width="100%"></td><td><img src="hardware/pictures/SerialCable.jpg"></td></tr>
+</table>
   
 For 3.3V platforms (Raspberry Pi Pico, ESP32, Arduino Due) a level shifter is required to isolate the
 microcontroller from the 5V signals on the IEC bus. I am using this [SparkFun level converter](https://www.sparkfun.com/products/12009) 
@@ -659,7 +665,10 @@ like the Arduino UNO), comment out the "#define SUPPORT_DOLPHIN" line at the top
 
 ## Raspberry Pi Pico development board
 
-<img src="hardware/pictures/PiPicoSD.jpg" width="48%" align="left"><img src="hardware/pictures/PiPicoSDParallel.jpg" width="48%" align="right">  
-
 Instructions for a development board to connect a Raspberry Pi Pico to a C64 are available 
 [here](hardware/README.md#raspberry-pi-pico-development-board)
+
+<table>
+<tr><td><center>Connected using serial IEC cable only</center></td><td><center>Connected using serial IEC and parallel cable</center></td></tr>
+<tr><td><img src="hardware/pictures/PiPicoSD.jpg"></td><td><img src="hardware/pictures/PiPicoSDParallel.jpg"></td></tr>
+</table>
