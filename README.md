@@ -56,7 +56,7 @@ microcontroller from the 5V signals on the IEC bus. I am using this [SparkFun le
 but other models should do just fine as the IEC bus is not particularly fast. Connect the IEC bus signals
 and 5V supply to the "High Voltage" side and microcontroller pins and 3.3V supply to the "Low Voltage" side.
 
-For a Raspberry Pi Pico I made [a development board ](hardware/README.md#raspberry-pi-pico-development-board)
+For a Raspberry Pi Pico there is [a development board](hardware/README.md#raspberry-pi-pico-development-board)
 to simplifiy the level converter wiring:
 <img src="hardware/pictures/PiPicoSD.jpg" width="50%" align="center">
 
