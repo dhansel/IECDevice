@@ -146,7 +146,6 @@ static unsigned long timer_start_us;
 
 // -----------------------------------------------------------------------------------------
 
-
 #define P_ATN        0x80
 #define P_LISTENING  0x40
 #define P_TALKING    0x20
@@ -231,56 +230,31 @@ bool IECDevice::waitTimeout(uint16_t timeout)
 }
 
 
-bool IECDevice::waitPinDATA(bool state)
-{
-  // if ATN changes (i.e. our internal ATN state no longer matches the ATN signal line)
-  // then exit with error condition
-  while( readPinDATA()!=state )
-    if( ((m_flags & P_ATN)!=0) == readPinATN() )
-      return false;
-
-  // DATA LOW can only be properly detected if ATN went HIGH->LOW
-  // (m_flags&ATN)==0 and readPinATN()==0)
-  // since other devices may have pulled DATA LOW
-  return state || (m_flags & P_ATN) || readPinATN();
-}
-
-
 bool IECDevice::waitPinDATA(bool state, uint16_t timeout)
 {
+  // (if timeout is not given it defaults to 1000us)
   // if ATN changes (i.e. our internal ATN state no longer matches the ATN signal line)
   // or the timeout is met then exit with error condition
   uint32_t start = micros();
   while( readPinDATA()!=state )
-    if( (((m_flags & P_ATN)!=0) == readPinATN()) || (uint16_t) (micros()-start)>=timeout )
+    if( (((m_flags & P_ATN)!=0) == readPinATN()) || (timeout>0 && (uint16_t) (micros()-start)>=timeout) )
       return false;
 
   // DATA LOW can only be properly detected if ATN went HIGH->LOW
   // (m_flags&ATN)==0 and readPinATN()==0)
   // since other devices may have pulled DATA LOW
   return state || (m_flags & P_ATN) || readPinATN();
-}
-
-
-bool IECDevice::waitPinCLK(bool state)
-{
-  // if ATN changes (i.e. our internal ATN state no longer matches the ATN signal line)
-  // then exit with error condition
-  while( readPinCLK()!=state )
-    if( ((m_flags & P_ATN)!=0) == readPinATN() )
-      return false;
-  
-  return true;
 }
 
 
 bool IECDevice::waitPinCLK(bool state, uint16_t timeout)
 {
+  // (if timeout is not given it defaults to 1000us)
   // if ATN changes (i.e. our internal ATN state no longer matches the ATN signal line)
   // or the timeout is met then exit with error condition
   uint32_t start = micros();
   while( readPinCLK()!=state )
-    if( (((m_flags & P_ATN)!=0) == readPinATN()) || (uint16_t) (micros()-start)>=timeout )
+    if( (((m_flags & P_ATN)!=0) == readPinATN()) || (timeout>0 && (uint16_t) (micros()-start)>=timeout) )
       return false;
   
   return true;
@@ -477,7 +451,10 @@ bool IECDevice::receiveJiffyByte(bool canWriteOk)
   // signal "ready" by releasing DATA
   writePinDATA(HIGH);
 
-  // wait for either CLK high or ATN low
+  // wait (indefinitely) for either CLK high ("ready-to-send") or ATN low
+  // NOTE: this must be in a blocking loop since the sender starts transmitting
+  // the byte immediately after setting CLK high. If we exit the "task" function then
+  // we may not get back here in time to receive.
   while( !digitalReadFastExt(m_pinCLK, m_regCLKread, m_bitCLK) && digitalReadFastExt(m_pinATN, m_regATNread, m_bitATN) );
 
   // start timer (on AVR, lag from CLK high to timer start is between 700...1700ns)
@@ -571,7 +548,10 @@ bool IECDevice::transmitJiffyByte(byte numData)
   // signal "READY" by releasing CLK
   writePinCLK(HIGH);
   
-  // wait for either DATA high (FBCB) or ATN low
+  // wait (indefinitely) for either DATA high ("ready-to-receive", FBCB) or ATN low
+  // NOTE: this must be in a blocking loop since the receiver receives the data
+  // immediately after setting DATA high. If we exit the "task" function then
+  // we may not get back here in time to transmit.
   while( !digitalReadFastExt(m_pinDATA, m_regDATAread, m_bitDATA) && digitalReadFastExt(m_pinATN, m_regATNread, m_bitATN) );
 
   // start timer (on AVR, lag from DATA high to timer start is between 700...1700ns)
@@ -664,14 +644,17 @@ bool IECDevice::transmitJiffyBlock(byte *buffer, byte numBytes)
   JDEBUG1();
   timer_init();
 
-  // wait until receiver is not holding DATA low anymore (FB07)
+  // wait (indefinitely) until receiver is not holding DATA low anymore (FB07)
+  // NOTE: this must be in a blocking loop since the receiver starts counting
+  // up the EOI timeout immediately after setting DATA HIGH. If we had exited the 
+  // "task" function then it might be more than 200us until we get back here
+  // to pull CLK low and the receiver will interpret that delay as EOI.
   while( !readPinDATA() )
     if( !readPinATN() )
       { JDEBUG0(); return false; }
 
   // receiver will be in "new data block" state at this point,
   // waiting for us (FB0C) to release CLK
-  
   if( numBytes==0 )
     {
       // nothing to send => signal EOI by keeping DATA high
@@ -714,7 +697,10 @@ bool IECDevice::transmitJiffyBlock(byte *buffer, byte numBytes)
       // so waiting a couple microseconds will not hurt transfer performance)
       delayMicroseconds(2);
 
-      // wait for either DATA low (FB51) or ATN low
+      // wait (indefinitely) for either DATA low (FB51) or ATN low
+      // NOTE: this must be in a blocking loop since the receiver receives the data
+      // immediately after setting DATA high. If we exit the "task" function then
+      // we may not get back here in time to transmit.
       while( digitalReadFastExt(m_pinDATA, m_regDATAread, m_bitDATA) && digitalReadFastExt(m_pinATN, m_regATNread, m_bitATN) );
 
       // start timer (on AVR, lag from DATA low to timer start is between 700...1700ns)
@@ -1036,20 +1022,21 @@ void IECDevice::enableDolphinBurstMode(bool enable)
 void IECDevice::dolphinBurstReceiveRequest()
 {
   m_sflags |= S_DOLPHIN_BURST_RECEIVE;
+  m_timeoutStart = micros();
 }
 
 void IECDevice::dolphinBurstTransmitRequest()
 {
   m_sflags |= S_DOLPHIN_BURST_TRANSMIT;
+  m_timeoutStart = micros();
 }
 
 bool IECDevice::receiveDolphinByte(bool canWriteOk)
 {
+  // NOTE: we only get here if sender has already signaled ready-to-send
+  // by releasing CLK
   bool eoi = false;
-  
-  // wait for CLK high (host is ready to send next byte)
-  if( !waitPinCLK(HIGH) ) return false;
-  
+
   // we have buffered bytes (see comment below) that need to be
   // sent on to the higher level handler before we can receive more.
   // There are two ways to get to m_dolphinCtr==2:
@@ -1070,7 +1057,7 @@ bool IECDevice::receiveDolphinByte(bool canWriteOk)
   writePinDATA(HIGH);
 
   // wait for CLK low
-  if( !waitPinCLK(LOW, 100) ) 
+  if( !waitPinCLK(LOW, 100) )
     {
       // exit if waitPinCLK returned because of falling edge on ATN
       if( !readPinATN() ) return false;
@@ -1128,11 +1115,15 @@ bool IECDevice::receiveDolphinByte(bool canWriteOk)
 
 bool IECDevice::transmitDolphinByte(byte numData)
 {
-  // signal "ready"
+  // signal "ready-to-send" (CLK=1)
   writePinCLK(HIGH);
   
-  // wait for receiver to confirm
-  if( !waitPinDATA(HIGH) ) return false;
+  // wait (indefinitely, no timeout) for DATA HIGH ("ready-to-receive")
+  // NOTE: this must be in a blocking loop since the receiver starts counting
+  // up the EOI timeout immediately after setting DATA HIGH. If we had exited the 
+  // "task" function then it might be more than 200us until we get back here
+  // to pull CLK low and the receiver will interpret that delay as EOI.
+  if( !waitPinDATA(HIGH, 0) ) return false;
 
   if( numData==0 ) 
     {
@@ -1172,10 +1163,9 @@ bool IECDevice::transmitDolphinByte(byte numData)
 
 bool IECDevice::receiveDolphinBurst()
 {
+  // NOTE: we only get here if sender has already signaled ready-to-send
+  // by pulling CLK low
   byte n = 0;
-
-  // wait for CLK low
-  if( !waitPinCLK(LOW)  ) return false;
 
   // clear any previous handshakes
   parallelBusHandshakeReceived();
@@ -1224,6 +1214,9 @@ bool IECDevice::receiveDolphinBurst()
 
 bool IECDevice::transmitDolphinBurst()
 {
+  // NOTE: we only get here if sender has already signaled ready-to-receive
+  // by pulling DATA low
+
   // clear previous handshakes
   parallelBusHandshakeReceived();
 
@@ -1303,6 +1296,8 @@ bool IECDevice::transmitDolphinBurst()
 
 bool IECDevice::receiveIECByte(bool canWriteOk)
 {
+  // NOTE: we only get here if sender has already signaled ready-to-send
+  // by releasing CLK
   bool eoi = false;
 
   // release DATA ("ready-for-data")
@@ -1349,7 +1344,7 @@ bool IECDevice::receiveIECByte(bool canWriteOk)
               if( !waitTimeout(80) ) return false;
               writePinDATA(HIGH);
             }
-
+          
           // keep waiting fom CLK=1
           if( !waitPinCLK(HIGH) ) return false;
         }
@@ -1443,9 +1438,13 @@ bool IECDevice::transmitIECByte(byte numData)
 
   // signal "ready-to-send" (CLK=1)
   writePinCLK(HIGH);
-
-  // wait for DATA HIGH ("ready-to-receive")
-  if( !waitPinDATA(HIGH) ) return false;
+  
+  // wait (indefinitely, no timeout) for DATA HIGH ("ready-to-receive")
+  // NOTE: this must be in a blocking loop since the receiver starts counting
+  // up the EOI timeout immediately after setting DATA HIGH. If we had exited the 
+  // "task" function then it might be more than 200us until we get back here
+  // to pull CLK low and the receiver will interpret that delay as EOI.
+  if( !waitPinDATA(HIGH, 0) ) return false;
   
   if( numData==1 || verifyError )
     {
@@ -1492,9 +1491,8 @@ bool IECDevice::transmitIECByte(byte numData)
   writePinCLK(LOW);
   writePinDATA(HIGH);
 
-  // wait for receiver to signal "busy", it must do so
-  // within 1ms otherwise error 
-  if( !waitPinDATA(LOW, 1000) ) return false;
+  // wait for receiver to signal "busy"
+  if( !waitPinDATA(LOW) ) return false;
   
   return true;
 }
@@ -1685,14 +1683,10 @@ void IECDevice::task()
 #ifdef SUPPORT_DOLPHIN
   // ------------------ DolphinDos burst transfer handling -------------------
 
-  if( (m_sflags & S_DOLPHIN_BURST_TRANSMIT)!=0 )
+  if( (m_sflags & S_DOLPHIN_BURST_TRANSMIT)!=0 && (micros()-m_timeoutStart)>200 && !readPinDATA() )
     {
-      // give other devices on the bus time to release the DATA line
-      // after the UNLISTEN command for "XQ" burst request
-      delayMicroseconds(200);
-
-      // wait for host to pull DATA line LOW
-      waitPinDATA(LOW);
+      // if we are in burst transmit mode, give other devices 200us to release
+      // the DATA line and wait for the host to pull DATA LOW
 
       // pull CLK line LOW (host should have released it by now)
       writePinCLK(LOW);
@@ -1719,11 +1713,11 @@ void IECDevice::task()
 
       m_sflags &= ~S_DOLPHIN_BURST_TRANSMIT;
     }
-  else if( m_sflags & S_DOLPHIN_BURST_RECEIVE )
+  else if( m_sflags & S_DOLPHIN_BURST_RECEIVE && (micros()-m_timeoutStart)>500 && !readPinCLK() )
     {
-      // wait until host has released CLK after sending "XZ" burst request
-      // (Dolphin kernal ef82)
-      delayMicroseconds(500);
+      // if we are in burst receive mode, wait 500us to make sure host has released CLK after 
+      // sending "XZ" burst request (Dolphin kernal ef82), and wait for it to pull CLK low again
+      // (if we don't wait at first then we may read CLK=0 already before the host has released it)
 
       if( m_sflags & S_DOLPHIN_BURST_ENABLED )
         {
@@ -1743,6 +1737,7 @@ void IECDevice::task()
           // see comment in function receiveDolphinByte
           m_dolphinCtr = (2*DOLPHIN_PREBUFFER_BYTES)-m_dolphinCtr;
 
+          // signal NOT ready to receive
           writePinDATA(LOW);
         }
 
@@ -1791,7 +1786,9 @@ void IECDevice::task()
       else if( (m_sflags & S_DOLPHIN_DETECTED)!=0 && numData>=0 && !(m_flags & P_ATN) )
         {
           // receiving under DolphinDOS protocol
-          if( !receiveDolphinByte(numData>0) )
+          if( !readPinCLK() )
+            { /* CLK is still low => sender is not ready yet */ }
+          else if( !receiveDolphinByte(numData>0) )
             {
               // receive failed => release DATA 
               // and stop listening.  This will signal
@@ -1805,6 +1802,7 @@ void IECDevice::task()
         {
           // either under ATN (in which case we always accept data)
           // or canWrite() result was non-negative
+          // CLK high signals sender is ready to transmit
           if( !receiveIECByte(numData>0) )
             {
               // receive failed => transaction is done
@@ -1908,3 +1906,4 @@ void IECDevice::task()
   // make sure to process it before we leave
   if( m_atnInterrupt!=NOT_AN_INTERRUPT && !readPinATN() && !(m_flags & P_ATN) ) { noInterrupts(); atnRequest(); interrupts(); }
 }
+

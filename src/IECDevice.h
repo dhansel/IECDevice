@@ -199,10 +199,8 @@ class IECDevice
   void writePinCTRL(bool v);
   bool waitTimeoutFrom(uint32_t start, uint16_t timeout);
   bool waitTimeout(uint16_t timeout);
-  bool waitPinDATA(bool state);
-  bool waitPinDATA(bool state, uint16_t timeout);
-  bool waitPinCLK(bool state);
-  bool waitPinCLK(bool state, uint16_t timeout);
+  bool waitPinDATA(bool state, uint16_t timeout = 1000);
+  bool waitPinCLK(bool state, uint16_t timeout = 1000);
 
   void atnRequest();
   bool receiveIECByte(bool canWriteOk);
