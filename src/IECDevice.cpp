@@ -1217,9 +1217,6 @@ bool IECDevice::transmitDolphinBurst()
   // NOTE: we only get here if sender has already signaled ready-to-receive
   // by pulling DATA low
 
-  // clear previous handshakes
-  parallelBusHandshakeReceived();
-
   // send handshake to confirm burst transmission (Dolphin kernal EEDA)
   parallelBusHandshakeTransmit();
 
@@ -1238,8 +1235,16 @@ bool IECDevice::transmitDolphinBurst()
   // then re-transmits the bytes that were already sent.
   for(byte i=0; i<m_dolphinCtr; i++)
     {
+      // put data on bus
       writeParallelData(m_buffer[i]);
+
+      // send handshake (see "send handshake" comment below)
+      noInterrupts();
       parallelBusHandshakeTransmit();
+      parallelBusHandshakeReceived();
+      interrupts();
+
+      // wait for received handshake
       if( !waitParallelBusHandshakeReceived() ) { setParallelBusModeInput(); return false; }
     }
 
