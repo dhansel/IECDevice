@@ -206,10 +206,6 @@ void IECCentronics::begin()
   delayMicroseconds(10);
   digitalWrite(PIN_PRIME, HIGH);
 
-  // set start-up message
-  strncpy_P(m_statusBuffer, PSTR("73,IECCENTRONICS V1.0\r"), BUFSIZE);
-  m_statusBufferLen = strlen(m_statusBuffer);
-
   // set IEC device address (4 or 5)
   IECDevice::begin((readDIP() & 8) ? 5 : 4);
 
@@ -317,6 +313,12 @@ void IECCentronics::sendByte(byte data)
 void IECCentronics::talk(byte device, byte secondary)
 {
   m_channel = secondary & 0x0F;
+
+  // if we're told to talk on the status channel AND we're
+  // not in the middle of reading the status message then
+  // make sure we request the current status in canRead().
+  if( m_channel==15 && m_statusBufferPtr==0 )
+    m_statusBufferPtr = m_statusBufferLen;
 }
 
 
