@@ -1879,9 +1879,10 @@ void IECDevice::task()
         else if( (m_sflags & S_DOLPHIN_DETECTED)!=0 )
           {
             // DolphinDOS byte-by-byte transfer mode
-            if( !transmitDolphinByte(numData) || numData==1 )
+            if( !transmitDolphinByte(numData) )
               {
                 // either a transmission error, no more data to send or falling edge on ATN
+                writePinCLK(HIGH);
                 m_flags |= P_DONE;
               }
           }
