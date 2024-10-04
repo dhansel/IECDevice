@@ -435,6 +435,9 @@ void IECSD::close(byte device, byte channel)
 
 void IECSD::execute(byte device, const char *command, byte len)
 {
+  // clear the status buffer so getStatus() is called again next time the buffer is queried
+  clearStatus(device);
+
   if( strncmp(command, "S:", 2)==0 )
     {
       if( m_dir.openCwd() )
@@ -466,6 +469,20 @@ void IECSD::execute(byte device, const char *command, byte len)
       // number of free blocks => pretend we have 664 (0298h) blocks available
       byte data[3] = {0x98, 0, 0x02};
       setStatus(device, (char *) data, 3);
+      m_errorCode = E_OK;
+    }
+  else if( strncmp_P(command, PSTR("M-R"), 3)==0 && len>=6 && command[5]<=32 )
+    {
+      // memory read not supported => always return 0xFF
+      byte n = command[5];
+      char buf[32];
+      memset(buf, 0xFF, n);
+      setStatus(device, buf, n);
+      m_errorCode = E_OK;
+    }
+  else if( strncmp_P(command, PSTR("M-W"), 3)==0 )
+    {
+      // memory write not supported => ignore
       m_errorCode = E_OK;
     }
   else if( (strncmp_P(command, PSTR("CD:"),3)==0 || strncmp_P(command, PSTR("MD:"),3)==0 || strncmp_P(command, PSTR("RD:"),3)==0) && command[3]!=0 )
