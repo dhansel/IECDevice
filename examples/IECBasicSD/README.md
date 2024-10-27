@@ -15,7 +15,7 @@ Note also that this device is very limited in its functionality, it allows loadi
 on the SD card but no other functionality (directory listing, status channel, deleting files etc..).
 The purpose of this example is to demonstrate the basic implementation of a file-based device using the
 IECFileDevice class. A more feature-complete implementation of a SD card reader is provided in
-the [IECSD example](../examples/IECSD). 
+the [IECSD example](../IECSD). 
 
 
 ## Wiring
