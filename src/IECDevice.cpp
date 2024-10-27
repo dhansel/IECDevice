@@ -26,6 +26,8 @@
 #error "Maximum allowed number of devices is 16"
 #endif
 
+//#define JDEBUG
+
 // ---------------- Arduino 8-bit ATMega (UNO R3/Mega/Mini/Micro/Leonardo...)
 
 #if defined(__AVR__)
@@ -47,12 +49,12 @@
 #define timer_wait_until(us) while( TCNT2 < ((byte) (2*(us))) )
 #endif
 
-//#define JDEBUGI() DDRC |= 0x02; PORTC &= ~0x02
-//#define JDEBUG0() PORTC&=~0x02
-//#define JDEBUG1() PORTC|=0x02
-#define JDEBUGI()
-#define JDEBUG0()
-#define JDEBUG1()
+//NOTE: Must disable SUPPORT_DOLPHIN, otherwise no pins left for debugging (except Mega)
+#ifdef JDEBUG
+#define JDEBUGI() DDRD |= 0x80; PORTD &= ~0x80 // PD7 = pin digital 7
+#define JDEBUG0() PORTD&=~0x80
+#define JDEBUG1() PORTD|=0x80
+#endif
 
 // ---------------- Arduino Uno R4
 
@@ -66,17 +68,16 @@
 static unsigned long timer_start_ticks;
 static uint16_t timer_ticks_diff(uint16_t t0, uint16_t t1) { return ((t0 < t1) ? 3000 + t0 : t0) - t1; }
 #define timer_init()         while(0)
-#define timer_reset()        while(0)
+#define timer_reset()        timer_start_ticks = R_AGT0->AGT
 #define timer_start()        timer_start_ticks = R_AGT0->AGT
 #define timer_stop()         while(0)
 #define timer_wait_until(us) while( timer_ticks_diff(timer_start_ticks, R_AGT0->AGT) < ((int) (us*3)) )
 
+#ifdef JDEBUG
 #define JDEBUGI() pinMode(1, OUTPUT)
 #define JDEBUG0() R_PORT3->PODR &= ~bit(2);
 #define JDEBUG1() R_PORT3->PODR |=  bit(2);
-//#define JDEBUGI()
-//#define JDEBUG0()
-//#define JDEBUG1()
+#endif
 
 // ---------------- Arduino Due
 
@@ -87,17 +88,16 @@ static uint16_t timer_ticks_diff(uint16_t t0, uint16_t t1) { return ((t0 < t1) ?
 static unsigned long timer_start_ticks;
 static uint32_t timer_ticks_diff(uint32_t t0, uint32_t t1) { return ((t0 < t1) ? 84000 + t0 : t0) - t1; }
 #define timer_init()         while(0)
-#define timer_reset()        while(0)
+#define timer_reset()        timer_start_ticks = SysTick->VAL;
 #define timer_start()        timer_start_ticks = SysTick->VAL;
 #define timer_stop()         while(0)
 #define timer_wait_until(us) while( timer_ticks_diff(timer_start_ticks, SysTick->VAL) < ((int) (us*84)) )
 
-//#define JDEBUGI() pinMode(2, OUTPUT)
-//#define JDEBUG0() digitalWriteFast(2, LOW);
-//#define JDEBUG1() digitalWriteFast(2, HIGH);
-#define JDEBUGI()
-#define JDEBUG0()
-#define JDEBUG1()
+#ifdef JDEBUG
+#define JDEBUGI() pinMode(2, OUTPUT)
+#define JDEBUG0() digitalWriteFast(2, LOW);
+#define JDEBUG1() digitalWriteFast(2, HIGH);
+#endif
 
 // ---------------- other (32-bit) platforms
 
@@ -105,21 +105,26 @@ static uint32_t timer_ticks_diff(uint32_t t0, uint32_t t1) { return ((t0 < t1) ?
 
 static unsigned long timer_start_us;
 #define timer_init()         while(0)
-#define timer_reset()        while(0)
+#define timer_reset()        timer_start_us = micros()
 #define timer_start()        timer_start_us = micros()
 #define timer_stop()         while(0)
 #define timer_wait_until(us) while( (micros()-timer_start_us) < ((int) (us+0.5)) )
 
+#ifdef JDEBUG
 //#define JDEBUGI() pinMode(22, OUTPUT)
 //#define JDEBUG0() GPIO.out_w1tc = bit(22)
 //#define JDEBUG1() GPIO.out_w1ts = bit(22)
-//#define JDEBUGI() pinMode(2, OUTPUT)
-//#define JDEBUG0() digitalWriteFast(2, LOW);
-//#define JDEBUG1() digitalWriteFast(2, HIGH);
+#define JDEBUGI() pinMode(20, OUTPUT)
+#define JDEBUG0() digitalWriteFast(20, LOW);
+#define JDEBUG1() digitalWriteFast(20, HIGH);
+#endif
+
+#endif
+
+#ifndef JDEBUG
 #define JDEBUGI()
 #define JDEBUG0()
 #define JDEBUG1()
-
 #endif
 
 #if defined(__SAM3X8E__)
@@ -152,14 +157,18 @@ static unsigned long timer_start_us;
 #define P_DONE       0x10
 #define P_RESET      0x08
 
-#define S_JIFFY_ENABLED          0x01  // JiffyDos support is enabled
-#define S_JIFFY_DETECTED         0x02  // Detected JiffyDos request from host
-#define S_JIFFY_BLOCK            0x04  // Detected JiffyDos block transfer request from host
-#define S_DOLPHIN_ENABLED        0x08  // DolphinDos support is enabled
-#define S_DOLPHIN_DETECTED       0x10  // Detected DolphinDos request from host
-#define S_DOLPHIN_BURST_ENABLED  0x20  // DolphinDos burst mode is enabled
-#define S_DOLPHIN_BURST_TRANSMIT 0x40  // Detected DolphinDos burst transmit request from host
-#define S_DOLPHIN_BURST_RECEIVE  0x80  // Detected DolphinDos burst receive request from host
+#define S_JIFFY_ENABLED          0x0001  // JiffyDos support is enabled
+#define S_JIFFY_DETECTED         0x0002  // Detected JiffyDos request from host
+#define S_JIFFY_BLOCK            0x0004  // Detected JiffyDos block transfer request from host
+#define S_DOLPHIN_ENABLED        0x0008  // DolphinDos support is enabled
+#define S_DOLPHIN_DETECTED       0x0010  // Detected DolphinDos request from host
+#define S_DOLPHIN_BURST_ENABLED  0x0020  // DolphinDos burst mode is enabled
+#define S_DOLPHIN_BURST_TRANSMIT 0x0040  // Detected DolphinDos burst transmit request from host
+#define S_DOLPHIN_BURST_RECEIVE  0x0080  // Detected DolphinDos burst receive request from host
+#define S_EPYX_ENABLED           0x0100  // Epyx FastLoad support is enabled
+#define S_EPYX_HEADER            0x0200  // Read EPYX FastLoad header (drive code transmission)
+#define S_EPYX_LOAD              0x0400  // Detected Epyx "load" request
+#define S_EPYX_SECTOROP          0x0800  // Detected Epyx "sector operation" request
 
 IECDevice *IECDevice::s_iecdevice1 = NULL, *IECDevice::s_iecdevice2 = NULL;
 
@@ -235,10 +244,21 @@ bool IECDevice::waitPinDATA(bool state, uint16_t timeout)
   // (if timeout is not given it defaults to 1000us)
   // if ATN changes (i.e. our internal ATN state no longer matches the ATN signal line)
   // or the timeout is met then exit with error condition
-  uint32_t start = micros();
-  while( readPinDATA()!=state )
-    if( (((m_flags & P_ATN)!=0) == readPinATN()) || (timeout>0 && (uint16_t) (micros()-start)>=timeout) )
-      return false;
+  if( timeout==0 )
+    {
+      // timeout is 0 (no timeout), do NOT call micros() as calling micros() may enable
+      // interrupts on some platforms
+      while( readPinDATA()!=state )
+        if( ((m_flags & P_ATN)!=0) == readPinATN() )
+          return false;
+    }
+  else
+    {
+      uint32_t start = micros();
+      while( readPinDATA()!=state )
+        if( (((m_flags & P_ATN)!=0) == readPinATN()) || (uint16_t) (micros()-start)>=timeout )
+          return false;
+    }
 
   // DATA LOW can only be properly detected if ATN went HIGH->LOW
   // (m_flags&ATN)==0 and readPinATN()==0)
@@ -252,10 +272,21 @@ bool IECDevice::waitPinCLK(bool state, uint16_t timeout)
   // (if timeout is not given it defaults to 1000us)
   // if ATN changes (i.e. our internal ATN state no longer matches the ATN signal line)
   // or the timeout is met then exit with error condition
-  uint32_t start = micros();
-  while( readPinCLK()!=state )
-    if( (((m_flags & P_ATN)!=0) == readPinATN()) || (timeout>0 && (uint16_t) (micros()-start)>=timeout) )
-      return false;
+  if( timeout==0 )
+    {
+      // timeout is 0 (no timeout), do NOT call micros() as calling micros() may enable
+      // interrupts on some platforms
+      while( readPinCLK()!=state )
+        if( ((m_flags & P_ATN)!=0) == readPinATN() )
+          return false;
+    }
+  else
+    {
+      uint32_t start = micros();
+      while( readPinCLK()!=state )
+        if( (((m_flags & P_ATN)!=0) == readPinATN()) || (uint16_t) (micros()-start)>=timeout )
+          return false;
+    }
   
   return true;
 }
@@ -414,7 +445,7 @@ void IECDevice::atnInterruptFcn2()
 }
 
 
-#if defined(SUPPORT_JIFFY) || defined(SUPPORT_DOLPHIN)
+#if defined(SUPPORT_JIFFY) || defined(SUPPORT_DOLPHIN) || defined(SUPPORT_EPYX)
 void IECDevice::setBuffer(byte *buffer, byte bufferSize)
 {
   m_buffer     = buffer;
@@ -463,7 +494,7 @@ bool IECDevice::receiveJiffyByte(bool canWriteOk)
 
   // abort if ATN low
   if( !readPinATN() )
-    { JDEBUG0(); interrupts(); return false; }
+    { interrupts(); return false; }
 
   // bits 4+5 are set by sender 11 cycles after CLK HIGH (FC51)
   // wait until 14us after CLK
@@ -709,7 +740,7 @@ bool IECDevice::transmitJiffyBlock(byte *buffer, byte numBytes)
       
       // abort if ATN low
       if( !readPinATN() )
-        { JDEBUG0(); interrupts(); return false; }
+        { interrupts(); return false; }
 
       // receiver expects to see CLK high at 4 cycles after DATA LOW (FB54)
       // wait until 6 us after DATA LOW
@@ -1295,6 +1326,396 @@ bool IECDevice::transmitDolphinBurst()
 
 #endif
 
+#ifdef SUPPORT_EPYX
+
+// ------------------------------------  Epyx FastLoad support routines  ------------------------------------
+
+
+bool IECDevice::enableEpyxFastLoadSupport(bool enable)
+{
+  if( enable && m_buffer!=NULL && m_bufferSize>=32 )
+    m_sflags |= S_EPYX_ENABLED;
+  else
+    m_sflags &= ~S_EPYX_ENABLED;
+
+  // cancel any current requests
+  m_sflags &= ~(S_EPYX_HEADER|S_EPYX_LOAD|S_EPYX_SECTOROP);
+
+  return (m_sflags & S_EPYX_ENABLED)!=0;
+}
+
+
+void IECDevice::epyxLoadRequest()
+{
+  if( m_sflags & S_EPYX_ENABLED )
+    m_sflags |= S_EPYX_HEADER;
+}
+
+
+bool IECDevice::receiveEpyxByte(byte &data)
+{
+  bool clk = HIGH;
+  for(byte i=0; i<8; i++)
+    {
+      // wait for next bit ready
+      // can't use timeout because interrupts are disabled and (on some platforms) the
+      // micros() function does not work in this case
+      clk = !clk;
+      if( !waitPinCLK(clk, 0) ) return false;
+
+      // read next (inverted) bit
+      JDEBUG1();
+      data >>= 1;
+      if( !readPinDATA() ) data |= 0x80;
+      JDEBUG0();
+    }
+
+  return true;
+}
+
+
+bool IECDevice::transmitEpyxByte(byte data)
+{
+  // receiver expects all data bits to be inverted
+  data = ~data;
+
+  // prepare timer
+  timer_init();
+  timer_reset();
+
+  // wait (indefinitely) for either DATA high ("ready-to-send") or ATN low
+  // NOTE: this must be in a blocking loop since the sender starts transmitting
+  // the byte immediately after setting CLK high. If we exit the "task" function then
+  // we may not get back here in time to receive.
+  while( !digitalReadFastExt(m_pinDATA, m_regDATAread, m_bitDATA) && digitalReadFastExt(m_pinATN, m_regATNread, m_bitATN) );
+  
+  // start timer
+  timer_start();
+  JDEBUG1();
+
+  // abort if ATN low
+  if( !readPinATN() ) { JDEBUG0(); return false; }
+
+  JDEBUG0();
+  writePinCLK(data & bit(7));
+  writePinDATA(data & bit(5));
+  JDEBUG1();
+  // bits 5+7 are read by receiver 15 cycles after DATA HIGH
+
+  // wait until 17 us after DATA
+  timer_wait_until(17);
+
+  JDEBUG0();
+  writePinCLK(data & bit(6));
+  writePinDATA(data & bit(4));
+  JDEBUG1();
+  // bits 4+6 are read by receiver 25 cycles after DATA HIGH
+
+  // wait until 27 us after DATA
+  timer_wait_until(27);
+
+  JDEBUG0();
+  writePinCLK(data & bit(3));
+  writePinDATA(data & bit(1));
+  JDEBUG1();
+  // bits 1+3 are read by receiver 35 cycles after DATA HIGH
+
+  // wait until 37 us after DATA
+  timer_wait_until(37);
+
+  JDEBUG0();
+  writePinCLK(data & bit(2));
+  writePinDATA(data & bit(0));
+  JDEBUG1();
+  // bits 0+2 are read by receiver 45 cycles after DATA HIGH
+
+  // wait until 47 us after DATA
+  timer_wait_until(47);
+
+  // release DATA
+  writePinDATA(HIGH);
+
+  // wait for DATA low, receiver signaling "not ready"
+  if( !waitPinDATA(LOW, 0) ) return false;
+
+  JDEBUG0();
+  return true;
+}
+
+
+#ifdef SUPPORT_EPYX_SECTOROPS
+
+// NOTE: most calls to waitPinXXX() within this code happen while
+// interrupts are disabled and therefore must use the ",0" (no timeout)
+// form of the call - timeouts are dealt with using the micros() function
+// which does not work properly when interrupts are disabled.
+
+bool IECDevice::startEpyxSectorCommand(byte command)
+{
+  // interrupts are assumed to be disabled when we get here
+  // and will be re-enabled before we exit
+  // both CLK and DATA must be released (HIGH) before entering
+  byte track, sector, data;
+
+  if( command==0x81 )
+    {
+      // V1 sector write
+      // wait for DATA low (no timeout), however we exit if ATN goes low,
+      // interrupts are enabled while waiting (same as in 1541 code)
+      interrupts();
+      if( !waitPinDATA(LOW, 0) ) return false;
+      noInterrupts();
+
+      // release CLK
+      writePinCLK(HIGH);
+    }
+
+  // receive track and sector
+  // (command==1 means write sector, otherwise read sector)
+  if( !receiveEpyxByte(track) )   { interrupts(); return false; }
+  if( !receiveEpyxByte(sector) )  { interrupts(); return false; }
+
+  // V1 of the cartridge has two different uploads for read and write
+  // and therefore does not send the command separately
+  if( command==0 && !receiveEpyxByte(command) ) { interrupts(); return false; }
+
+  if( (command&0x7f)==1 )
+    {
+      // sector write operation => receive data
+      for(int i=0; i<256; i++)
+        if( !receiveEpyxByte(m_buffer[i]) )
+          { interrupts(); return false; }
+    }
+
+  // pull CLK low to signal "not ready"
+  writePinCLK(LOW);
+
+  // we can allow interrupts again
+  interrupts();
+
+  // pass data on to higher layer
+  if( (command&0x7f)==1 )
+    if( !epyxWriteSector(track, sector, m_buffer) )
+      { interrupts(); return false; }
+
+  // m_buffer size is guaranteed to be >=32
+  m_buffer[0] = command;
+  m_buffer[1] = track;
+  m_buffer[2] = sector;
+
+  m_sflags |= S_EPYX_SECTOROP;
+  return true;
+}
+
+
+bool IECDevice::finishEpyxSectorCommand()
+{
+  // this was set in receiveEpyxSectorCommand
+  byte command = m_buffer[0];
+  byte track   = m_buffer[1];
+  byte sector  = m_buffer[2];
+
+  // receive data from higher layer
+  if( (command&0x7f)!=1 )
+    if( !epyxReadSector(track, sector, m_buffer) )
+      return false;
+
+  // all timing is clocked by the computer so we can't afford
+  // interrupts to delay execution as long as we are signaling "ready"
+  noInterrupts();
+
+  // release CLK to signal "ready"
+  writePinCLK(HIGH);
+
+  if( command==0x81 )
+    {
+      // V1 sector write => receive new track/sector
+      return startEpyxSectorCommand(0x81); // startEpyxSectorCommand() re-enables interrupts
+    }
+  else
+    {
+      // V1 sector read or V2/V3 read/write => release CLK to signal "ready"
+      if( (command&0x7f)!=1 )
+        {
+          // sector read operation => send data
+          for(int i=0; i<256; i++)
+            if( !transmitEpyxByte(m_buffer[i]) )
+              { interrupts(); return false; }
+        }
+      else
+        {
+          // release DATA and wait for computer to pull it LOW
+          writePinDATA(HIGH);
+          if( !waitPinDATA(LOW, 0) ) { interrupts(); return false; }
+        }
+
+      // release DATA and toggle CLK until DATA goes high or ATN goes low.
+      // This provides a "heartbeat" for the computer so it knows we're still running
+      // the EPYX sector command code. If the computer does not see this heartbeat
+      // it will re-upload the code when it needs it.
+      // The EPYX code running on a real 1541 drive does not have this timeout but
+      // we need it because otherwise we're stuck in an endless loop with interrupts
+      // disabled until the computer either pulls ATN low or releases DATA
+      // We can not enable interrupts because the time between DATA high
+      // and the start of transmission for the next track/sector/command block
+      // is <400us without any chance for us to signal "not ready.
+      // A (not very nice) interrupt routing may take longer than that.
+      // We could just always quit and never send the heartbeat but then operations
+      // like "copy disk" would have to re-upload the code for ever single sector.
+      // Wait for DATA high, time out after 30000 * ~16us (~500ms)
+      timer_init();
+      timer_reset();
+      timer_start();
+      for(unsigned int i=0; i<30000; i++)
+        {
+          writePinCLK(LOW);
+          if( !readPinATN() ) break;
+          interrupts();
+          timer_wait_until(8);
+          noInterrupts();
+          writePinCLK(HIGH);
+          if( readPinDATA() ) break;
+          timer_wait_until(16);
+          timer_reset();
+        }
+
+      // abort if we timed out (DATA still low) or ATN is pulled
+      if( !readPinDATA() || !readPinATN() ) { interrupts(); return false; }
+
+      // wait (DATA high pulse from sender can be up to 90us)
+      if( !waitTimeout(100) ) { interrupts(); return false; }
+
+      // if DATA is still high (or ATN is low) then done, otherwise repeat for another sector
+      if( readPinDATA() || !readPinATN() )
+        { interrupts(); return false; }
+      else
+        return startEpyxSectorCommand((command&0x80) ? command : 0); // startEpyxSectorCommand() re-enables interrupts
+    }
+}
+
+#endif
+
+bool IECDevice::receiveEpyxHeader()
+{
+  // all timing is clocked by the computer so we can't afford
+  // interrupts to delay execution as long as we are signaling "ready"
+  noInterrupts();
+
+  // pull CLK low to signal "ready for header"
+  writePinCLK(LOW);
+
+  // wait for sender to set DATA low, signaling "ready"
+  if( !waitPinDATA(LOW, 0) ) { interrupts(); return false; }
+
+  // release CLK line
+  writePinCLK(HIGH);
+
+  // receive fastload routine upload (256 bytes) and compute checksum
+  byte data, checksum = 0;
+  for(int i=0; i<256; i++)
+    {
+      if( !receiveEpyxByte(data) ) { interrupts(); return false; }
+      checksum += data;
+    }
+
+  if( checksum==0x26 /* V1 load file */ ||
+      checksum==0x86 /* V2 load file */ ||
+      checksum==0xAA /* V3 load file */ )
+    {
+      // LOAD FILE operation
+      // receive file name and open file
+      byte n;
+      if( receiveEpyxByte(n) && n>0 && n<=32 )
+        {
+          // file name arrives in reverse order
+          for(byte i=n; i>0; i--)
+            if( !receiveEpyxByte(m_buffer[i-1]) )
+              { interrupts(); return false; }
+
+          // pull CLK low to signal "not ready"
+          writePinCLK(LOW);
+
+          // can allow interrupts again
+          interrupts();
+
+          // initiate DOS OPEN command in higher layer (open channel #0)
+          listen(m_devnr, 0xF0);
+
+          // send file name (in proper order) to higher layer
+          for(byte i=0; i<n; i++)
+            {
+              // make sure higher layer can accept data
+              int8_t ok;
+              while( (ok = canWrite(m_devnr))<0 )
+                if( !readPinATN() )
+                  return false;
+
+              // fail if it can not
+              if( ok==0 ) return false;
+
+              // send next file name character
+              write(m_devnr, m_buffer[i], i<n-1);
+            }
+
+          // finish DOS OPEN command in higher layer
+          unlisten();
+
+          m_sflags |= S_EPYX_LOAD;
+          return true;
+        }
+    }
+#ifdef SUPPORT_EPYX_SECTOROPS
+  else if( checksum==0x0B /* V1 sector read */ )
+    return startEpyxSectorCommand(0x82); // startEpyxSectorCommand re-enables interrupts
+  else if( checksum==0xBA /* V1 sector write */ )
+    return startEpyxSectorCommand(0x81); // startEpyxSectorCommand re-enables interrupts
+  else if( checksum==0xB8 /* V2 and V3 sector read or write */ )
+    return startEpyxSectorCommand(0); // startEpyxSectorCommand re-enables interrupts
+#endif
+#if 0
+  else if( Serial )
+    {
+      interrupts();
+      Serial.print(F("Unknown EPYX fastload routine, checksum is 0x"));
+      Serial.println(checksum, HEX);
+    }
+#endif
+
+  interrupts();
+  return false;
+}
+
+
+bool IECDevice::transmitEpyxBlock()
+{
+  byte n = read(m_devnr, m_buffer, m_bufferSize);
+
+  noInterrupts();
+
+  // release CLK to signal "ready"
+  writePinCLK(HIGH);
+
+  // transmit length of this data block
+  if( !transmitEpyxByte(n) ) { interrupts(); return false; }
+
+  // transmit the data block
+  for(byte i=0; i<n; i++)
+    if( !transmitEpyxByte(m_buffer[i]) )
+      { interrupts(); return false; }
+
+  // pull CLK low to signal "not ready"
+  writePinCLK(LOW);
+
+  interrupts();
+
+  // the "end transmission" condition for the receiver is receiving
+  // a "0" length byte so we keep sending block until we have
+  // transmitted a 0-length block (i.e. end-of-file)
+  return n>0;
+}
+
+
+#endif
 
 // ------------------------------------  IEC protocol support routines  ------------------------------------  
 
@@ -1311,19 +1732,16 @@ bool IECDevice::receiveIECByte(bool canWriteOk)
   // wait for sender to set CLK=0 ("ready-to-send")
   if( !waitPinCLK(LOW, 200) )
     {
-      if( (m_flags & P_ATN)==0 )
-        {
-          // exit if waitPinCLK returned because of falling edge on ATN
-          if( !readPinATN() ) return false;
+      // exit if waitPinCLK returned because of falling edge on ATN
+      if( (m_flags & P_ATN)==0 && !readPinATN() ) return false;
 
-          // sender did not set CLK=0 within 200us after we set DATA=1
-          // => it is signaling EOI (not so if we are under ATN)
-          // acknowledge we received it by setting DATA=0 for 80us
-          eoi = true;
-          writePinDATA(LOW);
-          if( !waitTimeout(80) ) return false;
-          writePinDATA(HIGH);
-        }
+      // sender did not set CLK=0 within 200us after we set DATA=1
+      // => it is signaling EOI (not so if we are under ATN)
+      // acknowledge we received it by setting DATA=0 for 80us
+      eoi = true;
+      writePinDATA(LOW);
+      if( !waitTimeout(80) ) return false;
+      writePinDATA(HIGH);
 
       // keep waiting for CLK=0
       if( !waitPinCLK(LOW) ) return false;
@@ -1455,7 +1873,9 @@ bool IECDevice::transmitIECByte(byte numData)
     {
       // only this byte left to send => signal EOI by keeping CLK=1
       // wait for receiver to acknowledge EOI by setting DATA=0 then DATA=1
-      if( !waitPinDATA(LOW)  ) return false;
+      // if we got here by "verifyError" then wait indefinitely because we
+      // didn't enter the "wait for DATA high" state above
+      if( !waitPinDATA(LOW, verifyError ? 0 : 1000) ) return false;
       if( !waitPinDATA(HIGH) ) return false;
     }
 
@@ -1748,6 +2168,51 @@ void IECDevice::task()
 
       m_sflags &= ~S_DOLPHIN_BURST_RECEIVE;
     }
+#endif
+
+#ifdef SUPPORT_EPYX
+  // ------------------ Epyx FastLoad transfer handling -------------------
+
+  if( (m_sflags & S_EPYX_HEADER) && readPinDATA() )
+    {
+      m_sflags &= ~S_EPYX_HEADER;
+      if( !receiveEpyxHeader() )
+        {
+          // transmission error
+          writePinCLK(HIGH);
+          writePinDATA(HIGH);
+        }
+    }
+  else if( m_sflags & S_EPYX_LOAD )
+    {
+      if( !transmitEpyxBlock() )
+        {
+          // either end-of-data or transmission error => we are done
+          writePinCLK(HIGH);
+          writePinDATA(HIGH);
+
+          // close the file (was opened in receiveEpyxHeader)
+          listen(m_devnr, 0xE0);
+          unlisten();
+
+          // no more data to send
+          m_sflags &= ~S_EPYX_LOAD;
+        }
+    }
+#ifdef SUPPORT_EPYX_SECTOROPS
+  else if( m_sflags & S_EPYX_SECTOROP )
+    {
+      if( !finishEpyxSectorCommand() )
+        {
+          // either no more operations or transmission error => we are done
+          writePinCLK(HIGH);
+          writePinDATA(HIGH);
+
+          // no more sector operations
+          m_sflags &= ~S_EPYX_SECTOROP;
+        }
+    }
+#endif
 #endif
 
   // ------------------ receiving data -------------------

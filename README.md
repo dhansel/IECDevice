@@ -11,8 +11,9 @@ The library provides two classes:
   - ```IECFileDevice``` for creating higher-level devices that operate more like disk
     drives. The IECFileDevice interface is file-based, providing open/close/read/write functions.
     An example use for this class would be an [SD-card reader](examples/IECSD).
-    Any device created using this class automatically supports the [JiffyDos](#jiffydos-support)
-    and [DolphinDos](#dolphindos-support) protocols for fast data transfers.
+    Any device created using this class automatically supports the [JiffyDos](#jiffydos-support),
+    Epyx FastLoad](#epyx-fastload-support) and [DolphinDos](#dolphindos-support)
+    protocols for fast data transfers.
 
 So far I have tested this library on the following microcontrollers:
   -  Arduino 8-bit ATMega devices (Uno R3, Mega, Mini, Micro, Leonardo)
@@ -177,14 +178,19 @@ Implementing a file-based device using the IECFileDevice class requires two step
   1. Derive a new class from the IECFileDevice class and implement the device's behavior in the new class
   2. Call the IECFileDevice::begin() and IECFileDevice::task() functions within your main sketch functions.
 
-This section describes those steps by creating a very simple device to read/write SD cards.
+This section describes those steps based on the [IECBasicSerial](examples/IECBasicSerial/IECBasicSerial.ino) 
+example, a simple device that connects a serial (RS232) port to the IEC bus.
+
+This section describes those steps based on the [IECBasicD](examples/IECBasicSD/IECBasicSD.ino) 
+example, a very simple device to read/write SD cards.
 Note that this device will be limited in its functionality, it allows loading and saving programs
 on the SD card but no other functionality (directory listing, status channel, deleting files etc..).
 The purpose of this section is to demonstrate basic bus communication for file-based devices using the
 IECFileDevice class. A more feature-complete implementation of a SD card reader is provided in
 the [IECSD example](examples/IECSD). 
 
-Note that any device derived from the IECFileDevice class automatically supports the [JiffyDos](#jiffydos-support) protocol.
+Note that any device derived from the IECFileDevice class automatically supports the [JiffyDos](#jiffydos-support),
+[Epyx FastLoad](#epyx-fastload-support) and [DolphinDos](#dolphindos-support) protocol.
 
 First, a new class is defined and derived from the IECFileDevice class. 
 
@@ -213,14 +219,15 @@ We implement the device functions by overriding the open/read/write/close functi
 See the [IECFileDevice Class Reference](#iecfiledevice-class-reference) section below for a detailed description of these functions:
 
 ```
-IECBasicSD::IECBasicSD() : IECFileDevice(3, 4, 5)
+IECBasicSD::IECBasicSD() : IECFileDevice(3, 4, 5, 6)
 {
-  m_sd.begin(8, SD_SCK_MHZ(1));
+  m_sd.begin(10);
 }
 ```
 
-The class constructor must call the IECFileDevice() constructor which defines the pins (ATN=3, Clock=4, Data=5)
-to which the IEC bus signals are connected. We also initialize the SD card interface in the constructor.
+The class constructor must call the IECFileDevice() constructor which defines the microcontroller
+pins to which the IEC bus signals are connected (ATN=3, Clock=4, Data=5, Reset=6). 
+We also initialize the SD card interface in the constructor, using pin 10 for CS.
 
 ```
 void IECBasicSD::open(byte devnum, byte channel, const char *name)
@@ -249,16 +256,15 @@ Returning 0 on the first call after "open()" signals that there was an
 error opening the file.
 
 ```
-bool IECBasicSD::write(byte devnum, byte channel, byte data)
+byte IECBasicSD::write(byte devnum, byte channel, byte *buffer, byte n)
 {
-  return m_file.isOpen() && m_file.write(&data, 1)==1;
+  return m_file.isOpen() ? m_file.write(buffer, n) : 0;
 }
 ```
 
-This function must write the given data byte to the file that was previously opened 
-for the gven channel number and return "true" for success or "false" for failure.
-Returning false on the first call after "open()" signals that there was an
-error opening the file.
+This function must write *n* data bytes from the buffer to the file that was previously opened 
+for the given channel number and return the number of bytes written. Returning a number less 
+than n signals an error condition.
 
 ```
 void IECBasicSD::close(byte devnum, byte channel)
@@ -332,6 +338,13 @@ The IECDevice class has the following functions that may/must be called from you
   For more information see the [JiffyDos support](jiffydos-support) section below.
   You can also use this function to disable JiffyDos support after it has been enabled.
 
+- ```void enableEpyxFastLoadSupport(bool enable)```  
+  This function must be called **if** your device should support the Epyx FastLoad protocol.
+  In most cases devices with Epyx FastLoad support should be derived from the IECFileDevice class
+  which handles Epyx FastLoad support internally and you do not have to call enableEpyxFastLoadSupport().
+  For more information see the [Epyx FastLoad support](epyx-fastload-support) section below.
+  You can also use this function to disable Epyx FastLoad support after it has been enabled.
+
 - ```void enableDolphinDosSupport(bool enable)```  
   This function must be called **if** your device should support the DolphinDos parallel protocol.
   In most cases devices with DolphinDos support should be derived from the IECFileDevice class
@@ -340,7 +353,8 @@ The IECDevice class has the following functions that may/must be called from you
   You can also use this function to disable DolphinDos support after it has been enabled.
 
 - ```void setBuffer(byte *buffer, byte bufferSize);```
-  This function shold be called **before** calling enableJiffyDosSupport() or enableDolphinDosSupport()
+  This function shold be called **before** calling enableJiffyDosSupport(), enableDolphinDosSupport()
+  or enableEpyxFastloadSupport()
   to set the required data buffer for data block transmissions. The IECFileDevice class calls this
   function, so if your device class is derived from IECFileDevice you do not need to call setBuffer().
   If not called, a default buffer of size 1 will be used which is very inefficient (but saves memory).
@@ -398,6 +412,8 @@ numbers were added via the "addDeviceNumber" function then devnum may show any o
 - ```void reset()```  
   Called when a high->low edge is detected on the the IEC bus RESET signal line (only if pinRESET was given in the constructor).
 
+
+
 The following functions should be overloaded if the JiffyDos protocol should be supported.
 In most cases devices with JiffyDos support should be derived from the IECFileDevice class
 which handles JiffyDos support internally and you do not have to implement these functions.
@@ -409,11 +425,24 @@ For more information see the [JiffyDos support](jiffydos-support) section below.
   peek() should return the next character that will be read with read().  
   peek() is allowed to take an indefinite amount of time.  
 - ```byte read(byte devnum, byte *buffer, byte bufferSize)```  
-  This function is only called when the device is sending data using the JiffyDos or DolphinDos block transfer (LOAD protocol).
+  This function is called when the device is sending data using the JiffyDos block transfer (LOAD protocol).
   read() should fill the buffer with as much data as possible (up to bufferSize).
   read() must return the number of bytes put into the buffer
-  If read() is **not** overloaded, JiffyDos and DolphinDos load performance will be several times slower than otherwise.
+  If read() is **not** overloaded, JiffyDos load performance will be several times slower than otherwise.
   read() is allowed to take an indefinite amount of time.  
+
+The following function should be overloaded if the Epyx FastLoad protocol should be supported.
+In most cases devices with Epyx FastLoad support should be derived from the IECFileDevice class
+which handles Epyx FastLoad support internally and you do not have to implement these functions.
+For more information see the [Epyx FastLoad support](epyx-fastload-support) section below.
+
+- ```byte read(byte devnum, byte *buffer, byte bufferSize)```  
+  This function is called when the device is sending data using the Epyx FastLoad block transfer (LOAD protocol).
+  read() should fill the buffer with as much data as possible (up to bufferSize).
+  read() must return the number of bytes put into the buffer
+  If read() is **not** overloaded, Epyx FastLoad load performance will be several times slower than otherwise.
+  read() is allowed to take an indefinite amount of time.  
+
 
 The following functions should be overloaded if the DolphinDos parallel protocol should be supported.
 In most cases devices with DolphinDos support should be derived from the IECFileDevice class
@@ -428,10 +457,10 @@ For more information see the [DolphinDos support](#dolphindos-support) section b
   If write() is **not** overloaded, DolphinDos save performance will be several times slower than otherwise.
   write() is allowed to take an indefinite amount of time.
 - ```byte read(byte devnum, byte *buffer, byte bufferSize)```  
-  This function is only called when the device is sending data using the JiffyDos or DolphinDos block transfer (LOAD protocol).
+  This function is only called when the device is sending data using the DolphinDos block transfer (LOAD protocol).
   read() should fill the buffer with as much data as possible (up to bufferSize).
   read() must return the number of bytes put into the buffer
-  If read() is **not** overloaded, JiffyDos and DolphinDos load performance will be several times slower than otherwise.
+  If read() is **not** overloaded, DolphinDos load performance will be several times slower than otherwise.
   read() is allowed to take an indefinite amount of time.  
 - ```void enableDolphinBurstMode(bool enable)```, ```void dolphinBurstReceiveRequest()```, ```void dolphinBurstTransmitRequest()```
   In DolphinDos, the burst (fast) transfer mode is controlled by commands sent via the command
@@ -441,7 +470,6 @@ For more information see the [DolphinDos support](#dolphindos-support) section b
   to signal the burst request: Call dolphinBurstTransmitRequest() if "XQ" is received on the command channel.
   Call dolphinBurstReceiveRequest() if "XZ" is received on the command channel. You can also call 
   enableDolphinBurstMode() to enable/disable support of burst transfers ("XF+"/"XF-" DolphinDos command).
-
 
 ## IECFileDevice class reference
 
@@ -522,14 +550,14 @@ executes a SAVE command.
   Close the file that was previously opened on *channel*. The close() function does not have a 
   return value to signal success or failure since the IEC bus protocol does not include a method 
   to transmit this information.  
-- ```bool write(byte devnum, byte channel, byte data)```  
-  Write the given byte of *data* to then file opened on the given *channel*. Return *true*
-  if successfule or *false* if an error occurred (i.e. no more data can be accepted).
 - ```byte read(byte devnum, byte channel, byte *buffer, byte bufferSize)```  
   Read up to *bufferSize* bytes of data from the file opened for *channel*, returning the number 
   of bytes read. Returning 0 will signal end-of-file to the receiver. Returning 0
   for the FIRST call after open() signals an error condition.
   (LOAD on the computer will show "file not found" in this case)
+- ```byte write(byte devnum, byte channel, byte *buffer, byte bufferSize)```  
+  Write *bufferSize* bytes of data to the file opened for *channel*, returning the number 
+  of bytes written. Returning a number less than *bufferSize* signals an error condition.
 - ```void getStatus(byte devnum, char *buffer, byte bufferSize)```  
   Called when the computer reads from channel 15 and the status
   buffer is currently empty. This should populate *buffer* with an appropriate, zero-terminated
@@ -579,12 +607,13 @@ Those are described in the [IECDevice Class Reference](#iecdevice-class-referenc
 Devices derived from the IECFileDevice class have no requirements apart from the ATN timing
 as the IECFileDevice class handles all of them internally.
 
-Finally, JiffyDos transfers require very precise timing which requires the IECDevice
-library to disable all interrupts during such transfers. So be aware that if JiffyDos
-is enabled, the IECDevice::task() function may take up to to 20ms before returning and
+Finally, JiffyDos and Epyx FastLoad transfers require very precise timing which requires the IECDevice
+library to disable all interrupts during such transfers. So be aware that if JiffyDos or Epyx FastLoad
+support is enabled, the IECDevice::task() function may take up to to 20ms before returning and
 with interrupts disabled during JiffyDos transfers. Devices derived from the IECFileDevice
-class will automatically have JiffyDos support enabled. See the [JiffyDos support](jiffydos-support) 
-section below for how to disable JiffyDos support if desired.
+class will automatically have JiffyDos and Epyx FastLoad support enabled. See the 
+[JiffyDos support](jiffydos-support) and [Epyx FastLoad support](expyx-fastload-support) sections 
+below for how to disable JiffyDos support if desired.
 
 ## JiffyDos support
 
@@ -596,6 +625,9 @@ For high-level file-based devices (derived from the IECFileDevice class), all fu
 for JiffyDos support is already included in the IECFileDevice class. JiffyDos support is 
 automatically enabled. In case you do NOT want your device to support JiffyDos, just add
 the following call in the body of your class constructor: ```enableJiffyDosSupport(false)```
+
+To completely disable JiffyDos support (for example to save memory space on small controllers
+like the Arduino UNO), comment out the "#define SUPPORT_JIFFY" line at the top of file IECDevice.h
 
 For low-level devices (derived from the IECDevice class), two additional functions need to 
 be overloaded: ```peek()``` must return the next data byte that will be retuned by a call
@@ -618,8 +650,41 @@ which may cause your program to not be able to respond to interrupts for up to 2
 Note that in order to use the fast JiffyDos routins you need a C64 replacement kernal that includes 
 the JiffyDos transfer routines which can be purchased [here](https://store.go4retro.com/categories/Commodore/Firmware/JiffyDOS).
 
-Tto completely disable JiffyDos support (for example to save memory space on small controllers
-like the Arduino UNO), comment out the "#define SUPPORT_JIFFY" line at the top of file IECDevice.h
+## Epyx FastLoad support
+
+The IECDevice class includes support for the [Epyx FastLoad](https://en.wikipedia.org/wiki/Epyx_Fast_Load)
+bus protocol which significantly speeds up LOAD commands. 
+The library automatically detects when the computer requests an Epyx FastLoad transfer and responds correspondingly.
+
+For high-level file-based devices (derived from the IECFileDevice class), all functionality
+for Epyx FastLoad support is already included in the IECFileDevice class. Epyx FastLoad support is 
+automatically enabled. In case you do NOT want your device to support FastLoad, just add
+the following call in the body of your class constructor: ```enableEpyxFastLoadSupport(false)```.
+
+To completely disable FastLoad support (for example to save memory space on small controllers
+like the Arduino UNO), comment out the "#define SUPPORT_EPYX" line at the top of file IECDevice.h
+
+For low-level devices (derived from the IECDevice class), two additional functions need to 
+be overloaded: ```peek()``` must return the next data byte that will be retuned by a call
+to ```read()``` and ```read(buffer, bufferSize)``` which when called should return 
+a chunk of data to be transferred. See the [IECDevice class reference](#iecdevice-class-reference) section
+for the full function definitions.
+
+Even with these functions being defined, FastLoad support is initially disabled for low-level devices
+and must be enabled by calling ```setBuffer(buffer, bufferSize)``` and ```enableEpyxFastLoadSupport(true)```
+in you class constructor. The buffer must have a size of at least 32 bytes.
+
+The ```setBuffer``` function defines a buffer which the IECDevice needs to store data during FastLoad
+transfers. The size of the given buffer affects performance but sizes above 128 bytes do not
+increase performance much above 128 bytes which is what I would recommend unless memory is
+not an issue (maximum buffer size is 255 bytes).
+
+As mentioned in the timing consideration section, interrupts will be disabled during FastLoad transfers 
+which may cause your program to not be able to respond to interrupts for up to 20ms at a time.
+
+Note that in order to use the FastLoad routins you need the Epyx FastLoad cartridge for your C64
+(https://en.wikipedia.org/wiki/Epyx_Fast_Load). A modern replica of the cartridge can be purchased
+at [TFW8B](https://www.tfw8b.com/product/epyx-fastload-reloaded-disk-sd2iec-turbo-loader-cartridge-c64).
 
 ## DolphinDos support
 
@@ -632,6 +697,9 @@ to those described in the JiffyDos) section above but DolphinDos requires additi
 handling burst transfer requests (XQ and XZ) on the command channel. If you really want to 
 develop your own low-level DolphinDos class, search for "dolphin" in the IECFileDevice.cpp file
 to see what additional steps are taken there.
+
+To completely disable DolphinDos support (for example to save memory space on small controllers
+like the Arduino UNO), comment out the "#define SUPPORT_DOLPHIN" line at the top of file IECDevice.h
 
 Like JiffyDos, DolphinDos needs a replacement kernal in the C64 for its fast transmission routines.
 The DolphinDos V2 C64 kernal can be downloaded [here](https://e4aws.silverdr.com/projects/dolphindos2/).
@@ -658,9 +726,6 @@ B (FLAG2)         | HT     | 7           | 30   | 52  | 6                 | IO4
 
 Instructions for making a breakout board for the C64 user port that allows for easy connection 
 to the parallel port pins are available [here](hardware/README.md#user-port-breakout-board)
-
-To completely disable DolphinDos support (for example to save memory space on small controllers
-like the Arduino UNO), comment out the "#define SUPPORT_DOLPHIN" line at the top of file IECDevice.h
 
 ## Raspberry Pi Pico development board
 

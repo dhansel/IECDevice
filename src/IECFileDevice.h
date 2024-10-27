@@ -21,7 +21,7 @@
 
 #include "IECDevice.h"
 
-#if defined(SUPPORT_JIFFY) || defined(SUPPORT_DOLPHIN)
+#if defined(SUPPORT_JIFFY) || defined(SUPPORT_DOLPHIN) || defined(SUPPORT_EPYX)
 #define BUFFER_SIZE 128
 #endif
 
@@ -78,6 +78,11 @@ class IECFileDevice : public IECDevice
   // to be called again the next time the status channel is queried
   void clearStatus(byte devnr) { setStatus(devnr, NULL, 0); }
 
+#if defined(SUPPORT_EPYX) && defined(SUPPORT_EPYX_SECTOROPS)
+  virtual bool epyxReadSector(byte track, byte sector, byte *buffer);
+  virtual bool epyxWriteSector(byte track, byte sector, byte *buffer);
+#endif
+
  private:
 
   virtual void talk(byte devnr, byte secondary);
@@ -93,10 +98,11 @@ class IECFileDevice : public IECDevice
   virtual byte peek(byte devnr);
 
   void fileTask();
+  bool checkMWcmd(uint16_t addr, byte len, byte checksum) const;
 
   bool   m_opening, m_canServeATN;
   byte   m_channel, m_cmd;
-  char   m_nameBuffer[33];
+  char   m_nameBuffer[41];
 
   // On smaller platforms (e.g. Arduino Uno) the indexing done for multiple devices significantly
   // eats into the flash memory usage. Since on those platforms most times we only want to have
@@ -112,7 +118,15 @@ class IECFileDevice : public IECDevice
 #endif
 
 #if BUFFER_SIZE>0
+#if defined(SUPPORT_EPYX) && defined(SUPPORT_EPYX_SECTOROPS)
+  byte   m_buffer[256];
+#else
   byte   m_buffer[BUFFER_SIZE];
+#endif
+#endif
+
+#ifdef SUPPORT_EPYX
+  byte m_epyxCtr;
 #endif
 };
 

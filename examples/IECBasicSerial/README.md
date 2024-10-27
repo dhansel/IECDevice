@@ -29,7 +29,7 @@ at 5V (Arduino Uno, Mega or Micro) can be connected directly to the IEC bus.
 Controllers running at 3.3V (Arduino Due, Raspberry Pi Pico or ESP32) require a 
 [voltage level converter](https://www.sparkfun.com/products/12009).
 
-Note that the IEC bus does supply 5V power so you will need to power
+Note that the IEC bus does not supply 5V power so you will need to power
 your device either from an external 5V supply or use the 5V output available on
 the computer's user port, cassette port or expansion port.
 

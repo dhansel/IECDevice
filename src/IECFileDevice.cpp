@@ -147,6 +147,13 @@ void IECFileDevice::begin(byte devnr)
   Serial.print(F("DolphinDos support ")); Serial.println(ok ? F("enabled") : F("disabled"));
 #endif
 #endif
+#ifdef SUPPORT_EPYX
+  ok = IECDevice::enableEpyxFastLoadSupport(true);
+  m_epyxCtr = 0;
+#if DEBUG>0
+  Serial.print(F("Epyx FastLoad support ")); Serial.println(ok ? F("enabled") : F("disabled"));
+#endif
+#endif
 #endif
 
 #if MAX_DEVICES==1
@@ -323,7 +330,7 @@ void IECFileDevice::write(byte devnr, byte data, bool eoi)
       DATABUFFERLEN(m_devidx)[m_channel] = 1;
       m_cmd = IFD_WRITE;
     }
-  else if( m_nameBufferLen<32 )
+  else if( m_nameBufferLen<40 )
     m_nameBuffer[m_nameBufferLen++] = data;
 
 #if DEBUG>1
@@ -419,6 +426,37 @@ void IECFileDevice::unlisten()
 }
 
 
+#if defined(SUPPORT_EPYX) && defined(SUPPORT_EPYX_SECTOROPS)
+bool IECFileDevice::epyxReadSector(byte track, byte sector, byte *buffer)
+{
+#if DEBUG>0
+  dbg_print_data();
+  Serial.print("Read track "); Serial.print(track); Serial.print(" sector "); Serial.println(sector);
+  for(int i=0; i<256; i++) dbg_data(buffer[i]);
+  dbg_print_data();
+  Serial.flush();
+  return true;
+#else
+  return false;
+#endif
+}
+
+
+bool IECFileDevice::epyxWriteSector(byte track, byte sector, byte *buffer)
+{
+#if DEBUG>0
+  dbg_print_data();
+  Serial.print("Write track "); Serial.print(track); Serial.print(" sector "); Serial.println(sector); Serial.flush();
+  for(int i=0; i<256; i++) dbg_data(buffer[i]);
+  dbg_print_data();
+  return true;
+#else
+  return false;
+#endif
+}
+#endif
+
+
 void IECFileDevice::fileTask()
 {
   switch( m_cmd )
@@ -480,37 +518,82 @@ void IECFileDevice::fileTask()
 
     case IFD_EXEC:  
       {
+        bool handled = false;
 #if DEBUG>0
 #if defined(SUPPORT_DOLPHIN)
         // Printing debug output here may delay our response to DolphinDos
         // 'XQ' and 'XZ' commands (burst mode request) too long and cause
-        // the C64 to time out, leading the transmission to hang
+        // the C64 to time out, causing the transmission to hang
         if( m_nameBuffer[0]!='X' || (m_nameBuffer[1]!='Q' && m_nameBuffer[1]!='Z') )
 #endif
           {
-            Serial.println((int) m_nameBufferLen);
             for(byte i=0; i<m_nameBufferLen; i++) dbg_data(m_nameBuffer[i]);
             dbg_print_data();
-            Serial.println(F("EXECUTE: ")); Serial.println(m_nameBuffer);
+            Serial.print(F("EXECUTE: ")); Serial.println(m_nameBuffer);
+          }
+#endif
+#ifdef SUPPORT_EPYX
+        if     ( m_epyxCtr== 0 && checkMWcmd(0x0180, 0x20, 0x2E) )
+          { m_epyxCtr = 11; handled = true; }
+        else if( m_epyxCtr==11 && checkMWcmd(0x01A0, 0x20, 0xA5) )
+          { m_epyxCtr = 12; handled = true; }
+        else if( m_epyxCtr==12 && strncmp_P(m_nameBuffer, PSTR("M-E\xa2\x01"), 5)==0 )
+          { m_epyxCtr = 99; handled = true; } // EPYX V1
+        else if( m_epyxCtr== 0 && checkMWcmd(0x0180, 0x19, 0x53) )
+          { m_epyxCtr = 21; handled = true; }
+        else if( m_epyxCtr==21 && checkMWcmd(0x0199, 0x19, 0xA6) )
+          { m_epyxCtr = 22; handled = true; }
+        else if( m_epyxCtr==22 && checkMWcmd(0x01B2, 0x19, 0x8F) )
+          { m_epyxCtr = 23; handled = true; }
+        else if( m_epyxCtr==23 && strncmp_P(m_nameBuffer, PSTR("M-E\xa9\x01"), 5)==0 )
+          { m_epyxCtr = 99; handled = true; } // EPYX V2 or V3
+        else
+          m_epyxCtr = 0;
+
+        if( m_epyxCtr==99 )
+          {
+#if DEBUG>0
+            Serial.println(F("EPYX FASTLOAD DETECTED"));
+#endif
+            epyxLoadRequest();
+            m_epyxCtr = 0;
           }
 #endif
 #ifdef SUPPORT_DOLPHIN
-        if( strcmp(m_nameBuffer, "XQ")==0 )
-          { dolphinBurstTransmitRequest(); m_channel = 0; }
-        else if( strcmp(m_nameBuffer, "XZ")==0 )
-          { dolphinBurstReceiveRequest(); m_channel = 1; }
-        else if( strcmp(m_nameBuffer, "XF+")==0 )
-          { enableDolphinBurstMode(true); setStatus(m_devnr, NULL, 0); }
-        else if( strcmp(m_nameBuffer, "XF-")==0 )
-          { enableDolphinBurstMode(false); setStatus(m_devnr, NULL, 0); }
-        else
+        if( strcmp_P(m_nameBuffer, PSTR("XQ"))==0 )
+          { dolphinBurstTransmitRequest(); m_channel = 0; handled = true; }
+        else if( strcmp_P(m_nameBuffer, PSTR("XZ"))==0 )
+          { dolphinBurstReceiveRequest(); m_channel = 1; handled = true; }
+        else if( strcmp_P(m_nameBuffer, PSTR("XF+"))==0 )
+          { enableDolphinBurstMode(true); setStatus(m_devnr, NULL, 0); handled = true; }
+        else if( strcmp_P(m_nameBuffer, PSTR("XF-"))==0 )
+          { enableDolphinBurstMode(false); setStatus(m_devnr, NULL, 0); handled = true; }
 #endif
-        execute(m_devnr, m_nameBuffer, m_nameBufferLen); 
+        if( !handled ) execute(m_devnr, m_nameBuffer, m_nameBufferLen);
         break;
       }
     }
   
   m_cmd = IFD_NONE;
+}
+
+
+bool IECFileDevice::checkMWcmd(uint16_t addr, byte len, byte checksum) const
+{
+  byte *buf = (byte *) m_nameBuffer;
+
+  // check buffer length and M-W command
+  if( m_nameBufferLen<len+6 || strncmp_P(m_nameBuffer, PSTR("M-W"), 3)!=0 )
+    return false;
+
+  // check data length and destination address
+  if( buf[3]!=(addr&0xFF) || buf[4]!=((addr>>8)&0xFF) || buf[5]!=len )
+    return false;
+
+  // check checksum
+  byte c = 0;
+  for(byte i=0; i<len; i++) c += buf[6+i];
+  return c==checksum;
 }
 
 
@@ -547,6 +630,10 @@ void IECFileDevice::reset()
 #endif
   memset(m_dataBufferLen, 0, MAX_DEVICES*15);
   m_cmd = IFD_NONE;
+
+#ifdef SUPPORT_EPYX
+  m_epyxCtr = 0;
+#endif
 }
 
 

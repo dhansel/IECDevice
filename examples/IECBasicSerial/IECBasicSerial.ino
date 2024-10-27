@@ -44,7 +44,6 @@
 #define PIN_ATN   34
 #define PIN_CLK   32
 #define PIN_DATA  33
-#define PIN_RESET 35
 
 #endif
 

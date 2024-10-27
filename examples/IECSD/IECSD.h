@@ -22,6 +22,11 @@ class IECSD : public IECFileDevice
   virtual void execute(byte device, const char *command, byte len);
   virtual void reset();
 
+#if defined(SUPPORT_EPYX) && defined(SUPPORT_EPYX_SECTOROPS)
+  virtual bool epyxReadSector(byte track, byte sector, byte *buffer);
+  virtual bool epyxWriteSector(byte track, byte sector, byte *buffer);
+#endif
+
  private:
   bool checkCard();
   byte openFile(byte channel, const char *name);

@@ -22,7 +22,15 @@
 #include <Arduino.h>
 
 #define SUPPORT_JIFFY
+#define SUPPORT_EPYX
 #define SUPPORT_DOLPHIN
+
+// support Epyx FastLoad sector operations (disk editor, disk copy, file copy)
+// if this is enabled then the buffer in the setBuffer() call must have a size of
+// at least 256 bytes. Note that the "bufferSize" argument is a byte and therefore
+// capped 255 bytes. Make sure the buffer itself has >=256 bytes and use a bufferSize
+// argument of 255 or less
+//#define SUPPORT_EPYX_SECTOROPS
 
 // defines the maximum number of device numbers that the device
 // will be able to recognize - this is set to 1 by default but can
@@ -69,14 +77,14 @@ class IECDevice
   void task();
 
 #ifdef SUPPORT_JIFFY 
-  // call this to enable or disable JiffyDOS support for your device. 
+  // call this to enable or disable JiffyDOS support for your device.
   // you must call setBuffer() before calling this, otherwise this call will fail
   // and JiffyDos support will not be enabled.
   bool enableJiffyDosSupport(bool enable);
 #endif
 
 #ifdef SUPPORT_DOLPHIN 
-  // call this to enable or disable DolphinDOS support for your device. 
+  // call this to enable or disable DolphinDOS support for your device.
   // you must call setBuffer() before calling this, otherwise this call will fail
   // and DolphinDos support will not be enabled.
   // this function will also fail if any of the pins used for ATN/CLK/DATA
@@ -89,8 +97,15 @@ class IECDevice
                          byte pinD4, byte pinD5, byte pinD6, byte pinD7);
 #endif
 
-#if defined(SUPPORT_JIFFY) || defined(SUPPORT_DOLPHIN)
-  // call this if you are using either JiffyDos or DolphinDos support
+#ifdef SUPPORT_EPYX
+  // call this to enable or disable Expyx FastLoad support for your device. 
+  // you must call setBuffer() with a buffer of size at least 32 before calling this, 
+  // otherwise this call will fail and Epyx FastLoad support will not be enabled.
+  bool enableEpyxFastLoadSupport(bool enable);
+#endif
+
+#if defined(SUPPORT_JIFFY) || defined(SUPPORT_DOLPHIN) || defined(SUPPORT_EPYX)
+  // call this if you are using either JiffyDos, DolphinDos or Epyx support
   // to save memory, the default buffer is of size 1 which is very
   // inefficient for tranmsissions. A good buffer size is 128.
   void setBuffer(byte *buffer, byte bufferSize);
@@ -167,7 +182,7 @@ class IECDevice
   void dolphinBurstTransmitRequest();
 #endif
 
-#if defined(SUPPORT_JIFFY) || defined(SUPPORT_DOLPHIN)
+#if defined(SUPPORT_JIFFY) || defined(SUPPORT_DOLPHIN) || defined(SUPPORT_EPYX)
   // called when the device is sending data using the JiffyDOS block transfer
   // or DolphinDos burst transfer (LOAD protocols)
   // - should fill the buffer with as much data as possible (up to bufferSize)
@@ -177,6 +192,18 @@ class IECDevice
   // which is not efficient.
   // it is highly recommended to override this function in devices supporting JiffyDos or DolphinDos.
   virtual byte read(byte devnr, byte *buffer, byte bufferSize);
+#endif
+
+#ifdef SUPPORT_EPYX
+  void epyxLoadRequest();
+
+#ifdef SUPPORT_EPYX_SECTOROPS
+  // these functions are experimental, they are called when the Epyx Cartridge uses
+  // sector read/write operations (disk editor, disk copy or file copy).
+  virtual bool epyxReadSector(byte track, byte sector, byte *buffer)  { return false; }
+  virtual bool epyxWriteSector(byte track, byte sector, byte *buffer) { return false; }
+#endif
+
 #endif
 
   // called on falling edge of RESET line
@@ -209,7 +236,8 @@ class IECDevice
   volatile uint16_t m_timeoutDuration; 
   volatile uint32_t m_timeoutStart;
   volatile bool m_inTask;
-  volatile byte m_flags, m_sflags, m_primary, m_secondary;
+  volatile byte m_flags, m_primary, m_secondary;
+  volatile uint16_t m_sflags;
 
 #ifdef IOREG_TYPE
   volatile IOREG_TYPE *m_regCLKwrite, *m_regCLKmode, *m_regDATAwrite, *m_regDATAmode;
@@ -252,8 +280,19 @@ class IECDevice
 #endif
 #endif
 #endif
+
+#ifdef SUPPORT_EPYX
+  bool receiveEpyxByte(byte &data);
+  bool transmitEpyxByte(byte data);
+  bool receiveEpyxHeader();
+  bool transmitEpyxBlock();
+#ifdef SUPPORT_EPYX_SECTOROPS
+  bool startEpyxSectorCommand(byte command);
+  bool finishEpyxSectorCommand();
+#endif
+#endif
   
-#if defined(SUPPORT_JIFFY) || defined(SUPPORT_DOLPHIN)
+#if defined(SUPPORT_JIFFY) || defined(SUPPORT_DOLPHIN) || defined(SUPPORT_EPYX)
   byte m_bufferSize, *m_buffer;
 #endif
 
