@@ -57,6 +57,7 @@ class IECBasicSD : public IECFileDevice
 {
  public: 
   IECBasicSD();
+  void begin();
 
  protected:
   virtual void open(byte device, byte channel, const char *name);
@@ -73,7 +74,12 @@ class IECBasicSD : public IECFileDevice
 
 IECBasicSD::IECBasicSD() : IECFileDevice(PIN_ATN, PIN_CLK, PIN_DATA)
 {
-  // initialize SD card
+}
+
+
+void IECBasicSD::begin()
+{
+  // initialize SD card (note: Pi Pico crashes if m_sd.begin() is called from within IECBasicSD constructor)
 #if defined(ARDUINO_ARCH_ESP32)
   SPI.begin(SCK, MISO, MOSI, PIN_SPI_CS);
 #endif
@@ -82,6 +88,9 @@ IECBasicSD::IECBasicSD() : IECFileDevice(PIN_ATN, PIN_CLK, PIN_DATA)
 #else
   m_sd.begin(PIN_SPI_CS);
 #endif
+
+  // initialize IEC bus
+  IECFileDevice::begin(DEVICE_NUMBER);
 }
 
 
@@ -129,8 +138,8 @@ IECBasicSD iecSD;
 
 void setup()
 {
-  // initialize IEC bus
-  iecSD.begin(DEVICE_NUMBER);
+  // initialize device
+  iecSD.begin();
 }
 
 
