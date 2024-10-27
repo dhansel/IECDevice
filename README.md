@@ -11,9 +11,10 @@ The library provides two classes:
   - ```IECFileDevice``` for creating higher-level devices that operate more like disk
     drives. The IECFileDevice interface is file-based, providing open/close/read/write functions.
     An example use for this class would be an [SD-card reader](examples/IECSD).
-    Any device created using this class automatically supports the [JiffyDos](#jiffydos-support),
-    Epyx FastLoad](#epyx-fastload-support) and [DolphinDos](#dolphindos-support)
-    protocols for fast data transfers.
+    Any device created using this class automatically supports the following fast load protocols:
+    - [JiffyDos](#jiffydos-support),
+    - [Epyx FastLoad](#epyx-fastload-support)
+    - [DolphinDos](#dolphindos-support)
 
 So far I have tested this library on the following microcontrollers:
   -  Arduino 8-bit ATMega devices (Uno R3, Mega, Mini, Micro, Leonardo)
@@ -26,13 +27,18 @@ A number of examples are included to demonstrate how to implement devices using 
   - [IECBasicSerial](examples/IECBasicSerial) demonstrates how to use the IECDevice class to implement a very simple IEC-Bus-to-serial converter.
   - [IECSD](examples/IECSD) demonstrates how to use the IECFileDevice class to implement a simple SD card reader
   - [IECCentronics](examples/IECCentronics) is a converter to connect Centronics printers to via the IEC bus
-  - [IECFDC](examples/IECFDC)/[IECFDCMega](examples/IECFDCMega) combines this library with my [ArduinoFDC  library](https://github.com/dhansel/ArduinoFDC) to connect PC floppy disk drives (3.5" or 5") to the IEC bus.
+  - [IECFDC](examples/IECFDC)/[IECFDCMega](examples/IECFDCMega) combines this library with my [ArduinoFDC library](https://github.com/dhansel/ArduinoFDC) to connect PC floppy disk drives (3.5" or 5") to the IEC bus.
 
 ## Installation
 
 To install this library, click the green "Code" button on the top of this page and select "Download ZIP".
 Then in the Arduino IDE select "Sketch->Include Library->Add ZIP Library" and select the downloaded ZIP file.
 After doing so you will find the included [examples](examples) in File->Examples->IECDevice->...".
+
+For the Raspberry Pi Pico, this library has been tested within the Arduino IDE using the "Raspberry Pi RP2040 (4.1.1)"
+core by Earle Philhower. The core can be installed in the Arduino IDE via "Tools->Boards Manager". 
+Using the "Arduino MBED OS RP2040" core, the library does work but not very stable. It will randomly
+lock up or show "Device not present" errors. I am currently investigating the cause for this.
 
 ## Wiring
 
