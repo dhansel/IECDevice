@@ -1,7 +1,9 @@
 # IECSD
 
-This example demonstrates how to implement a simple SD card reader for the IEC bus
-using the IECFileDevice class.
+This example implements an SD card reader for the IEC bus using the IECFileDevice class.
+While it does support a usable subset of [features](#supported-functionality-and-limitations),
+it is not meant as a replacement for existing solutions ([SD2IEC](https://www.c64-wiki.com/wiki/SD2IEC))
+but rather a demonstration of this library.
 
 As is, this device will show up as device #9 on the IEC bus. The device number can be changed
 by altering the `#define DEVICE_NUMBER 9` line in IECSD.ino.
@@ -57,7 +59,7 @@ the computer's user port, cassette port or expansion port.
 
 This is a simple example meant to demonstrate the IECFileDevice class. It is not intended
 to be a full-featured floppy disk replacement. Other solutions already exist for this purpose 
-(e.g.  [IEC2SD](https://www.c64-wiki.com/wiki/SD2IEC)).
+(e.g. [SD2IEC](https://www.c64-wiki.com/wiki/SD2IEC)).
 
 This example supports:
   - Listing directory via LOAD"$",9
@@ -65,7 +67,8 @@ This example supports:
   - Reading and writing data via the OPEN/PRINT#/INPUT# BASIC commands
   - Reading the device status (channel 15)
   - Deleting files by sending a "S:filename" DOS command on the command channel (channel 15)
-  - Fast data transfer using JiffyDos
+  - Creating ("MD:name"), changing ("CD:name") and deleting ("RD:name") directories via sending commands on the DOS command channel.
+  - Fast data transfer using JiffyDos, Epyx FastLoad and DolphinDos
 
 Limitations:
   - Only one file can be opened at a time
