@@ -67,7 +67,7 @@ Implementing a basic device using the IECDevice class requires two steps:
   1. Derive a new class from the IECDevice class and implement the device's behavior in the new class
   2. Call the IECDevice::begin() and IECDevice::task() functions within your main sketch functions.
 
-This section describes those steps based on the [IECBasicSerial](examples/IECBasicSerial/IECBasicSerial.ino) 
+This section describes those steps based on the [IECBasicSerial](examples/IECBasicSerial/) 
 example, a simple device that connects a serial (RS232) port to the IEC bus.
 
 First we define a new class, derived from the IECDevice class. 
@@ -178,10 +178,7 @@ Implementing a file-based device using the IECFileDevice class requires two step
   1. Derive a new class from the IECFileDevice class and implement the device's behavior in the new class
   2. Call the IECFileDevice::begin() and IECFileDevice::task() functions within your main sketch functions.
 
-This section describes those steps based on the [IECBasicSerial](examples/IECBasicSerial/IECBasicSerial.ino) 
-example, a simple device that connects a serial (RS232) port to the IEC bus.
-
-This section describes those steps based on the [IECBasicD](examples/IECBasicSD/IECBasicSD.ino) 
+This section describes those steps based on the [IECBasicSD](examples/IECBasicSD/) 
 example, a very simple device to read/write SD cards.
 Note that this device will be limited in its functionality, it allows loading and saving programs
 on the SD card but no other functionality (directory listing, status channel, deleting files etc..).
@@ -206,7 +203,7 @@ class IECBasicSD : public IECFileDevice
  protected:
   virtual void open(byte devnum, byte channel, const char *name);
   virtual byte read(byte devnum, byte channel, byte *buffer, byte bufferSize);
-  virtual bool write(byte devnum, byte channel, byte data);
+  virtual byte write(byte devnum, byte channel, byte *buffer, byte n);
   virtual void close(byte devnum, byte channel);
 
  private:
@@ -635,7 +632,7 @@ to ```read()``` and ```read(buffer, bufferSize)``` which when called should retu
 a chunk of data to be transferred. See the [IECDevice class reference](#iecdevice-class-reference) section
 for the full function definitions.
 
-Even with these functions being defined, JiffyDos support is initially disabled for low-level devices
+Even with these functions overloaded, JiffyDos support is initially disabled for low-level devices
 and must be enabled by calling ```setBuffer(buffer, bufferSize)``` and ```enableJiffyDosSupport(true)```
 in you class constructor.
 
@@ -664,13 +661,11 @@ the following call in the body of your class constructor: ```enableEpyxFastLoadS
 To completely disable FastLoad support (for example to save memory space on small controllers
 like the Arduino UNO), comment out the "#define SUPPORT_EPYX" line at the top of file IECDevice.h
 
-For low-level devices (derived from the IECDevice class), two additional functions need to 
-be overloaded: ```peek()``` must return the next data byte that will be retuned by a call
-to ```read()``` and ```read(buffer, bufferSize)``` which when called should return 
-a chunk of data to be transferred. See the [IECDevice class reference](#iecdevice-class-reference) section
-for the full function definitions.
+For low-level devices (derived from the IECDevice class), an additional functions need to 
+be overloaded: ```read(buffer, bufferSize)``` should return a chunk of data to be transferred.
+See the [IECDevice class reference](#iecdevice-class-reference) section for the full function definition.
 
-Even with these functions being defined, FastLoad support is initially disabled for low-level devices
+Even with this function overloaded, FastLoad support is initially disabled for low-level devices
 and must be enabled by calling ```setBuffer(buffer, bufferSize)``` and ```enableEpyxFastLoadSupport(true)```
 in you class constructor. The buffer must have a size of at least 32 bytes.
 
