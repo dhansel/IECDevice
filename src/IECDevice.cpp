@@ -99,6 +99,24 @@ static uint32_t timer_ticks_diff(uint32_t t0, uint32_t t1) { return ((t0 < t1) ?
 #define JDEBUG1() digitalWriteFast(2, HIGH);
 #endif
 
+// ---------------- Raspberry Pi Pico
+
+#elif defined(ARDUINO_ARCH_RP2040)
+
+// note: micros() call on MBED core is SLOW - using time_us_32() instead
+static unsigned long timer_start_us;
+#define timer_init()         while(0)
+#define timer_reset()        timer_start_us = time_us_32()
+#define timer_start()        timer_start_us = time_us_32()
+#define timer_stop()         while(0)
+#define timer_wait_until(us) while( (time_us_32()-timer_start_us) < ((int) (us+0.5)) )
+
+#ifdef JDEBUG
+#define JDEBUGI() pinMode(20, OUTPUT)
+#define JDEBUG0() gpio_put(20, 0)
+#define JDEBUG1() gpio_put(20, 1)
+#endif
+
 // ---------------- other (32-bit) platforms
 
 #else
@@ -110,13 +128,10 @@ static unsigned long timer_start_us;
 #define timer_stop()         while(0)
 #define timer_wait_until(us) while( (micros()-timer_start_us) < ((int) (us+0.5)) )
 
-#ifdef JDEBUG
-//#define JDEBUGI() pinMode(22, OUTPUT)
-//#define JDEBUG0() GPIO.out_w1tc = bit(22)
-//#define JDEBUG1() GPIO.out_w1ts = bit(22)
-#define JDEBUGI() pinMode(20, OUTPUT)
-#define JDEBUG0() digitalWriteFast(20, LOW);
-#define JDEBUG1() digitalWriteFast(20, HIGH);
+#if defined(JDEBUG) && defined(ARDUINO_ARCH_ESP32)
+#define JDEBUGI() pinMode(22, OUTPUT)
+#define JDEBUG0() GPIO.out_w1tc = bit(22)
+#define JDEBUG1() GPIO.out_w1ts = bit(22)
 #endif
 
 #endif
@@ -1728,6 +1743,10 @@ bool IECDevice::receiveIECByte(bool canWriteOk)
 
   // release DATA ("ready-for-data")
   writePinDATA(HIGH);
+
+  // if we are under attention then wait until all other devices have also
+  // released DATA, otherwise we may incorrectly detect EOI
+  if( (m_flags & P_ATN)!=0 && !waitPinDATA(HIGH) ) return false;
 
   // wait for sender to set CLK=0 ("ready-to-send")
   if( !waitPinCLK(LOW, 200) )

@@ -36,9 +36,8 @@ Then in the Arduino IDE select "Sketch->Include Library->Add ZIP Library" and se
 After doing so you will find the included [examples](examples) in File->Examples->IECDevice->...".
 
 For the Raspberry Pi Pico, this library has been tested within the Arduino IDE using the "Raspberry Pi RP2040 (4.1.1)"
-core by Earle Philhower. The core can be installed in the Arduino IDE via "Tools->Boards Manager". 
-Using the "Arduino MBED OS RP2040" core, the library does work but not very stable. It will randomly
-lock up or show "Device not present" errors. I am currently investigating the cause for this.
+core by Earle Philhower as well as the "Arduino MBED OS RP2040" core (version 4.1.5).
+Both cores can be installed in the Arduino IDE via "Tools->Boards Manager".
 
 ## Wiring
 
