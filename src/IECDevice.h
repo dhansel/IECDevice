@@ -21,9 +21,11 @@
 
 #include <Arduino.h>
 
+// comment or un-comment these #defines to completely enable/disable support
+// for the corresponding fast-load protocols
 #define SUPPORT_JIFFY
 #define SUPPORT_EPYX
-#define SUPPORT_DOLPHIN
+//#define SUPPORT_DOLPHIN
 
 // support Epyx FastLoad sector operations (disk editor, disk copy, file copy)
 // if this is enabled then the buffer in the setBuffer() call must have a size of

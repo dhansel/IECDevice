@@ -688,6 +688,10 @@ at [TFW8B](https://www.tfw8b.com/product/epyx-fastload-reloaded-disk-sd2iec-turb
 
 ## DolphinDos support
 
+**Note:** Since DolphinDos support requires a number of additional pins for the parallel connection 
+and DolphinDos is not a very widely used fast loader, it not enabled by default. To enable DolphinDos
+support, un-comment the ```#define SUPPORT_DOLPHIN``` line at the top of file src/IECDevice.h.
+
 The IECDevice class includes support for the [DolphinDos](https://rr.pokefinder.org/wiki/Dolphin_DOS)
 parallel protocol.
 
@@ -697,9 +701,6 @@ to those described in the JiffyDos) section above but DolphinDos requires additi
 handling burst transfer requests (XQ and XZ) on the command channel. If you really want to 
 develop your own low-level DolphinDos class, search for "dolphin" in the IECFileDevice.cpp file
 to see what additional steps are taken there.
-
-To completely disable DolphinDos support (for example to save memory space on small controllers
-like the Arduino UNO), comment out the "#define SUPPORT_DOLPHIN" line at the top of file IECDevice.h
 
 Like JiffyDos, DolphinDos needs a replacement kernal in the C64 for its fast transmission routines.
 The DolphinDos V2 C64 kernal can be downloaded [here](https://e4aws.silverdr.com/projects/dolphindos2/).
