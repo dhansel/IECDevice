@@ -1447,8 +1447,9 @@ bool IECDevice::transmitEpyxByte(byte data)
   // wait until 47 us after DATA
   timer_wait_until(47);
 
-  // release DATA
+  // release DATA and give it time to stabilize
   writePinDATA(HIGH);
+  timer_wait_until(49);
 
   // wait for DATA low, receiver signaling "not ready"
   if( !waitPinDATA(LOW, 0) ) return false;
