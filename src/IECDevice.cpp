@@ -336,7 +336,7 @@ IECDevice::IECDevice(byte pinATN, byte pinCLK, byte pinDATA, byte pinRESET, byte
   m_pinDolphinParallel{22,23,24,25,26,27,28,29},
 #endif
 #endif
-#if defined(SUPPORT_JIFFY) || defined(SUPPORT_DOLPHIN)
+#if defined(SUPPORT_JIFFY) || defined(SUPPORT_EPYX) || defined(SUPPORT_DOLPHIN)
   m_buffer(NULL),
   m_bufferSize(0),
 #endif
@@ -460,7 +460,7 @@ void IECDevice::atnInterruptFcn2()
 }
 
 
-#if defined(SUPPORT_JIFFY) || defined(SUPPORT_DOLPHIN) || defined(SUPPORT_EPYX)
+#if defined(SUPPORT_JIFFY) || defined(SUPPORT_EPYX) || defined(SUPPORT_DOLPHIN)
 void IECDevice::setBuffer(byte *buffer, byte bufferSize)
 {
   m_buffer     = buffer;
@@ -1776,12 +1776,12 @@ bool IECDevice::receiveIECByte(bool canWriteOk)
         {
           if( (m_flags & P_ATN)==0 && !readPinATN() )
             return false;
-          else if( (m_flags & P_ATN) && (m_primary==0) && haveDeviceNumber((data>>1)&0x0F) && (m_sflags&S_JIFFY_ENABLED) && (m_sflags&S_JIFFY_DETECTED)==0 )
+          else if( (m_flags & P_ATN) && (m_primary==0) && (i==7) && (m_sflags&S_JIFFY_ENABLED) && haveDeviceNumber((data>>1)&0x0F) )
             {
-              // when sending primary address byte under ATN, host delayed
-              // CLK=1 by more than 200us => JiffyDOS protocol detection
-              // if we are being addressed then respond that we support 
-              // the protocol by pulling DATA low for 80us
+              // when sending final bit of primary address byte under ATN, host
+              // delayed CLK=1 by more than 200us => JiffyDOS protocol detection
+              // => if JiffyDOS support is enabled and we are being addressed then
+              // respond that we support the protocol by pulling DATA low for 80us
               m_sflags |= S_JIFFY_DETECTED;
               writePinDATA(LOW);
               if( !waitTimeout(80) ) return false;
@@ -1975,8 +1975,8 @@ void IECDevice::atnRequest()
 
 
 // default implementation of "buffer read" function which can/should be overridden
-// (for efficiency) by devices using the JiffyDos or DolphinDos protocol
-#if defined(SUPPORT_JIFFY) || defined(SUPPORT_DOLPHIN)
+// (for efficiency) by devices using the JiffyDos, Epyx FastLoad or DolphinDos protocol
+#if defined(SUPPORT_JIFFY) || defined(SUPPORT_EPYX) || defined(SUPPORT_DOLPHIN)
 byte IECDevice::read(byte devnr, byte *buffer, byte bufferSize) 
 { 
   byte i;
