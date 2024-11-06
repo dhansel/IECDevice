@@ -335,7 +335,7 @@ The IECBusHandler class facilitates the bus communication and will call the read
 in its attached device(s) when necessary.
 
 - ```IECBusHandler(byte pinATN, byte pinCLK, byte pinDATA, byte pinRESET = 0xFF, byte pinCTRL = 0xFF)```  
-  The IECBusHandler constructor defines the pins to which the IEC bus signals care connected. The pinRESET parameter is optional,
+  The IECBusHandler constructor defines the pins to which the IEC bus signals are connected. The pinRESET parameter is optional,
   if not given, the device will simply not respond to a bus reset. The pinCTRL parameter (also optional) is helpful
   for applications where the microcontroller may not be able to respond quickly enough to ATN requests 
   (see [Timing considerations](#timing-considerations) section below).
@@ -662,7 +662,7 @@ the following call in the begin() function of your derived class, **after** call
 IECFileDevice::begin(): ```enableJiffyDosSupport(false)```
 
 To completely disable JiffyDos support (for example to save memory space on small controllers
-like the Arduino UNO), comment out the "#define SUPPORT_JIFFY" line at the top of file IECDevice.h
+like the Arduino UNO), comment out the "#define SUPPORT_JIFFY" line at the top of file ```src/IECConfig.h```.
 
 For low-level devices (derived from the IECDevice class), two additional functions need to 
 be overloaded: ```peek()``` must return the next data byte that will be retuned by a call
@@ -691,7 +691,7 @@ the following call in the begin() function of your derived class, **after** call
 IECFileDevice::begin(): ```enableEpyxFastLoadSupport(false)```.
 
 To completely disable FastLoad support (for example to save memory space on small controllers
-like the Arduino UNO), comment out the "#define SUPPORT_EPYX" line at the top of file IECDevice.h
+like the Arduino UNO), comment out the "#define SUPPORT_EPYX" line at the top of file ```src/IECConfig.h```.
 
 For low-level devices (derived from the IECDevice class), an additional functions need to 
 be overloaded: ```read(buffer, bufferSize)``` should return a chunk of data to be transferred.
@@ -710,7 +710,7 @@ at [TFW8B](https://www.tfw8b.com/product/epyx-fastload-reloaded-disk-sd2iec-turb
 
 **Note:** Since DolphinDos support requires a number of additional pins for the parallel connection 
 and DolphinDos is not a very widely used fast loader, it not enabled by default. To enable DolphinDos
-support, un-comment the ```#define SUPPORT_DOLPHIN``` line at the top of file src/IECDevice.h.
+support, un-comment the ```#define SUPPORT_DOLPHIN``` line at the top of file ```src/IECConfig.h```.
 
 The IECDevice class includes support for the [DolphinDos](https://rr.pokefinder.org/wiki/Dolphin_DOS)
 parallel protocol.
