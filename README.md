@@ -167,7 +167,7 @@ void setup()
 {
   Serial.begin(115200);
   iecBus.attachDevice(&iecSerial);
-  iecBus.begin(6);
+  iecBus.begin();
 }
 
 void loop()
