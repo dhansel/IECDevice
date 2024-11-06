@@ -22,7 +22,7 @@
 // comment or un-comment these #defines to completely enable/disable support
 // for the corresponding fast-load protocols
 #define SUPPORT_JIFFY
-//#define SUPPORT_EPYX
+#define SUPPORT_EPYX
 //#define SUPPORT_DOLPHIN
 
 // support Epyx FastLoad sector operations (disk editor, disk copy, file copy)
