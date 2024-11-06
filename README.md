@@ -4,17 +4,25 @@ This library for the Arduino IDE provides a simple interface to connect a variet
 microcontrollers to the Commodre IEC bus used on the C64, C128 and VIC-20. This should
 make it easier for hobbyists to create new devices for those computers.
 
-The library provides two classes:
-  - ```IECDevice``` for creating low-level bus devices that directly respond to the data 
+The library provides three classes:
+  - [```IECDevice```](#iecdevice-class-reference) for creating low-level bus devices that directly respond to the data 
     sent over the bus one byte at a time. This can be used to implement devices such as
     [printers](examples/IECCentronics) or [modem-like](examples/IECBasicSerial) devices.
-  - ```IECFileDevice``` for creating higher-level devices that operate more like disk
+    For a basic introduction to implementing a new device using this class, see the
+    [Implementing a simple low-level device](#implementing-a-simple-low-level-device) section.
+  - [```IECFileDevice```](#iecfiledevice-class-reference) for creating higher-level devices that operate more like disk
     drives. The IECFileDevice interface is file-based, providing open/close/read/write functions.
     An example use for this class would be an [SD-card reader](examples/IECSD).
     Any device created using this class automatically supports the following fast load protocols:
     - [JiffyDos](#jiffydos-support),
     - [Epyx FastLoad](#epyx-fastload-support)
     - [DolphinDos](#dolphindos-support)
+    For a basic introduction to implementing a new device using this class, see the
+    [Implementing a simple file-based device](#implementing-a-simple-file-based-device) section.
+  - [```IECBusHandler```](#iecbushandler-class-reference) facilitates the IEC bus communication itself. After creating an instance of the
+    ```IECDevice``` or ```IECFileDevice``` classes it must be attached to the handler by 
+    calling ```IECBusHandler::attachDevice()```. See the [Implementing a simple low-level device](#implementing-a-simple-low-level-device) section
+    or the [IECBasicSerial example](examples/IECBasicSerial/IECBasicSerial.ino) for a demonstration on how to use IECBusHandler class.
 
 So far I have tested this library on the following microcontrollers:
   -  Arduino 8-bit ATMega devices (Uno R3, Mega, Mini, Micro, Leonardo)
