@@ -9,17 +9,18 @@
 class IECSD : public IECFileDevice
 {
  public: 
-  IECSD(byte pinATN, byte pinCLK, byte pinDATA, byte pinRESET, byte pinChipSelect, byte pinLED);
-  void begin(byte device);
-  void task();
+  IECSD(byte devnum, byte pinChipSelect, byte pinLED);
 
  protected:
-  virtual void open(byte device, byte channel, const char *name);
-  virtual byte read(byte device, byte channel, byte *buffer, byte bufferSize);
-  virtual byte write(byte device, byte channel, byte *buffer, byte bufferSize);
-  virtual void close(byte device, byte channel);
-  virtual void getStatus(byte device, char *buffer, byte bufferSize);
-  virtual void execute(byte device, const char *command, byte len);
+  virtual void begin();
+  virtual void task();
+
+  virtual void open(byte channel, const char *name);
+  virtual byte read(byte channel, byte *buffer, byte bufferSize);
+  virtual byte write(byte channel, byte *buffer, byte bufferSize);
+  virtual void close(byte channel);
+  virtual void getStatus(char *buffer, byte bufferSize);
+  virtual void execute(const char *command, byte len);
   virtual void reset();
 
 #if defined(SUPPORT_EPYX) && defined(SUPPORT_EPYX_SECTOROPS)

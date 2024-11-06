@@ -69,9 +69,6 @@ Fuse bytes (Arduino standard): LOW=0xFF, HIGH=0xDA, EXTENDED=0xFD
 #include "Converter.h"
 
 // printer data bits hardcoded to PORTC 0-3 and PORTD 4-7 in sendByte()
-#define PIN_ATN        3
-#define PIN_CLK        8
-#define PIN_DATA      12
 #define PIN_ACK        2
 #define PIN_PRIME     A5
 #define PIN_STROBE    A4
@@ -150,7 +147,7 @@ void printerReadyISR()
 }
 
 
-IECCentronics::IECCentronics() : IECDevice(PIN_ATN, PIN_CLK, PIN_DATA)
+IECCentronics::IECCentronics() : IECDevice()
 {
   m_mode = 0xFF;
   m_ready = true;
@@ -206,8 +203,11 @@ void IECCentronics::begin()
   delayMicroseconds(10);
   digitalWrite(PIN_PRIME, HIGH);
 
+  // initialize IECDevice
+  IECDevice::begin();
+
   // set IEC device address (4 or 5)
-  IECDevice::begin((readDIP() & 8) ? 5 : 4);
+  setDeviceNumber((readDIP() & 8) ? 5 : 4);
 
   // set up interrupt handler for printer ACK signal
   attachInterrupt(digitalPinToInterrupt(PIN_ACK), printerReadyISR, FALLING);
@@ -310,7 +310,7 @@ void IECCentronics::sendByte(byte data)
 }
 
 
-void IECCentronics::talk(byte device, byte secondary)
+void IECCentronics::talk(byte secondary)
 {
   m_channel = secondary & 0x0F;
 
@@ -322,7 +322,7 @@ void IECCentronics::talk(byte device, byte secondary)
 }
 
 
-void IECCentronics::listen(byte device, byte secondary)
+void IECCentronics::listen(byte secondary)
 {
   m_channel = secondary & 0x0F;
 
@@ -349,13 +349,13 @@ void IECCentronics::unlisten()
 }
 
 
-int8_t IECCentronics::canWrite(byte device)
+int8_t IECCentronics::canWrite()
 {
   return m_receive.full() ? -1 : 1;
 }
 
 
-void IECCentronics::write(byte device, byte data, bool eoi)
+void IECCentronics::write(byte data, bool eoi)
 {
   m_receive.enqueue(data);
 
@@ -363,7 +363,7 @@ void IECCentronics::write(byte device, byte data, bool eoi)
 }
 
 
-int8_t IECCentronics::canRead(byte device)
+int8_t IECCentronics::canRead()
 {
   if( m_channel==15 )
     {
@@ -382,7 +382,7 @@ int8_t IECCentronics::canRead(byte device)
 }
 
 
-byte IECCentronics::read(byte device)
+byte IECCentronics::read()
 {
   return m_statusBuffer[m_statusBufferPtr++];
 }

@@ -41,17 +41,16 @@
 #endif
 
 
-IECSD::IECSD(byte pinATN, byte pinCLK, byte pinDATA, byte pinRESET, byte pinChipSelect, byte pinLED) :
-  IECFileDevice(pinATN, pinCLK, pinDATA, pinRESET, 0xFF)
+IECSD::IECSD(byte devnum, byte pinChipSelect, byte pinLED) :
+  IECFileDevice(devnum)
 {
   m_pinLED = pinLED;
   m_pinChipSelect = pinChipSelect;
 }
 
 
-void IECSD::begin(byte device)
+void IECSD::begin()
 {
-  IECFileDevice::begin(device);
   if( m_pinChipSelect<0xFF ) pinMode(m_pinChipSelect, OUTPUT);
 
   unsigned long ledTestEnd = millis() + 500;
@@ -66,6 +65,8 @@ void IECSD::begin(byte device)
       if( t<ledTestEnd ) delay(ledTestEnd-t);
       digitalWrite(m_pinLED, LOW); 
     }
+
+  IECFileDevice::begin();
 }
 
 
@@ -486,7 +487,7 @@ byte IECSD::openFile(byte channel, const char *constName)
 }
 
 
-void IECSD::open(byte device, byte channel, const char *name)
+void IECSD::open(byte channel, const char *name)
 {
   if( !checkCard() )
     m_errorCode = E_NOTREADY;
@@ -501,11 +502,11 @@ void IECSD::open(byte device, byte channel, const char *name)
     }
 
   // clear the status buffer so getStatus() is called again next time the buffer is queried
-  clearStatus(device);
+  clearStatus();
 }
 
 
-byte IECSD::read(byte device, byte channel, byte *buffer, byte bufferSize)
+byte IECSD::read(byte channel, byte *buffer, byte bufferSize)
 {
   if( m_file.isOpen() )
     return m_file.read(buffer, bufferSize);
@@ -514,7 +515,7 @@ byte IECSD::read(byte device, byte channel, byte *buffer, byte bufferSize)
 }
 
 
-byte IECSD::write(byte device, byte channel, byte *buffer, byte bufferSize)
+byte IECSD::write(byte channel, byte *buffer, byte bufferSize)
 {
   if( m_file.isOpen() )
     return m_file.write(buffer, bufferSize);
@@ -523,7 +524,7 @@ byte IECSD::write(byte device, byte channel, byte *buffer, byte bufferSize)
 }
 
 
-void IECSD::close(byte device, byte channel)
+void IECSD::close(byte channel)
 {
   if( m_dir )
     { 
@@ -535,10 +536,10 @@ void IECSD::close(byte device, byte channel)
 }
 
 
-void IECSD::execute(byte device, const char *command, byte len)
+void IECSD::execute(const char *command, byte len)
 {
   // clear the status buffer so getStatus() is called again next time the buffer is queried
-  clearStatus(device);
+  clearStatus();
 
   if( strncmp(command, "S:", 2)==0 )
     {
@@ -570,7 +571,7 @@ void IECSD::execute(byte device, const char *command, byte len)
       // hack: DolphinDos' MultiDubTwo reads 02FA-02FC to determine
       // number of free blocks => pretend we have 664 (0298h) blocks available
       byte data[3] = {0x98, 0, 0x02};
-      setStatus(device, (char *) data, 3);
+      setStatus((char *) data, 3);
       m_errorCode = E_OK;
     }
   else if( strncmp_P(command, PSTR("M-R"), 3)==0 && len>=6 && command[5]<=32 )
@@ -579,7 +580,7 @@ void IECSD::execute(byte device, const char *command, byte len)
       byte n = command[5];
       char buf[32];
       memset(buf, 0xFF, n);
-      setStatus(device, buf, n);
+      setStatus(buf, n);
       m_errorCode = E_OK;
     }
   else if( strncmp_P(command, PSTR("M-W"), 3)==0 )
@@ -617,7 +618,7 @@ void IECSD::execute(byte device, const char *command, byte len)
 }
 
 
-void IECSD::getStatus(byte device, char *buffer, byte bufferSize)
+void IECSD::getStatus(char *buffer, byte bufferSize)
 {
   const char *message = NULL;
   switch( m_errorCode )

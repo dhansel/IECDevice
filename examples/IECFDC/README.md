@@ -76,7 +76,6 @@ IECFDC supports:
 
 Supported DOS commands:
   - `S:filename`: delete file filename (filename may contain "*" and "?" wildcards)
-  - `R:newname=oldname`: rename file oldname to newname
   - `N:diskname,n`: format disk (n is ignored, interleave factor is fixed to 7)
   - `N:diskname`: delete all files on disk
   - `MD:dirname`: create a directory named dirname

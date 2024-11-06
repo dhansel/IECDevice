@@ -33,25 +33,23 @@ void disk_motor_check_timeout();
 #define DEBUG 0
 
 
-IECFDC::IECFDC(byte pinATN, byte pinCLK, byte pinDATA, byte pinRESET, byte pinCTRL, byte pinLED) :
-  IECFileDevice(pinATN, pinCLK, pinDATA, pinRESET, pinCTRL)
+IECFDC::IECFDC(byte devnr, byte pinLED) : IECFileDevice(devnr)
 {
   m_pinLED = pinLED;
 }
 
 
-void IECFDC::begin(byte devnr)
+void IECFDC::begin()
 {
 #if DEBUG>0
   Serial.begin(115200);
 #endif
 
-  if( devnr==0xFF )
-    {
-      devnr = EEPROM.read(0);
-      if( devnr<3 || devnr>15 ) { devnr = 9; EEPROM.write(0, devnr); }
-    }
-  IECFileDevice::begin(devnr);
+  // get device number from EEPROM
+  m_devnr = EEPROM.read(0);
+  if( m_devnr<3 || m_devnr>15 ) { m_devnr = 9; EEPROM.write(0, m_devnr); }
+
+  IECFileDevice::begin();
 
   if( m_pinLED<0xFF ) 
     {
@@ -386,7 +384,7 @@ void IECFDC::openFile(byte channel, const char *name)
 }
 
 
-void IECFDC::open(byte devnr, byte channel, const char *name)
+void IECFDC::open(byte channel, const char *name)
 {
   // The "~" (0x7E) used by FAT in shortened file names translates
   // to the "pi" symbol in PETSCII (when listing the directory).
@@ -402,11 +400,11 @@ void IECFDC::open(byte devnr, byte channel, const char *name)
     openDir(name);
 
   // clear the status buffer so getStatus() is called again next time the buffer is queried
-  clearStatus(devnr);
+  clearStatus();
 }
 
 
-byte IECFDC::read(byte devnr, byte channel, byte *buffer, byte bufferSize)
+byte IECFDC::read(byte channel, byte *buffer, byte bufferSize)
 {
   if( m_fatFsFile.obj.fs!=0 )
     {
@@ -420,7 +418,7 @@ byte IECFDC::read(byte devnr, byte channel, byte *buffer, byte bufferSize)
 }
 
 
-byte IECFDC::write(byte devnr, byte channel, byte *buffer, byte bufferSize)
+byte IECFDC::write(byte channel, byte *buffer, byte bufferSize)
 {
   byte res = 0;
 
@@ -438,7 +436,7 @@ byte IECFDC::write(byte devnr, byte channel, byte *buffer, byte bufferSize)
 }
 
 
-void IECFDC::close(byte devnr, byte channel)
+void IECFDC::close(byte channel)
 {
   if( m_fatFsFile.obj.fs!=0 )
     f_close(&m_fatFsFile);
@@ -450,10 +448,10 @@ void IECFDC::close(byte devnr, byte channel)
 }
 
 
-void IECFDC::execute(byte devnr, const char *command, byte len)
+void IECFDC::execute(const char *command, byte len)
 {
   // clear the status buffer so getStatus() is called again next time the buffer is queried
-  clearStatus(devnr);
+  clearStatus();
 
   // The "~" (0x7E) used by FAT in shortened file names translates
   // to the "pi" symbol in PETSCII (when listing the directory).
@@ -495,7 +493,7 @@ void IECFDC::execute(byte devnr, const char *command, byte len)
           if( devnr>2 && devnr<16 )
             {
               if( *c=='!' ) EEPROM.write(0, devnr);
-              IECFileDevice::begin(devnr);
+              m_devnr = devnr;
             }
           else
             m_ferror = FR_INVALID_PARAMETER;              
@@ -525,19 +523,6 @@ void IECFDC::execute(byte devnr, const char *command, byte len)
         m_ferror = FR_TOO_MANY_OPEN_FILES;
             
       if( m_ferror==FR_OK ) { m_ferror = FR_SCRATCHED; m_errorTrack = n; }
-    }
-  else if( strncmp_P(command, PSTR("R:"), 2)==0 )
-    {
-      char *equals = strchr(command, '=');
-      startDiskOp();
-      if( equals!=NULL )
-        {
-          *equals=0;
-          m_ferror = f_rename(equals+1, command+2);
-        }
-#if FF_USE_LABEL>0
-      else f_setlabel(command+2);
-#endif
     }
   else if( strcmp_P(command, PSTR("I"))==0 )
     {
@@ -573,10 +558,7 @@ void IECFDC::execute(byte devnr, const char *command, byte len)
           Serial.println();
 #endif      
           if( addr<=119 && addr+len>120 && (command[119-addr]&0x0F)==(command[120-addr]&0x0F) )
-            {
-              byte newaddr = command[119-addr]&0x0F;
-              IECFileDevice::begin(command[119-addr]&0x0F);
-            }
+            m_devnr = command[119-addr]&0x0F;
           else
             m_ferror = FR_MEMOP; // general memory write not supported
         }
@@ -598,7 +580,7 @@ void IECFDC::execute(byte devnr, const char *command, byte len)
             {
               // identify as C1541
               byte data[2] = {254, 0};
-              setStatus(devnr, (char *) data, 2);
+              setStatus((char *) data, 2);
             }
           else
             m_ferror = FR_MEMOP; // general memory read not supported
@@ -627,7 +609,7 @@ void IECFDC::execute(byte devnr, const char *command, byte len)
 }
 
 
-void IECFDC::getStatus(byte devnr, char *buffer, byte bufferSize)
+void IECFDC::getStatus(char *buffer, byte bufferSize)
 {
   byte code = 0;
   const char *message = NULL;
@@ -683,6 +665,8 @@ void IECFDC::reset()
 
   if( m_dir ) { f_closedir((DIR *) m_fatFsFile.buf); m_dir = 0; }
   if( m_fatFsFile.obj.fs!=0 ) f_close(&m_fatFsFile);
+
+  m_devnr = EEPROM.read(0);
   m_ferror = FR_SPLASH;
   m_errorTrack = 0;
   m_errorSector = 0;

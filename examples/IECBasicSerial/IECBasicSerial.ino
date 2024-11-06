@@ -18,6 +18,7 @@
 
 #include <Arduino.h>
 #include <IECDevice.h>
+#include <IECBusHandler.h>
 
 #define DEVICE_NUMBER 4
 
@@ -56,17 +57,17 @@
 class IECBasicSerial : public IECDevice
 {
  public:
-  IECBasicSerial() : IECDevice(PIN_ATN, PIN_CLK, PIN_DATA) {}
+  IECBasicSerial(byte devnum) : IECDevice(devnum) {}
 
-  virtual int8_t canRead(byte devnum);
-  virtual byte   read(byte devnum);
+  virtual int8_t canRead();
+  virtual byte   read();
 
-  virtual int8_t canWrite(byte devnum);
-  virtual void   write(byte devnum, byte data, bool eoi);
+  virtual int8_t canWrite();
+  virtual void   write(byte data, bool eoi);
 };
 
 
-int8_t IECBasicSerial::canWrite(byte devnum)
+int8_t IECBasicSerial::canWrite()
 {
   // Return -1 if we can't receive IEC bus data right now which will cause this
   // to be called again until we are ready and return 1.
@@ -75,14 +76,14 @@ int8_t IECBasicSerial::canWrite(byte devnum)
 }
 
 
-void IECBasicSerial::write(byte devnum, byte data, bool eoi)
+void IECBasicSerial::write(byte data, bool eoi)
 { 
   // write() will only be called if canWrite() returned >0.
   Serial.write(data);
 }
 
 
-int8_t IECBasicSerial::canRead(byte devnum)
+int8_t IECBasicSerial::canRead()
 {
   // Return 0 if we have nothing to send. This will indicate a "nothing to send"
   // (error) condition on the bus. If we returned -1 instead then canRead()
@@ -93,7 +94,7 @@ int8_t IECBasicSerial::canRead(byte devnum)
 }
 
 
-byte IECBasicSerial::read(byte devnum)
+byte IECBasicSerial::read()
 { 
   // read() will only be called if canRead() returned >0.
   return Serial.read();
@@ -103,20 +104,24 @@ byte IECBasicSerial::read(byte devnum)
 // -----------------------------------------------------------------------------
 
 
-IECBasicSerial iecSerial;
+IECBasicSerial iecSerial(DEVICE_NUMBER);
+IECBusHandler  iecBus(PIN_ATN, PIN_CLK, PIN_DATA);
 
 void setup()
 {
   // initialize serial communication
   Serial.begin(115200);
 
+  // attach serial device to IEC bus
+  iecBus.attachDevice(&iecSerial);
+
   // initialize IEC bus
-  iecSerial.begin(DEVICE_NUMBER);
+  iecBus.begin();
 }
 
 
 void loop()
 {
   // handle IEC bus communication (this will call the read and write functions above)
-  iecSerial.task();
+  iecBus.task();
 }

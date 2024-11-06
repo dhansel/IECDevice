@@ -18,9 +18,16 @@
 
 
 #include "IECCentronics.h"
+#include "IECBusHandler.h"
 #include "Converter.h"
 #include "ConverterTandyMPS801.h"
 
+#define PIN_ATN        3
+#define PIN_CLK        8
+#define PIN_DATA      12
+
+
+IECBusHandler iecBus(PIN_ATN, PIN_CLK, PIN_DATA);
 IECCentronics iec;
 
 
@@ -80,7 +87,8 @@ Converter mode4;
 
 void setup()
 {
-  iec.begin();
+  iecBus.attachDevice(&iec);
+  iecBus.begin();
 
   iec.setConverter(1, &mode1);
   iec.setConverter(2, &mode2);
@@ -91,5 +99,5 @@ void setup()
 
 void loop()
 {
-  iec.task();
+  iecBus.task();
 }

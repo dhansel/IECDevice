@@ -51,25 +51,25 @@ const char *IECFDC::getCurrentDriveSpec()
 
 
 
-IECFDC::IECFDC(byte pinATN, byte pinCLK, byte pinDATA, byte pinRESET, byte pinCTRL, byte pinLED) :
-  IECFileDevice(pinATN, pinCLK, pinDATA, pinRESET, pinCTRL)
+IECFDC::IECFDC(byte devnr, byte pinLED) : IECFileDevice(devnr)
 {
   m_pinLED = pinLED;
 }
 
 
-void IECFDC::begin(byte devnr)
+void IECFDC::begin()
 {
 #if DEBUG>0
   Serial.begin(115200);
 #endif
 
-  if( devnr==0xFF )
-    {
-      devnr = EEPROM.read(0);
-      if( devnr<3 || devnr>15 ) { devnr = 9; EEPROM.write(0, devnr); }
-    }
-  IECFileDevice::begin(devnr);
+  byte devnr = EEPROM.read(0);
+  if( devnr<3 || devnr>15 )
+    EEPROM.write(0, m_devnr);
+  else
+    m_devnr = devnr;
+
+  IECFileDevice::begin();
   if( m_pinLED<0xFF ) 
     {
       pinMode(m_pinLED, OUTPUT);
@@ -591,7 +591,7 @@ void IECFDC::openFile(FIL *f, byte channel, const char *name)
 }
 
 
-void IECFDC::open(byte device, byte channel, const char *name)
+void IECFDC::open(byte channel, const char *name)
 {
   byte fileIdx = 0;
   m_ferror = FR_OK;
@@ -623,11 +623,11 @@ void IECFDC::open(byte device, byte channel, const char *name)
     }
 
   // clear the status buffer so getStatus() is called again next time the buffer is queried
-  clearStatus(device);
+  clearStatus();
 }
 
 
-byte IECFDC::read(byte device, byte channel, byte *buffer, byte bufferSize)
+byte IECFDC::read(byte channel, byte *buffer, byte bufferSize)
 {
   byte res = 0;
   FIL *f = m_channelFiles[channel]==0xFF ? NULL : &(m_fatFsFile[m_channelFiles[channel]&0x0F]);
@@ -660,7 +660,7 @@ byte IECFDC::read(byte device, byte channel, byte *buffer, byte bufferSize)
 }
 
 
-byte IECFDC::write(byte device, byte channel, byte *buffer, byte bufferSize)
+byte IECFDC::write(byte channel, byte *buffer, byte bufferSize)
 {
   byte res = 0;
   FIL *f = m_channelFiles[channel]==0xFF ? NULL : &(m_fatFsFile[m_channelFiles[channel] & 0x0F]);
@@ -684,7 +684,7 @@ byte IECFDC::write(byte device, byte channel, byte *buffer, byte bufferSize)
 }
 
 
-void IECFDC::close(byte device, byte channel)
+void IECFDC::close(byte channel)
 {
   FIL *f = m_channelFiles[channel]==0xFF ? NULL : &(m_fatFsFile[m_channelFiles[channel] & 0x0F]);
 
@@ -704,13 +704,13 @@ void IECFDC::close(byte device, byte channel)
 }
 
 
-void IECFDC::execute(byte device, const char *command, byte len)
+void IECFDC::execute(const char *command, byte len)
 {
   byte drive = 0;
   m_ferror = FR_OK;
 
   // clear the status buffer so getStatus() is called again next time the buffer is queried
-  clearStatus(device);
+  clearStatus();
 
   if( command[0]=='X' || command[0]=='E' )
     {
@@ -765,7 +765,7 @@ void IECFDC::execute(byte device, const char *command, byte len)
           if( devnr>2 && devnr<16 )
             {
               if( *c=='!' ) EEPROM.write(0, devnr);
-              IECFileDevice::begin(devnr);
+              m_devnr = devnr;
             }
           else
             m_ferror = FR_INVALID_PARAMETER;              
@@ -926,10 +926,7 @@ void IECFDC::execute(byte device, const char *command, byte len)
           Serial.println();
 #endif      
           if( addr<=119 && addr+len>120 && (command[119-addr]&0x0F)==(command[120-addr]&0x0F) )
-            {
-              byte newaddr = command[119-addr]&0x0F;
-              IECFileDevice::begin(command[119-addr]&0x0F);
-            }
+            m_devnr = command[119-addr]&0x0F;
           else
             m_ferror = FR_MEMOP; // general memory write not supported
         }
@@ -951,14 +948,14 @@ void IECFDC::execute(byte device, const char *command, byte len)
             {
               // identify as C1541
               byte data[2] = {254, 0};
-              setStatus(device, (char *) data, 2);
+              setStatus((char *) data, 2);
             }
           else if( addr==0x02FA && len==3 )
             {
               // hack: DolphinDos' MultiDubTwo reads 02FA-02FC to determine
               // number of free blocks => pretend we have 664 (0x0298) blocks available
               byte data[3] = {0x98, 0, 0x02};
-              setStatus(device, (char *) data, 3);
+              setStatus((char *) data, 3);
             }
           else
             m_ferror = FR_MEMOP; // general memory read not supported
@@ -973,7 +970,7 @@ void IECFDC::execute(byte device, const char *command, byte len)
 }
 
 
-void IECFDC::getStatus(byte device, char *buffer, byte bufferSize)
+void IECFDC::getStatus(char *buffer, byte bufferSize)
 {
   byte code = 0;
   const char *message = NULL;
@@ -1041,6 +1038,7 @@ void IECFDC::reset()
   for(byte i=0; i<16; i++)
     m_channelFiles[i] = 0xFF;
 
+  m_devnr = EEPROM.read(0);
   m_errorTrack = 0;
   m_errorSector = 0;
   m_numOpenFiles = 0;
@@ -1048,8 +1046,6 @@ void IECFDC::reset()
   m_dirBufferPtr = 0;
   if( m_pinLED<0xFF ) digitalWrite(m_pinLED, LOW);
   if( m_ferror==FR_OK ) m_ferror = FR_SPLASH;
-
-  IECFileDevice::begin(EEPROM.read(0));  
 
   if( m_pinLED<0xFF ) 
     {

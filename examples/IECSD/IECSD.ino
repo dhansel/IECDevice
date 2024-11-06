@@ -17,6 +17,7 @@
 // -----------------------------------------------------------------------------
 
 #include "IECSD.h"
+#include "IECBusHandler.h"
 
 // IEC bus device number
 #define DEVICE_NUMBER 9
@@ -114,7 +115,8 @@
 #endif
 
 
-IECSD iecsd(PIN_IEC_ATN, PIN_IEC_CLK, PIN_IEC_DATA, PIN_IEC_RESET, PIN_SPI_CS, PIN_LED);
+IECSD iecSD(DEVICE_NUMBER, PIN_SPI_CS, PIN_LED);
+IECBusHandler iecBus(PIN_IEC_ATN, PIN_IEC_CLK, PIN_IEC_DATA, PIN_IEC_RESET);
 
 
 void setup()
@@ -122,11 +124,13 @@ void setup()
 #if defined(ARDUINO_ARCH_ESP32)
   SPI.begin(PIN_SPI_CLK, PIN_SPI_MISO, PIN_SPI_MOSI, PIN_SPI_CS);
 #endif
-  iecsd.begin(DEVICE_NUMBER);
+
+  iecBus.attachDevice(&iecSD);
+  iecBus.begin();
 }
 
 
 void loop()
 {
-  iecsd.task();
+  iecBus.task();
 }

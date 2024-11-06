@@ -17,6 +17,7 @@
 // -----------------------------------------------------------------------------
 
 #include <Arduino.h>
+#include <IECBusHandler.h>
 #include <IECFileDevice.h>
 #include <SdFat.h>
 
@@ -56,15 +57,16 @@
 class IECBasicSD : public IECFileDevice
 {
  public: 
-  IECBasicSD();
-  void begin();
+  IECBasicSD(byte devnum);
 
  protected:
-  virtual void open(byte device, byte channel, const char *name);
-  virtual byte read(byte device, byte channel, byte *buffer, byte bufferSize);
-  virtual byte write(byte device, byte channel, byte *buffer, byte bufferSize);
-  virtual void close(byte device, byte channel);
+  virtual void begin();
   virtual void reset();
+
+  virtual void open(byte channel, const char *name);
+  virtual byte read(byte channel, byte *buffer, byte bufferSize);
+  virtual byte write(byte channel, byte *buffer, byte bufferSize);
+  virtual void close(byte channel);
 
  private:
   SdFat  m_sd;
@@ -72,7 +74,7 @@ class IECBasicSD : public IECFileDevice
 };
 
 
-IECBasicSD::IECBasicSD() : IECFileDevice(PIN_ATN, PIN_CLK, PIN_DATA)
+IECBasicSD::IECBasicSD(byte devnum) : IECFileDevice(devnum)
 {
 }
 
@@ -90,11 +92,11 @@ void IECBasicSD::begin()
 #endif
 
   // initialize IEC bus
-  IECFileDevice::begin(DEVICE_NUMBER);
+  IECFileDevice::begin();
 }
 
 
-void IECBasicSD::open(byte device, byte channel, const char *name)
+void IECBasicSD::open(byte channel, const char *name)
 {
   // open file for reading or writing. Use channel number to determine
   // whether to read (channel 0) or write (channel 1). These channel numbers
@@ -103,7 +105,7 @@ void IECBasicSD::open(byte device, byte channel, const char *name)
 }
 
 
-byte IECBasicSD::read(byte device, byte channel, byte *buffer, byte bufferSize)
+byte IECBasicSD::read(byte channel, byte *buffer, byte bufferSize)
 {
   // read up to bufferSize bytes from the file opened before, return the number
   // of bytes read or 0 if the file is not open (i.e. an error occurred during open)
@@ -111,7 +113,7 @@ byte IECBasicSD::read(byte device, byte channel, byte *buffer, byte bufferSize)
 }
 
 
-byte IECBasicSD::write(byte device, byte channel, byte *buffer, byte bufferSize)
+byte IECBasicSD::write(byte channel, byte *buffer, byte bufferSize)
 {
   // writhe bufferSize bytes to the file opened before, return the number
   // of bytes written or 0 if the file is not open (i.e. an error occurred during open)
@@ -119,7 +121,7 @@ byte IECBasicSD::write(byte device, byte channel, byte *buffer, byte bufferSize)
 }
 
 
-void IECBasicSD::close(byte device, byte channel)
+void IECBasicSD::close(byte channel)
 {
   m_file.close(); 
 }
@@ -128,23 +130,28 @@ void IECBasicSD::close(byte device, byte channel)
 void IECBasicSD::reset()
 {
   m_file.close();
+  IECFileDevice::reset();
 }
 
 
 // -----------------------------------------------------------------------------
 
 
-IECBasicSD iecSD;
+IECBasicSD iecSD(DEVICE_NUMBER);
+IECBusHandler iecBus(PIN_ATN, PIN_CLK, PIN_DATA, PIN_RESET);
 
 void setup()
 {
-  // initialize device
-  iecSD.begin();
+  // attach the SD device to the bus
+  iecBus.attachDevice(&iecSD);
+
+  // initialize bus
+  iecBus.begin();
 }
 
 
 void loop()
 {
   // handle IEC bus communication (this will call the read and write functions above)
-  iecSD.task();
+  iecBus.task();
 }
