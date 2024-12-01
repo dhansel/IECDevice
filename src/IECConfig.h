@@ -43,4 +43,16 @@
 #define IEC_DEFAULT_FASTLOAD_BUFFER_SIZE 128
 #endif
 
+// buffer size for IECFileDevice receiving data on channel 15, any data
+// longer than this (received in a single transaction) will be discarded
+// every instance of IECFileDevice will allocate this buffer so it should be
+// kept short on platforms with little RAM (e.g. Arduino UNO)
+#define IECFILEDEVICE_NAME_BUFFER_SIZE   41
+
+// buffer size for IECFileDevice transmaitting data on channel 15, if
+// IECFileDevice::setStatus() is called with data longer than this it will be clipped
+// every instance of IECFileDevice will allocate this buffer so it should be
+// kept short on platforms with little RAM (e.g. Arduino UNO)
+#define IECFILEDEVICE_STATUS_BUFFER_SIZE 32
+
 #endif

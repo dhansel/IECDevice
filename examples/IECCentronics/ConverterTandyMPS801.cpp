@@ -28,7 +28,7 @@
 #define MODE_MPS801_TAB        16
 
 
-static const byte font[162*6] PROGMEM = 
+static const uint8_t font[162*6] PROGMEM = 
   {0x00,0x00,0x00,0x00,0x00,0x00, // 00: (space)
    0x00,0x00,0x5F,0x00,0x00,0x00, // 01: !
    0x00,0x07,0x00,0x07,0x00,0x00, // 02: "
@@ -194,7 +194,7 @@ static const byte font[162*6] PROGMEM =
 };
 
 
-static const byte charset_standard[256] PROGMEM = 
+static const uint8_t charset_standard[256] PROGMEM = 
   {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
@@ -215,7 +215,7 @@ static const byte charset_standard[256] PROGMEM =
   };
 
 
-static const byte charset_business[256] PROGMEM = 
+static const uint8_t charset_business[256] PROGMEM = 
   {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
@@ -252,7 +252,7 @@ void ConverterTandyMPS801::begin()
 }
 
 
-void ConverterTandyMPS801::setChannel(byte channel)
+void ConverterTandyMPS801::setChannel(uint8_t channel)
 {
   if( channel==7 )
     m_mode |=  MODE_MPS801_CURSORDOWN;
@@ -266,13 +266,13 @@ void ConverterTandyMPS801::convert()
   // only proceed if we have enough space to write 10 or more bytes
   if( canRead()>0 && canWrite()>=10 )
     {
-      byte data = read();
+      uint8_t data = read();
 
       if( m_cmdbytes>0 )
         {
           if( m_mode & MODE_MPS801_TAB )
             {
-              static byte tab1;
+              static uint8_t tab1;
               if( m_cmdbytes==2 )
                 {
                   tab1 = data;
@@ -364,11 +364,11 @@ void ConverterTandyMPS801::convert()
 
             default:
               {
-                byte charIdx  = (m_mode & MODE_MPS801_CURSORDOWN) ? pgm_read_byte(charset_business+data) : pgm_read_byte(charset_standard+data);
-                const byte *charData = font + charIdx*6;
+                uint8_t charIdx  = (m_mode & MODE_MPS801_CURSORDOWN) ? pgm_read_byte(charset_business+data) : pgm_read_byte(charset_standard+data);
+                const uint8_t *charData = font + charIdx*6;
                 
                 write(18);
-                for(byte i=0; i<6; i++) 
+                for(uint8_t i=0; i<6; i++) 
                   {
                     if( m_dotcolumn>=480 )
                       {

@@ -57,16 +57,16 @@
 class IECBasicSD : public IECFileDevice
 {
  public: 
-  IECBasicSD(byte devnum);
+  IECBasicSD(uint8_t devnum);
 
  protected:
   virtual void begin();
   virtual void reset();
 
-  virtual void open(byte channel, const char *name);
-  virtual byte read(byte channel, byte *buffer, byte bufferSize);
-  virtual byte write(byte channel, byte *buffer, byte bufferSize);
-  virtual void close(byte channel);
+  virtual void open(uint8_t channel, const char *name);
+  virtual uint8_t read(uint8_t channel, uint8_t *buffer, uint8_t bufferSize);
+  virtual uint8_t write(uint8_t channel, uint8_t *buffer, uint8_t bufferSize);
+  virtual void close(uint8_t channel);
 
  private:
   SdFat  m_sd;
@@ -74,7 +74,7 @@ class IECBasicSD : public IECFileDevice
 };
 
 
-IECBasicSD::IECBasicSD(byte devnum) : IECFileDevice(devnum)
+IECBasicSD::IECBasicSD(uint8_t devnum) : IECFileDevice(devnum)
 {
 }
 
@@ -96,7 +96,7 @@ void IECBasicSD::begin()
 }
 
 
-void IECBasicSD::open(byte channel, const char *name)
+void IECBasicSD::open(uint8_t channel, const char *name)
 {
   // open file for reading or writing. Use channel number to determine
   // whether to read (channel 0) or write (channel 1). These channel numbers
@@ -105,7 +105,7 @@ void IECBasicSD::open(byte channel, const char *name)
 }
 
 
-byte IECBasicSD::read(byte channel, byte *buffer, byte bufferSize)
+uint8_t IECBasicSD::read(uint8_t channel, uint8_t *buffer, uint8_t bufferSize)
 {
   // read up to bufferSize bytes from the file opened before, return the number
   // of bytes read or 0 if the file is not open (i.e. an error occurred during open)
@@ -113,7 +113,7 @@ byte IECBasicSD::read(byte channel, byte *buffer, byte bufferSize)
 }
 
 
-byte IECBasicSD::write(byte channel, byte *buffer, byte bufferSize)
+uint8_t IECBasicSD::write(uint8_t channel, uint8_t *buffer, uint8_t bufferSize)
 {
   // writhe bufferSize bytes to the file opened before, return the number
   // of bytes written or 0 if the file is not open (i.e. an error occurred during open)
@@ -121,7 +121,7 @@ byte IECBasicSD::write(byte channel, byte *buffer, byte bufferSize)
 }
 
 
-void IECBasicSD::close(byte channel)
+void IECBasicSD::close(uint8_t channel)
 {
   m_file.close(); 
 }

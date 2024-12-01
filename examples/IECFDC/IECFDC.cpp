@@ -25,7 +25,6 @@
 #define FR_SPLASH    ((FRESULT) 0xFF)
 #define FR_SCRATCHED ((FRESULT) 0xFE)
 #define FR_EXTSTAT   ((FRESULT) 0xFD)
-#define FR_MEMOP     ((FRESULT) 0xFC)
 
 // defined in diskio.c
 void disk_motor_check_timeout();
@@ -33,7 +32,7 @@ void disk_motor_check_timeout();
 #define DEBUG 0
 
 
-IECFDC::IECFDC(byte devnr, byte pinLED) : IECFileDevice(devnr)
+IECFDC::IECFDC(uint8_t devnr, uint8_t pinLED) : IECFileDevice(devnr)
 {
   m_pinLED = pinLED;
 }
@@ -113,7 +112,7 @@ void IECFDC::startDiskOp()
 }
 
 
-void IECFDC::format(const char *name, bool lowLevel, byte interleave)
+void IECFDC::format(const char *name, bool lowLevel, uint8_t interleave)
 {
   MKFS_PARM param;
   param.fmt = FM_FAT | FM_SFD; // FAT12 type, no disk partitioning
@@ -249,7 +248,7 @@ void IECFDC::openDir(const char *name)
 }
 
 
-bool IECFDC::readDir(byte *data)
+bool IECFDC::readDir(uint8_t *data)
 {
   DIR     *dir       = (DIR *)      m_fatFsFile.buf;
   FILINFO *fileInfo  = (FILINFO *) (m_fatFsFile.buf+sizeof(DIR));
@@ -320,10 +319,10 @@ bool IECFDC::readDir(byte *data)
 }
 
 
-void IECFDC::openFile(byte channel, const char *name)
+void IECFDC::openFile(uint8_t channel, const char *name)
 {
-  byte fileIdx = 0;
-  byte mode = FA_READ;
+  uint8_t fileIdx = 0;
+  uint8_t mode = FA_READ;
   m_ferror = FR_OK;
 
   if( channel==0 )
@@ -384,12 +383,12 @@ void IECFDC::openFile(byte channel, const char *name)
 }
 
 
-void IECFDC::open(byte channel, const char *name)
+void IECFDC::open(uint8_t channel, const char *name)
 {
   // The "~" (0x7E) used by FAT in shortened file names translates
   // to the "pi" symbol in PETSCII (when listing the directory).
   // But when "pi" is sent as part of a file name it arrives as 0xFF
-  for(byte *c = (byte *) name; *c!=0; c++)
+  for(uint8_t *c = (uint8_t *) name; *c!=0; c++)
     if( *c == 0xFF ) *c = 0x7E;
 
   if( m_fatFsFile.obj.fs!=0 || m_dir )
@@ -404,7 +403,7 @@ void IECFDC::open(byte channel, const char *name)
 }
 
 
-byte IECFDC::read(byte channel, byte *buffer, byte bufferSize)
+uint8_t IECFDC::read(uint8_t channel, uint8_t *buffer, uint8_t bufferSize)
 {
   if( m_fatFsFile.obj.fs!=0 )
     {
@@ -418,9 +417,9 @@ byte IECFDC::read(byte channel, byte *buffer, byte bufferSize)
 }
 
 
-byte IECFDC::write(byte channel, byte *buffer, byte bufferSize)
+uint8_t IECFDC::write(uint8_t channel, uint8_t *buffer, uint8_t bufferSize)
 {
-  byte res = 0;
+  uint8_t res = 0;
 
   if( m_fatFsFile.obj.fs!=0 )
     {
@@ -436,7 +435,7 @@ byte IECFDC::write(byte channel, byte *buffer, byte bufferSize)
 }
 
 
-void IECFDC::close(byte channel)
+void IECFDC::close(uint8_t channel)
 {
   if( m_fatFsFile.obj.fs!=0 )
     f_close(&m_fatFsFile);
@@ -448,7 +447,7 @@ void IECFDC::close(byte channel)
 }
 
 
-void IECFDC::execute(const char *command, byte len)
+void IECFDC::execute(const char *command, uint8_t len)
 {
   // clear the status buffer so getStatus() is called again next time the buffer is queried
   clearStatus();
@@ -456,7 +455,7 @@ void IECFDC::execute(const char *command, byte len)
   // The "~" (0x7E) used by FAT in shortened file names translates
   // to the "pi" symbol in PETSCII (when listing the directory).
   // But when "pi" is sent as part of a file name it arrives as 0xFF
-  for(byte *c = (byte *) command; *c!=0; c++)
+  for(uint8_t *c = (uint8_t *) command; *c!=0; c++)
     if( *c == 0xFF ) *c = 0x7E;
 
   if( command[0]=='U' )
@@ -476,7 +475,7 @@ void IECFDC::execute(const char *command, byte len)
 
           if( buf[0]>='0' && buf[0]<='4' )
             {
-              byte tp = (buf[0]-'0');
+              uint8_t tp = (buf[0]-'0');
               ArduinoFDC.setDriveType(0, (enum ArduinoFDCClass::DriveType) tp);
               EEPROM.write(1, tp);
             }
@@ -486,7 +485,7 @@ void IECFDC::execute(const char *command, byte len)
       else if( command[0]>='1' && command[0]<='9' )
         {
           const char *c = command;
-          byte devnr = *c++ - '0';
+          uint8_t devnr = *c++ - '0';
           if( *c>='0' && *c<='9' ) devnr = devnr*10 + *c++ - '0';
           if( *c!=0 && (*c=='!' && *(c+1)!=0) ) devnr = 0;
 
@@ -503,7 +502,7 @@ void IECFDC::execute(const char *command, byte len)
     }
   else if( strncmp_P(command, PSTR("S:"), 2)==0 )
     {
-      byte n = 0;
+      uint8_t n = 0;
       startDiskOp();
 
       if( m_fatFsFile.obj.fs==0 )
@@ -543,53 +542,6 @@ void IECFDC::execute(const char *command, byte len)
       m_ferror = FR_NOT_ENOUGH_CORE;
 #endif
     }
-  else if( strncmp(command, "M-W", 3)==0 )
-    {
-      command+=3; len-=3; 
-      if( *command==':' ) { command++; len--; }
-      if( len>=3 )
-        {
-          word addr = ((byte) command[0]) + (((byte) command[1])<<8);
-          len  = min(len-3, command[2]);
-          command+=3;
-#if DEBUG>0
-          Serial.print(F("MEMWRITE ")); Serial.print(addr, HEX); Serial.write(':'); 
-          for(byte i=0;i<len; i++) { Serial.write(' '); Serial.print(command[i], HEX); }
-          Serial.println();
-#endif      
-          if( addr<=119 && addr+len>120 && (command[119-addr]&0x0F)==(command[120-addr]&0x0F) )
-            m_devnr = command[119-addr]&0x0F;
-          else
-            m_ferror = FR_MEMOP; // general memory write not supported
-        }
-      else
-        m_ferror = FR_INVALID_PARAMETER;
-    }
-  else if( strncmp(command, "M-R", 3)==0 )
-    {
-      command+=3; len-=3; 
-      if( *command==':' ) { command++; len--; }
-      if( len>=2 )
-        {
-          word addr = ((byte) command[0]) + (((byte) command[1])<<8);
-          len  = len<3 ? 1 : command[2];
-#if DEBUG>0
-          Serial.print(F("MEMREAD ")); Serial.print(addr); Serial.write(':'); Serial.println(len, HEX); 
-#endif
-          if( addr==0xFFFF && len==1 )
-            {
-              // identify as C1541
-              byte data[2] = {254, 0};
-              setStatus((char *) data, 2);
-            }
-          else
-            m_ferror = FR_MEMOP; // general memory read not supported
-        }
-      else
-        m_ferror = FR_INVALID_PARAMETER;
-    }
-  else if( strncmp(command, "M-E", 3)==0 )
-    m_ferror = FR_MEMOP;
   else if( strncmp_P(command, PSTR("MD:"), 3)==0 )
     {
       startDiskOp();
@@ -609,9 +561,9 @@ void IECFDC::execute(const char *command, byte len)
 }
 
 
-void IECFDC::getStatus(char *buffer, byte bufferSize)
+void IECFDC::getStatus(char *buffer, uint8_t bufferSize)
 {
-  byte code = 0;
+  uint8_t code = 0;
   const char *message = NULL;
   switch( m_ferror )
     {
@@ -627,7 +579,6 @@ void IECFDC::getStatus(char *buffer, byte bufferSize)
     case FR_WRITE_PROTECTED:     { code = 26; message = PSTR("WRITE PROTECT ON"); break; }
     case FR_DENIED:              { code = 81; message = PSTR("PERMISSION DENIED"); break; }
     case FR_INVALID_PARAMETER:   { code = 33; message = PSTR("SYNTAX ERROR"); break; }
-    case FR_MEMOP:               { code = 93; message = PSTR("MEMOPS NOT SUPPORTED"); break; }
     case FR_NOT_ENOUGH_CORE:     { code = 95; message = PSTR("OUT OF MEMORY"); break; }
     case FR_TOO_MANY_OPEN_FILES: { code = 96; message = PSTR("TOO MANY OPEN FILES"); break; }
     case FR_INVALID_NAME:        { code = 97; message = PSTR("INVALID NAME"); break; }
@@ -637,7 +588,7 @@ void IECFDC::getStatus(char *buffer, byte bufferSize)
     }
 
   if( code<2 || code==73 ) m_errorSector = 0;
-  byte i = 0;
+  uint8_t i = 0;
   buffer[i++] = '0' + (code / 10);
   buffer[i++] = '0' + (code % 10);
   buffer[i++] = ',';

@@ -19,20 +19,21 @@
 #ifndef IECBUSHANDLER_H
 #define IECBUSHANDLER_H
 
-#include <Arduino.h>
 #include "IECConfig.h"
-
+#include <stdint.h>
 
 #if defined(__AVR__)
 #define IOREG_TYPE uint8_t
 #elif defined(ARDUINO_UNOR4_MINIMA) || defined(ARDUINO_UNOR4_WIFI)
 #define IOREG_TYPE uint16_t
-#elif defined(ARDUINO_ARCH_ESP32) || defined(__SAM3X8E__)
+#elif defined(__SAM3X8E__) || defined(ESP_PLATFORM)
 #define IOREG_TYPE uint32_t
 #endif
 
-#ifndef NOT_AN_INTERRUPT
-#define NOT_AN_INTERRUPT -1
+#if defined(ESP_PLATFORM) && !defined(ARDUINO)
+#define INTERRUPT_FCN_ARG void *
+#else
+#define INTERRUPT_FCN_ARG
 #endif
 
 class IECDevice;
@@ -44,7 +45,7 @@ class IECBusHandler
   // (e.g. 2 or 3 on the Arduino UNO), if not then make sure the task() function
   // gets called at least once evey millisecond, otherwise "device not present" 
   // errors may result
-  IECBusHandler(byte pinATN, byte pinCLK, byte pinDATA, byte pinRESET = 0xFF, byte pinCTRL = 0xFF);
+  IECBusHandler(uint8_t pinATN, uint8_t pinCLK, uint8_t pinDATA, uint8_t pinRESET = 0xFF, uint8_t pinCTRL = 0xFF);
 
   // must be called once at startup before the first call to "task", devnr
   // is the IEC bus device number that this device should react to
@@ -62,7 +63,7 @@ class IECBusHandler
 #if (defined(SUPPORT_JIFFY) || defined(SUPPORT_DOLPHIN) || defined(SUPPORT_EPYX)) && !defined(IEC_DEFAULT_FASTLOAD_BUFFER_SIZE)
   // if IEC_DEFAULT_FASTLOAD_BUFFER_SIZE is set to 0 then the buffer space used
   // by fastload protocols can be set dynamically using the setBuffer function.
-  void setBuffer(byte *buffer, byte bufferSize);
+  void setBuffer(uint8_t *buffer, uint8_t bufferSize);
 #endif
 
 #ifdef SUPPORT_JIFFY 
@@ -76,8 +77,8 @@ class IECBusHandler
 
 #ifdef SUPPORT_DOLPHIN
   // call this BEFORE begin() if you do not want to use the default pins for the DolphinDos cable
-  void setDolphinDosPins(byte pinHT, byte pinHR, byte pinD0, byte pinD1, byte pinD2, byte pinD3, 
-                         byte pinD4, byte pinD5, byte pinD6, byte pinD7);
+  void setDolphinDosPins(uint8_t pinHT, uint8_t pinHR, uint8_t pinD0, uint8_t pinD1, uint8_t pinD2, uint8_t pinD3, 
+                         uint8_t pinD4, uint8_t pinD5, uint8_t pinD6, uint8_t pinD7);
 
   bool enableDolphinDosSupport(IECDevice *dev, bool enable);
   void enableDolphinBurstMode(IECDevice *dev, bool enable);
@@ -85,15 +86,16 @@ class IECBusHandler
   void dolphinBurstTransmitRequest(IECDevice *dev);
 #endif
 
-  IECDevice *findDevice(byte devnr);
+  IECDevice *findDevice(uint8_t devnr, bool includeInactive = false);
   bool canServeATN();
+  bool inTransaction();
 
   IECDevice *m_currentDevice;
   IECDevice *m_devices[MAX_DEVICES];
 
-  byte m_numDevices;
+  uint8_t m_numDevices;
   int  m_atnInterrupt;
-  byte m_pinATN, m_pinCLK, m_pinDATA, m_pinRESET, m_pinCTRL;
+  uint8_t m_pinATN, m_pinCLK, m_pinDATA, m_pinRESET, m_pinCTRL;
 
  private:
   inline bool readPinATN();
@@ -103,19 +105,20 @@ class IECBusHandler
   inline void writePinCLK(bool v);
   inline void writePinDATA(bool v);
   void writePinCTRL(bool v);
-  bool waitTimeoutFrom(uint32_t start, uint16_t timeout);
-  bool waitTimeout(uint16_t timeout);
+  bool waitTimeout(uint16_t timeout, uint8_t cond = 0);
   bool waitPinDATA(bool state, uint16_t timeout = 1000);
   bool waitPinCLK(bool state, uint16_t timeout = 1000);
 
   void atnRequest();
+  bool receiveIECByteATN(uint8_t &data);
   bool receiveIECByte(bool canWriteOk);
-  bool transmitIECByte(byte numData);
+  bool transmitIECByte(uint8_t numData);
 
   volatile uint16_t m_timeoutDuration; 
   volatile uint32_t m_timeoutStart;
   volatile bool m_inTask;
-  volatile byte m_flags, m_primary, m_secondary;
+  volatile uint8_t m_flags;
+  uint8_t m_primary, m_secondary;
 
 #ifdef IOREG_TYPE
   volatile IOREG_TYPE *m_regCLKwrite, *m_regCLKmode, *m_regDATAwrite, *m_regDATAmode;
@@ -125,12 +128,12 @@ class IECBusHandler
 
 #ifdef SUPPORT_JIFFY 
   bool receiveJiffyByte(bool canWriteOk);
-  bool transmitJiffyByte(byte numData);
-  bool transmitJiffyBlock(byte *buffer, byte numBytes);
+  bool transmitJiffyByte(uint8_t numData);
+  bool transmitJiffyBlock(uint8_t *buffer, uint8_t numBytes);
 #endif
 
 #ifdef SUPPORT_DOLPHIN
-  bool transmitDolphinByte(byte numData);
+  bool transmitDolphinByte(uint8_t numData);
   bool receiveDolphinByte(bool canWriteOk);
   bool transmitDolphinBurst();
   bool receiveDolphinBurst();
@@ -140,14 +143,15 @@ class IECBusHandler
   void parallelBusHandshakeTransmit();
   void setParallelBusModeInput();
   void setParallelBusModeOutput();
-  byte readParallelData();
-  void writeParallelData(byte data);
+  bool parallelCableDetect();
+  uint8_t readParallelData();
+  void writeParallelData(uint8_t data);
   void enableParallelPins();
-  bool isDolphinPin(byte pin);
+  bool isDolphinPin(uint8_t pin);
 
-  byte m_pinDolphinHandshakeTransmit;
-  byte m_pinDolphinHandshakeReceive;
-  byte m_dolphinCtr, m_pinDolphinParallel[8];
+  uint8_t m_pinDolphinHandshakeTransmit;
+  uint8_t m_pinDolphinHandshakeReceive;
+  uint8_t m_dolphinCtr, m_pinDolphinParallel[8];
 
 #ifdef IOREG_TYPE
   volatile IOREG_TYPE *m_regDolphinHandshakeTransmitMode;
@@ -161,32 +165,32 @@ class IECBusHandler
 #endif
 
 #ifdef SUPPORT_EPYX
-  bool receiveEpyxByte(byte &data);
-  bool transmitEpyxByte(byte data);
+  bool receiveEpyxByte(uint8_t &data);
+  bool transmitEpyxByte(uint8_t data);
   bool receiveEpyxHeader();
   bool transmitEpyxBlock();
 #ifdef SUPPORT_EPYX_SECTOROPS
-  bool startEpyxSectorCommand(byte command);
+  bool startEpyxSectorCommand(uint8_t command);
   bool finishEpyxSectorCommand();
 #endif
 #endif
   
 #if defined(SUPPORT_JIFFY) || defined(SUPPORT_DOLPHIN) || defined(SUPPORT_EPYX)
-  byte m_bufferSize;
+  uint8_t m_bufferSize;
 #if IEC_DEFAULT_FASTLOAD_BUFFER_SIZE>0
 #if defined(SUPPORT_EPYX) && defined(SUPPORT_EPYX_SECTOROPS)
-  byte  m_buffer[256];
+  uint8_t  m_buffer[256];
 #else
-  byte  m_buffer[IEC_DEFAULT_FASTLOAD_BUFFER_SIZE];
+  uint8_t  m_buffer[IEC_DEFAULT_FASTLOAD_BUFFER_SIZE];
 #endif
 #else
-  byte *m_buffer;
+  uint8_t *m_buffer;
 #endif
 #endif
 
   static IECBusHandler *s_bushandler1,  *s_bushandler2;
-  static void atnInterruptFcn1();
-  static void atnInterruptFcn2();
+  static void atnInterruptFcn1(INTERRUPT_FCN_ARG);
+  static void atnInterruptFcn2(INTERRUPT_FCN_ARG);
 };
 
 #endif

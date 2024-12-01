@@ -26,35 +26,35 @@
 class IECFDC : public IECFileDevice
 {
  public: 
-  IECFDC(byte devnr, byte pinLED);
+  IECFDC(uint8_t devnr, uint8_t pinLED);
   virtual void begin();
   virtual void task();
 
  protected:
-  virtual void open(byte channel, const char *name);
-  virtual byte write(byte channel, byte *buffer, byte bufferSize);
-  virtual byte read(byte channel, byte *buffer, byte bufferSize);
-  virtual void close(byte channel);
-  virtual void getStatus(char *buffer, byte bufferSize);
-  virtual void execute(const char *command, byte len);
+  virtual void open(uint8_t channel, const char *name);
+  virtual uint8_t write(uint8_t channel, uint8_t *buffer, uint8_t bufferSize);
+  virtual uint8_t read(uint8_t channel, uint8_t *buffer, uint8_t bufferSize);
+  virtual void close(uint8_t channel);
+  virtual void getStatus(char *buffer, uint8_t bufferSize);
+  virtual void execute(const char *command, uint8_t len);
   virtual void reset();
 
  private:
-  void openFile(byte channel, const char *name);
+  void openFile(uint8_t channel, const char *name);
   void openDir(const char *name);
-  bool readDir(byte *data);
+  bool readDir(uint8_t *data);
 
   void startDiskOp();
-  void format(const char *name, bool lowLevel, byte interleave);
+  void format(const char *name, bool lowLevel, uint8_t interleave);
   char *findFile(char *fname);
 
   FATFS m_fatFs;
   FIL   m_fatFsFile;
   
   FRESULT m_ferror;
-  byte m_errorTrack, m_errorSector;
-  byte m_curCmd, m_pinLED;
-  byte m_dir, m_dirBufferLen, m_dirBufferPtr;
+  uint8_t m_errorTrack, m_errorSector;
+  uint8_t m_curCmd, m_pinLED;
+  uint8_t m_dir, m_dirBufferLen, m_dirBufferPtr;
 };
 
 #endif

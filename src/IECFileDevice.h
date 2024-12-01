@@ -21,10 +21,11 @@
 
 #include "IECDevice.h"
 
+
 class IECFileDevice : public IECDevice
 {
  public:
-  IECFileDevice(byte devnr);
+  IECFileDevice(uint8_t devnr = 0xFF);
 
  protected:
   // --- override the following functions in your device class:
@@ -36,74 +37,83 @@ class IECFileDevice : public IECDevice
   virtual void task();
 
   // open file "name" on channel
-  virtual void open(byte channel, const char *name) {}
+  virtual void open(uint8_t channel, const char *name) {}
 
   // close file on channel
-  virtual void close(byte channel) {}
+  virtual void close(uint8_t channel) {}
 
   // write bufferSize bytes to file on channel, returning the number of bytes written
   // Returning less than bufferSize signals "cannot receive more data" for this file
-  virtual byte write(byte channel, byte *buffer, byte bufferSize) { return 0; }
+  virtual uint8_t write(uint8_t channel, uint8_t *buffer, uint8_t bufferSize) { return 0; }
 
   // read up to bufferSize bytes from file in channel, returning the number of bytes read
   // returning 0 will signal end-of-file to the receiver. Returning 0
   // for the FIRST call after open() signals an error condition
   // (e.g. C64 load command will show "file not found")
-  virtual byte read(byte channel, byte *buffer, byte bufferSize) { return 0; }
+  virtual uint8_t read(uint8_t channel, uint8_t *buffer, uint8_t bufferSize) { return 0; }
+
+  // called when the bus master reads from channel 15, the status
+  // buffer is currently empty and getStatusData() is not overloaded. 
+  // This should populate buffer with an appropriate status message,
+  // bufferSize is the maximum allowed length of the message
+  // the data in the buffer should be a null-terminated string
+  virtual void getStatus(char *buffer, uint8_t bufferSize) { *buffer=0; }
 
   // called when the bus master reads from channel 15 and the status
-  // buffer is currently empty. this should populate buffer with an appropriate 
-  // status message bufferSize is the maximum allowed length of the message
-  virtual void getStatus(char *buffer, byte bufferSize) { *buffer=0; }
+  // buffer is currently empty, this should 
+  // - fill buffer with up to bufferSize bytes of data
+  // - return the number of data bytes stored in the buffer
+  // The default implementation of getStatusData just calls getStatus().
+  virtual uint8_t getStatusData(char *buffer, uint8_t bufferSize);
 
   // called when the bus master sends data (i.e. a command) to channel 15
   // command is a 0-terminated string representing the command to execute
   // commandLen contains the full length of the received command (useful if
   // the command itself may contain zeros)
-  virtual void execute(const char *command, byte cmdLen) {}
+  virtual void execute(const char *command, uint8_t cmdLen) {}
 
   // called on falling edge of RESET line
   virtual void reset();
 
-  // can be called by derived class to set the status buffer (dataLen max 32 bytes)
-  void setStatus(char *data, byte dataLen);
+  // can be called by derived class to set the status buffer
+  void setStatus(const char *data, uint8_t dataLen);
 
   // can be called by derived class to clear the status buffer, causing readStatus()
   // to be called again the next time the status channel is queried
-  void clearStatus() { setStatus(NULL, 0); }
+  void clearStatus();
 
 #if defined(SUPPORT_EPYX) && defined(SUPPORT_EPYX_SECTOROPS)
-  virtual bool epyxReadSector(byte track, byte sector, byte *buffer);
-  virtual bool epyxWriteSector(byte track, byte sector, byte *buffer);
+  virtual bool epyxReadSector(uint8_t track, uint8_t sector, uint8_t *buffer);
+  virtual bool epyxWriteSector(uint8_t track, uint8_t sector, uint8_t *buffer);
 #endif
 
  private:
 
-  virtual void talk(byte secondary);
-  virtual void listen(byte secondary);
+  virtual void talk(uint8_t secondary);
+  virtual void listen(uint8_t secondary);
   virtual void untalk();
   virtual void unlisten();
   virtual int8_t canWrite();
   virtual int8_t canRead();
-  virtual void write(byte data, bool eoi);
-  virtual byte write(byte *buffer, byte bufferSize, bool eoi);
-  virtual byte read();
-  virtual byte read(byte *buffer, byte bufferSize);
-  virtual byte peek();
+  virtual void write(uint8_t data, bool eoi);
+  virtual uint8_t write(uint8_t *buffer, uint8_t bufferSize, bool eoi);
+  virtual uint8_t read();
+  virtual uint8_t read(uint8_t *buffer, uint8_t bufferSize);
+  virtual uint8_t peek();
 
   void fileTask();
-  bool checkMWcmd(uint16_t addr, byte len, byte checksum) const;
+  bool checkMWcmd(uint16_t addr, uint8_t len, uint8_t checksum) const;
 
   bool   m_opening, m_canServeATN;
-  byte   m_channel, m_cmd;
-  char   m_nameBuffer[41];
+  uint8_t   m_channel, m_cmd;
+  char   m_nameBuffer[IECFILEDEVICE_NAME_BUFFER_SIZE];
 
-  byte   m_dataBuffer[15][2];
+  uint8_t   m_dataBuffer[15][2];
   int8_t m_statusBufferLen, m_statusBufferPtr, m_nameBufferLen, m_dataBufferLen[15];
-  char   m_statusBuffer[32];
+  char   m_statusBuffer[IECFILEDEVICE_STATUS_BUFFER_SIZE];
 
 #ifdef SUPPORT_EPYX
-  byte m_epyxCtr;
+  uint8_t m_epyxCtr;
 #endif
 };
 

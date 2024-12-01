@@ -19,8 +19,8 @@
 #ifndef IECDEVICE_H
 #define IECDEVICE_H
 
-#include <Arduino.h>
 #include "IECConfig.h"
+#include <stdint.h>
 
 class IECBusHandler;
 
@@ -33,10 +33,10 @@ class IECDevice
   // (e.g. 2 or 3 on the Arduino UNO), if not then make sure the task() function
   // gets called at least once evey millisecond, otherwise "device not present" 
   // errors may result
-  IECDevice(byte devnr = 0xFF);
+  IECDevice(uint8_t devnr = 0xFF);
 
   // call this to change the device number
-  void setDeviceNumber(byte devnr);
+  void setDeviceNumber(uint8_t devnr);
 
 #ifdef SUPPORT_JIFFY 
   // call this to enable or disable JiffyDOS support for your device.
@@ -67,11 +67,11 @@ class IECDevice
 
   // called when bus master sends TALK command
   // talk() must return within 1 millisecond
-  virtual void talk(byte secondary)   {}
+  virtual void talk(uint8_t secondary)   {}
 
   // called when bus master sends LISTEN command
   // listen() must return within 1 millisecond
-  virtual void listen(byte secondary) {}
+  virtual void listen(uint8_t secondary) {}
 
   // called when bus master sends UNTALK command
   // untalk() must return within 1 millisecond
@@ -104,19 +104,19 @@ class IECDevice
   // write() must return within 1 millisecond
   // the "eoi" parameter will be "true" if sender signaled that this is the last 
   // data byte of a transmission
-  virtual void write(byte data, bool eoi) {}
+  virtual void write(uint8_t data, bool eoi) {}
 
   // called when the device is sending data
   // read() will only be called if the last call to canRead() returned >0
   // read() is allowed to take an indefinite amount of time
-  virtual byte read() { return 0; }
+  virtual uint8_t read() { return 0; }
 
 #if defined(SUPPORT_JIFFY) || defined(SUPPORT_DOLPHIN)
   // called when the device is sending data using JiffyDOS byte-by-byte protocol
   // peek() will only be called if the last call to canRead() returned >0
   // peek() should return the next character that will be read with read()
   // peek() is allowed to take an indefinite amount of time
-  virtual byte peek() { return 0; }
+  virtual uint8_t peek() { return 0; }
 #endif
 
 #ifdef SUPPORT_DOLPHIN
@@ -128,7 +128,7 @@ class IECDevice
   // the default implementation within IECDevice uses the canWrite() and write(data,eoi) functions,
   // which is not efficient.
   // it is highly recommended to override this function in devices supporting DolphinDos
-  virtual byte write(byte *buffer, byte bufferSize, bool eoi);
+  virtual uint8_t write(uint8_t *buffer, uint8_t bufferSize, bool eoi);
 #endif
 
 #if defined(SUPPORT_JIFFY) || defined(SUPPORT_DOLPHIN) || defined(SUPPORT_EPYX)
@@ -140,14 +140,14 @@ class IECDevice
   // the default implementation within IECDevice uses the canRead() and read() functions,
   // which is not efficient.
   // it is highly recommended to override this function in devices supporting JiffyDos or DolphinDos.
-  virtual byte read(byte *buffer, byte bufferSize);
+  virtual uint8_t read(uint8_t *buffer, uint8_t bufferSize);
 #endif
 
 #if defined(SUPPORT_EPYX) && defined(SUPPORT_EPYX_SECTOROPS)
   // these functions are experimental, they are called when the Epyx Cartridge uses
   // sector read/write operations (disk editor, disk copy or file copy).
-  virtual bool epyxReadSector(byte track, byte sector, byte *buffer)  { return false; }
-  virtual bool epyxWriteSector(byte track, byte sector, byte *buffer) { return false; }
+  virtual bool epyxReadSector(uint8_t track, uint8_t sector, uint8_t *buffer)  { return false; }
+  virtual bool epyxWriteSector(uint8_t track, uint8_t sector, uint8_t *buffer) { return false; }
 #endif
 
 #ifdef SUPPORT_DOLPHIN 
@@ -171,8 +171,15 @@ class IECDevice
   void epyxLoadRequest();
 #endif
 
+  // this can be overloaded by derived classes
+  virtual bool isActive() { return m_isActive; }
+
+  // if isActive() is not overloaded then use this to activate/deactivate a device
+  void setActive(bool b) { m_isActive = b; }
+
  protected:
-  byte    m_devnr;
+  bool       m_isActive;
+  uint8_t    m_devnr;
   uint16_t m_sflags;
   IECBusHandler *m_handler;
 };

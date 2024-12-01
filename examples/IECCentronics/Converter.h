@@ -40,10 +40,10 @@ class Converter
   virtual void end() {}
 
   // called to set current channel number
-  virtual void setChannel(byte channel) {}
+  virtual void setChannel(uint8_t channel) {}
 
   // called for simple one-to-one byte conversion 
-  virtual byte convert(byte inData) { return inData; }
+  virtual uint8_t convert(uint8_t inData) { return inData; }
 
   // called for more complex conversions => must dequeue and enqueue data manually
   // calls simple conversion function if not overridden
@@ -55,9 +55,9 @@ class Converter
 
   // called when bus master reads the status channel (15), should fill buffer[]
   // a status message.
-  virtual void getStatus(char buffer[], byte bufLen)
+  virtual void getStatus(char buffer[], uint8_t bufLen)
   {
-    byte status = printerStatus();
+    uint8_t status = printerStatus();
 
     if( status & PRINTER_READY )
       strncpy_P(buffer, PSTR("00,READY\r"), bufLen);
@@ -78,14 +78,14 @@ class Converter
   void init(IECCentronics *controller) { m_controller = controller; }
 
  protected:
-  byte printerStatus() { return (m_controller->readShiftRegister() >> 4) ^ PRINTER_READY; }
+  uint8_t printerStatus() { return (m_controller->readShiftRegister() >> 4) ^ PRINTER_READY; }
 
-  int  canRead()       { return m_controller->m_receive.availableToRead(); }
-  byte read()          { return m_controller->m_receive.dequeue(); }
-  bool canReceive()    { return !m_controller->m_receive.full(); }
+  int  canRead()        { return m_controller->m_receive.availableToRead(); }
+  uint8_t read()        { return m_controller->m_receive.dequeue(); }
+  bool canReceive()     { return !m_controller->m_receive.full(); }
   
-  int  canWrite()      { return m_controller->m_send.availableToWrite(); }
-  bool write(byte b)   { return m_controller->m_send.enqueue(b); }
+  int  canWrite()       { return m_controller->m_send.availableToWrite(); }
+  bool write(uint8_t b) { return m_controller->m_send.enqueue(b); }
 
  private:
   IECCentronics *m_controller;

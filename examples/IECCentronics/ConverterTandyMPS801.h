@@ -27,13 +27,13 @@ class ConverterTandyMPS801 : public Converter
   ConverterTandyMPS801();
 
   virtual void begin();
-  virtual void setChannel(byte channel);
+  virtual void setChannel(uint8_t channel);
 
   virtual void convert();
   
  private:
-  byte m_mode;
-  byte m_cmdbytes;
+  uint8_t m_mode;
+  uint8_t m_cmdbytes;
   unsigned short m_dotcolumn;
 };
 

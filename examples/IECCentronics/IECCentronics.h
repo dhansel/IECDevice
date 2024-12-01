@@ -29,17 +29,17 @@ class Converter;
 class SimpleQueue
 {
  public:
-  SimpleQueue()           { m_start = 0; m_end = 0; }
+  SimpleQueue()              { m_start = 0; m_end = 0; }
 
-  bool empty()            { return m_end == m_start; }
-  bool full()             { return byte(m_end+1) == m_start; }
-  int  availableToRead()  { return (m_end-m_start) & 0xFF; }
-  int  availableToWrite() { return m_start == m_end ? 256 : ((m_start-m_end-1)&0xFF); }
-  bool enqueue(byte data) { return full()  ? false : (m_data[m_end++] = data, true); }
-  byte dequeue()          { return empty() ? 0xFF  : m_data[m_start++]; }
+  bool empty()               { return m_end == m_start; }
+  bool full()                { return uint8_t(m_end+1) == m_start; }
+  int  availableToRead()     { return (m_end-m_start) & 0xFF; }
+  int  availableToWrite()    { return m_start == m_end ? 256 : ((m_start-m_end-1)&0xFF); }
+  bool enqueue(uint8_t data) { return full()  ? false : (m_data[m_end++] = data, true); }
+  uint8_t dequeue()          { return empty() ? 0xFF  : m_data[m_start++]; }
 
  private:
-  byte m_start, m_end, m_data[256];
+  uint8_t m_start, m_end, m_data[256];
 };
 
 
@@ -51,7 +51,7 @@ class IECCentronics : public IECDevice
  public: 
   IECCentronics();
 
-  void setConverter(byte i, Converter *handler);
+  void setConverter(uint8_t i, Converter *handler);
 
   bool printerBusy();
   bool printerOutOfPaper();
@@ -59,28 +59,28 @@ class IECCentronics : public IECDevice
   bool printerSelect();
 
  protected:
-  virtual void   begin();
-  virtual void   task();
-  virtual void   listen(byte secondary);
-  virtual void   talk(byte secondary);
-  virtual void   unlisten();
-  virtual int8_t canWrite();
-  virtual void   write(byte data, bool eoi);
-  virtual int8_t canRead();
-  virtual byte   read();
+  virtual void    begin();
+  virtual void    task();
+  virtual void    listen(uint8_t secondary);
+  virtual void    talk(uint8_t secondary);
+  virtual void    unlisten();
+  virtual int8_t  canWrite();
+  virtual void    write(uint8_t data, bool eoi);
+  virtual int8_t  canRead();
+  virtual uint8_t read();
 
  private:
   void printerReadySig();
-  void sendByte(byte data);
-  byte readShiftRegister();
-  byte readDIP();
+  void sendByte(uint8_t data);
+  uint8_t readShiftRegister();
+  uint8_t readDIP();
   bool printerReady();
   void handleInputMPS801();
 
-  byte m_mode, m_channel;
+  uint8_t m_mode, m_channel;
   Converter *m_converters[8];
 
-  byte m_cmdBufferLen, m_cmdBufferPtr, m_statusBufferLen, m_statusBufferPtr;
+  uint8_t m_cmdBufferLen, m_cmdBufferPtr, m_statusBufferLen, m_statusBufferPtr;
   char m_cmdBuffer[BUFSIZE], m_statusBuffer[BUFSIZE];
 
   bool m_ready;

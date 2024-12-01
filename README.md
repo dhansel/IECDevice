@@ -98,10 +98,10 @@ class IECBasicSerial : public IECDevice
   IECBasicSerial();
 
   virtual int8_t canRead();
-  virtual byte   read();
+  virtual uint8_t   read();
 
   virtual int8_t canWrite();
-  virtual void   write(byte data, bool eoi);
+  virtual void   write(uint8_t data, bool eoi);
 };
 ```
 
@@ -117,7 +117,7 @@ address on the IEC bus (6).
 
 ```
 int8_t IECBasicSerial::canRead() {
-  byte n = Serial.available();
+  uint8_t n = Serial.available();
   return n>1 ? 2 : n;
 }
 ```
@@ -130,7 +130,7 @@ blocking the bus until we have something to send. That would prevent us from rec
 data on the bus.
 
 ```
-byte IECBasicSerial::read() { 
+uint8_t IECBasicSerial::read() { 
   return Serial.read();
 }
 ```
@@ -149,7 +149,7 @@ This will cause canWrite() to be called again until we are ready and return 1.
 Alternatively we could just wait within this function until we are ready.
 
 ```
-void IECBasicSerial::write(byte data, bool eoi) { 
+void IECBasicSerial::write(uint8_t data, bool eoi) { 
   Serial.write(data);
 }
 ```
@@ -228,10 +228,10 @@ class IECBasicSD : public IECFileDevice
 
  protected:
   virtual void begin();
-  virtual void open(byte channel, const char *name);
-  virtual byte read(byte channel, byte *buffer, byte bufferSize);
-  virtual byte write(byte channel, byte *buffer, byte n);
-  virtual void close(byte channel);
+  virtual void open(uint8_t channel, const char *name);
+  virtual uint8_t read(uint8_t channel, uint8_t *buffer, uint8_t bufferSize);
+  virtual uint8_t write(uint8_t channel, uint8_t *buffer, uint8_t n);
+  virtual void close(uint8_t channel);
 
  private:
   SdFat  m_sd;
@@ -263,7 +263,7 @@ interface, using pin 10 for CS. Note that we must also call the IECFileDevice::b
 function to properly initialize the device.
 
 ```
-void IECBasicSD::open(byte channel, const char *name)
+void IECBasicSD::open(uint8_t channel, const char *name)
 {
   m_file.open(name, channel==0 ? O_RDONLY : (O_WRONLY | O_CREAT));
 }
@@ -276,7 +276,7 @@ For more information on this see the description of the open() function in
 [IECFileDevice Class Reference](#iecfiledevice-class-reference) section below.
 
 ```
-byte IECBasicSD::read(byte channel, byte *buffer, byte bufferSize)
+uint8_t IECBasicSD::read(uint8_t channel, uint8_t *buffer, uint8_t bufferSize)
 {
   return m_file.isOpen() ? m_file.read(buffer, bufferSize) : 0;
 }
@@ -289,7 +289,7 @@ Returning 0 on the first call after "open()" signals that there was an
 error opening the file.
 
 ```
-byte IECBasicSD::write(byte channel, byte *buffer, byte n)
+uint8_t IECBasicSD::write(uint8_t channel, uint8_t *buffer, uint8_t n)
 {
   return m_file.isOpen() ? m_file.write(buffer, n) : 0;
 }
@@ -300,7 +300,7 @@ for the given channel number and return the number of bytes written. Returning a
 than n signals an error condition.
 
 ```
-void IECBasicSD::close(byte channel)
+void IECBasicSD::close(uint8_t channel)
 {
   m_file.close(); 
 }
@@ -343,7 +343,7 @@ section for a detailed description of these functions.
 The IECBusHandler class facilitates the bus communication and will call the read/write functions
 in its attached device(s) when necessary.
 
-- ```IECBusHandler(byte pinATN, byte pinCLK, byte pinDATA, byte pinRESET = 0xFF, byte pinCTRL = 0xFF)```  
+- ```IECBusHandler(uint8_t pinATN, uint8_t pinCLK, uint8_t pinDATA, uint8_t pinRESET = 0xFF, uint8_t pinCTRL = 0xFF)```  
   The IECBusHandler constructor defines the pins to which the IEC bus signals are connected. The pinRESET parameter is optional,
   if not given, the device will simply not respond to a bus reset. The pinCTRL parameter (also optional) is helpful
   for applications where the microcontroller may not be able to respond quickly enough to ATN requests 
@@ -381,14 +381,18 @@ in its attached device(s) when necessary.
 
 The IECDevice class has the following functions that may/must be called from your code:
 
-- ```IECDevice(byte devnum)```  
+- ```IECDevice(uint8_t devnum)```  
   Constructor for the IECDevice class, devnum is the IEC bus device number that the device should 
   respond to. Valid device numbers on the IEC bus range from 4 to 30.
 
-- ```void setDeviceNumber(byte devnum)```
+- ```void setDeviceNumber(uint8_t devnum)```
   Changes the device's device number on the IEC bus. Valid device numbers on the IEC bus
   range from 4 to 30. This function can be called at any time, the device will respond to
   the new device number immediately at the next bus transmission.
+
+- ```void setActive(bool active)```
+  Allows to deactivate a device without detaching it from the bus entirely. An inactive
+  device will not respond to any bus requests.
 
 - ```void enableJiffyDosSupport(bool enable)```  
   This function must be called **if** your device should support the JiffyDos protocol.
@@ -433,7 +437,7 @@ canWrite() and write() functions need to be overloaded.
   Returning 0 signals that there is no data to read.  
   Returning 1 signals that there is **exactly** one byte of data left to read.  
   Returning 2 signals that there are two or more bytes of data left to read.
-- ```byte read()```  
+- ```uint8_t read()```  
   This function is called **only** if the previous call to canRead() returned a value greater than 0.
   read() must return the next data byte.
 - ```int8_t canWrite()```  
@@ -445,17 +449,17 @@ canWrite() and write() functions need to be overloaded.
   Returning 0 signals that we are not able to accept more data.  
   Returning 1 signals that we can accept data.  
   canWrite() should **only** return 1 if the device is ready to receive and process the data immediately.
-- ```void write(byte data, bool eoi)``` 
+- ```void write(uint8_t data, bool eoi)``` 
   This function is called **only** if the previous call to canWrite() returned 1. The data argument
   is the data byte received on the bus. Note that the write() function must process the data and return 
   immediately (within 1 millisecond), otherwise bus timing errors may occur. 
   The eoi argument will be "true" if the host indicated that this is the last byte of a trasmission.
-- ```void listen(byte secondary)```  
+- ```void listen(uint8_t secondary)```  
   Called when the bus controller (computer) issues a LISTEN command, i.e. is about to send data to the device.
   This function must return immediately (within 1 millisecond), otherwise bus timing errors may occur. 
 - ```void unlisten()```  
   Called when the bus controller (computer) issues an UNLISTEN command, i.e. is done sending data.
-- ```void talk(byte secondary) ```  
+- ```void talk(uint8_t secondary) ```  
   Called when the bus controller (computer) issues a TALK command, i.e. is requesting data from the device.
   This function must return immediately (within 1 millisecond), otherwise bus timing errors may occur. 
 - ```void untalk()```  
@@ -470,12 +474,12 @@ In most cases devices with JiffyDos support should be derived from the IECFileDe
 which handles JiffyDos support internally and you do not have to implement these functions.
 For more information see the [JiffyDos support](jiffydos-support) section below.
 
-- ```byte peek()```  
+- ```uint8_t peek()```  
   Called when the device is sending data using JiffyDos byte-by-byte protocol.  
   peek() will only be called if the last call to canRead() returned >0.  
   peek() should return the next character that will be read with read().  
   peek() is allowed to take an indefinite amount of time.  
-- ```byte read(byte *buffer, byte bufferSize)```  
+- ```uint8_t read(uint8_t *buffer, uint8_t bufferSize)```  
   This function is called when the device is sending data using the JiffyDos block transfer (LOAD protocol).
   read() should fill the buffer with as much data as possible (up to bufferSize).
   read() must return the number of bytes put into the buffer
@@ -487,7 +491,7 @@ In most cases devices with Epyx FastLoad support should be derived from the IECF
 which handles Epyx FastLoad support internally and you do not have to implement these functions.
 For more information see the [Epyx FastLoad support](epyx-fastload-support) section below.
 
-- ```byte read(byte *buffer, byte bufferSize)```  
+- ```uint8_t read(uint8_t *buffer, uint8_t bufferSize)```  
   This function is called when the device is sending data using the Epyx FastLoad block transfer (LOAD protocol).
   read() should fill the buffer with as much data as possible (up to bufferSize).
   read() must return the number of bytes put into the buffer
@@ -500,19 +504,19 @@ In most cases devices with DolphinDos support should be derived from the IECFile
 which handles DolphinDos support internally and you do not have to implement these functions.
 For more information see the [DolphinDos support](#dolphindos-support) section below.
 
-- ```byte write(byte *buffer, byte bufferSize, bool eoi)```
+- ```uint8_t write(uint8_t *buffer, uint8_t bufferSize, bool eoi)```
   This function is only called when the device is receiving data using the DolphinDos block transfer (SAVE protocol).
   write() should process all the data in the buffer and return the number of bytes processed.
   Returning a number lower than bufferSize signals an error condition.
   The "eoi" parameter will be "true" if sender signaled that this is the final part of the transmission
   If write() is **not** overloaded, DolphinDos save performance will be several times slower than otherwise.
   write() is allowed to take an indefinite amount of time.
-- ```byte peek()```  
+- ```uint8_t peek()```  
   Called when the device is sending data using DolphinDos byte-by-byte protocol.  
   peek() will only be called if the last call to canRead() returned >0.  
   peek() should return the next character that will be read with read().  
   peek() is allowed to take an indefinite amount of time.  
-- ```byte read(byte *buffer, byte bufferSize)```  
+- ```uint8_t read(uint8_t *buffer, uint8_t bufferSize)```  
   This function is only called when the device is sending data using the DolphinDos block transfer (LOAD protocol).
   read() should fill the buffer with as much data as possible (up to bufferSize).
   read() must return the number of bytes put into the buffer
@@ -531,14 +535,18 @@ For more information see the [DolphinDos support](#dolphindos-support) section b
 
 The IECFileDevice class has the following functions that may/must be called from your code:
 
-- ```IECFileDevice(byte devnum)```  
+- ```IECFileDevice(uint8_t devnum)```  
   Constructor for the IECFileDevice class, devnum is the IEC bus device number that the device should 
   respond to. Valid device numbers on the IEC bus range from 4 to 30.
 
-- ```void setDeviceNumber(byte devnum)```
+- ```void setDeviceNumber(uint8_t devnum)```
   Changes the device's device number on the IEC bus. Valid device numbers on the IEC bus
   range from 4 to 30. This function can be called at any time, the device will respond to
   the new device number immediately at the next bus transmission.
+
+- ```void setActive(bool active)```
+  Allows to deactivate a device without detaching it from the bus entirely. An inactive
+  device will not respond to any bus requests.
 
 The following functions can be overloaded in the derived device class to implement the device functions.
 None of these function are *required*. For example, if your device only receives data then only the
@@ -569,7 +577,7 @@ executes a SAVE command.
   This function will automatically be called on every execution of IECBusHandler::task(), once for all attached devices. 
   It can be used to handle device-specific periodic tasks. 
   If you overload this function, make sure to call IECFileDevice::task() from within your overloaded function.
-- ```void open(byte channel, const char *filename)```  
+- ```void open(uint8_t channel, const char *filename)```  
   This function is called whenever the bus controller (computer) issues an OPEN command.
   The *channel* parameter specifies the channel as described above and the *filename* 
   parameter is a zero-terminated string representing the file name given in the OPEN command.
@@ -587,23 +595,23 @@ executes a SAVE command.
   For SAVEing a program, the computer will never show an error even in the case of failure. It is
   expected that the device signals the error condition separately to the user (e.g. the blinking
   LED on a floppy disk drive).
-- ```void close(byte channel)```  
+- ```void close(uint8_t channel)```  
   Close the file that was previously opened on *channel*. The close() function does not have a 
   return value to signal success or failure since the IEC bus protocol does not include a method 
   to transmit this information.  
-- ```byte read(byte channel, byte *buffer, byte bufferSize)```  
+- ```uint8_t read(uint8_t channel, uint8_t *buffer, uint8_t bufferSize)```  
   Read up to *bufferSize* bytes of data from the file opened for *channel*, returning the number 
   of bytes read. Returning 0 will signal end-of-file to the receiver. Returning 0
   for the FIRST call after open() signals an error condition.
   (LOAD on the computer will show "file not found" in this case)
-- ```byte write(byte channel, byte *buffer, byte bufferSize)```  
+- ```uint8_t write(uint8_t channel, uint8_t *buffer, uint8_t bufferSize)```  
   Write *bufferSize* bytes of data to the file opened for *channel*, returning the number 
   of bytes written. Returning a number less than *bufferSize* signals an error condition.
-- ```void getStatus(char *buffer, byte bufferSize)```  
+- ```void getStatus(char *buffer, uint8_t bufferSize)```  
   Called when the computer reads from channel 15 and the status
   buffer is currently empty. This should populate *buffer* with an appropriate, zero-terminated
   status message of length up to *bufferSize*.
-- ```void execute(const char *command, byte cmdLen)```  
+- ```void execute(const char *command, uint8_t cmdLen)```  
   Called when the computers sends data (i.e. a command) to channel 15.
   The *command* parameter is a 0-terminated string representing the command to execute,
   *commandLen* gives the full length of the received command which can be useful if

@@ -57,13 +57,13 @@
 class IECBasicSerial : public IECDevice
 {
  public:
-  IECBasicSerial(byte devnum) : IECDevice(devnum) {}
+  IECBasicSerial(uint8_t devnum) : IECDevice(devnum) {}
 
-  virtual int8_t canRead();
-  virtual byte   read();
+  virtual int8_t  canRead();
+  virtual uint8_t read();
 
-  virtual int8_t canWrite();
-  virtual void   write(byte data, bool eoi);
+  virtual int8_t  canWrite();
+  virtual void    write(uint8_t data, bool eoi);
 };
 
 
@@ -76,7 +76,7 @@ int8_t IECBasicSerial::canWrite()
 }
 
 
-void IECBasicSerial::write(byte data, bool eoi)
+void IECBasicSerial::write(uint8_t data, bool eoi)
 { 
   // write() will only be called if canWrite() returned >0.
   Serial.write(data);
@@ -89,12 +89,12 @@ int8_t IECBasicSerial::canRead()
   // (error) condition on the bus. If we returned -1 instead then canRead()
   // would be called repeatedly, blocking the bus, until we have something to send.
   // That would prevent us from receiving incoming data on the bus.
-  byte n = Serial.available();
+  uint8_t n = Serial.available();
   return n>1 ? 2 : n;
 }
 
 
-byte IECBasicSerial::read()
+uint8_t IECBasicSerial::read()
 { 
   // read() will only be called if canRead() returned >0.
   return Serial.read();

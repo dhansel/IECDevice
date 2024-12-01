@@ -82,14 +82,14 @@ Fuse bytes (Arduino standard): LOW=0xFF, HIGH=0xDA, EXTENDED=0xFD
 
 #if DEBUG>0
 
-static byte debugcount = 0, debugbuf[16];
+static uint8_t debugcount = 0, debugbuf[16];
 static const char hex[] = "0123456789ABCDEF";
 
 static void printbuf()
 {
 #if DEBUG>=3
   Serial.write(' ');
-  for(byte i=0; i<debugcount; i++)
+  for(uint8_t i=0; i<debugcount; i++)
     {
       Serial.write(isprint(debugbuf[i]) && debugbuf[i]!=10 && debugbuf[i]!=13 ? debugbuf[i] : '.');
       if( i==7 ) Serial.write(' ');
@@ -97,7 +97,7 @@ static void printbuf()
 #endif
 }
 
-void DEBUGDATA(byte data)
+void DEBUGDATA(uint8_t data)
 {
 #if DEBUG==1
   Serial.write(data);
@@ -124,7 +124,7 @@ void DEBUGEND()
 {
   if( debugcount>0 )
     {
-      for(byte i=debugcount; i<16; i++) { Serial.write(' '); Serial.write(' '); Serial.write(' '); }
+      for(uint8_t i=debugcount; i<16; i++) { Serial.write(' '); Serial.write(' '); Serial.write(' '); }
       if( debugcount<8 ) Serial.write(' ');
       printbuf();
       Serial.println();
@@ -152,7 +152,7 @@ IECCentronics::IECCentronics() : IECDevice()
   m_mode = 0xFF;
   m_ready = true;
   s_instance = this;
-  for(byte i=0; i<8; i++) m_converters[i] = NULL;
+  for(uint8_t i=0; i<8; i++) m_converters[i] = NULL;
 }
 
 
@@ -191,7 +191,7 @@ void IECCentronics::begin()
   m_statusBufferPtr = 0;
 
   // initialize converters
-  for(byte i=0; i<8; i++) 
+  for(uint8_t i=0; i<8; i++) 
     if( m_converters[i]==NULL )
       setConverter(i, &s_defaultConverter);
 
@@ -214,7 +214,7 @@ void IECCentronics::begin()
 }
 
 
-void IECCentronics::setConverter(byte i, Converter *converter)
+void IECCentronics::setConverter(uint8_t i, Converter *converter)
 {
   if( i<8 ) 
     {
@@ -229,9 +229,9 @@ void IECCentronics::setConverter(byte i, Converter *converter)
 }
 
 
-byte IECCentronics::readDIP()
+uint8_t IECCentronics::readDIP()
 {
-  static byte dip = 0;
+  static uint8_t dip = 0;
   static unsigned long nextReadTime = 0;
 
   // re-read the shift register every 10 milliseconds
@@ -245,14 +245,14 @@ byte IECCentronics::readDIP()
 }
 
 
-byte IECCentronics::readShiftRegister()
+uint8_t IECCentronics::readShiftRegister()
 {
   // this implementation takes about 8us to read all 8 bits
-  byte res = 0;
+  uint8_t res = 0;
   PORTB &= ~0x04;  // set clock low
   PORTB |=  0x08;  // latch inputs
 
-  for(byte i=0; i<8; i++)
+  for(uint8_t i=0; i<8; i++)
     {
       asm (" nop\n nop\n nop\n nop\n"); // 4 cycles = 250ns delay
       res = res * 2;                    // shift result
@@ -300,7 +300,7 @@ bool IECCentronics::printerSelect()
 }
 
 
-void IECCentronics::sendByte(byte data)
+void IECCentronics::sendByte(uint8_t data)
 {
   PORTC = (PORTC & 0xF0) | (data & 0x0F);
   PORTD = (PORTD & 0x0F) | (data & 0xF0);
@@ -310,7 +310,7 @@ void IECCentronics::sendByte(byte data)
 }
 
 
-void IECCentronics::talk(byte secondary)
+void IECCentronics::talk(uint8_t secondary)
 {
   m_channel = secondary & 0x0F;
 
@@ -322,7 +322,7 @@ void IECCentronics::talk(byte secondary)
 }
 
 
-void IECCentronics::listen(byte secondary)
+void IECCentronics::listen(uint8_t secondary)
 {
   m_channel = secondary & 0x0F;
 
@@ -355,7 +355,7 @@ int8_t IECCentronics::canWrite()
 }
 
 
-void IECCentronics::write(byte data, bool eoi)
+void IECCentronics::write(uint8_t data, bool eoi)
 {
   m_receive.enqueue(data);
 
@@ -382,7 +382,7 @@ int8_t IECCentronics::canRead()
 }
 
 
-byte IECCentronics::read()
+uint8_t IECCentronics::read()
 {
   return m_statusBuffer[m_statusBufferPtr++];
 }

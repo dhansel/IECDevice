@@ -41,7 +41,7 @@
 #endif
 
 
-IECSD::IECSD(byte devnum, byte pinChipSelect, byte pinLED) :
+IECSD::IECSD(uint8_t devnum, uint8_t pinChipSelect, uint8_t pinLED) :
   IECFileDevice(devnum)
 {
   m_pinLED = pinLED;
@@ -73,7 +73,9 @@ void IECSD::begin()
 bool IECSD::checkCard()
 {
   if( !m_cardOk ) 
-#if defined(__SAM3X8E__) || defined(ARDUINO_ARCH_ESP32)
+#if defined(__SAM3X8E__)
+    m_cardOk = m_sd.begin(m_pinChipSelect, SD_SCK_MHZ(2));
+#elif defined(ARDUINO_ARCH_ESP32)
     m_cardOk = m_sd.begin(m_pinChipSelect, SD_SCK_MHZ(8));
 #else
     m_cardOk = m_sd.begin(m_pinChipSelect);
@@ -104,7 +106,7 @@ void IECSD::task()
 }
 
 
-void IECSD::toPETSCII(byte *name)
+void IECSD::toPETSCII(uint8_t *name)
 {
   while( *name )
     {
@@ -118,7 +120,7 @@ void IECSD::toPETSCII(byte *name)
 }
 
 
-void IECSD::fromPETSCII(byte *name)
+void IECSD::fromPETSCII(uint8_t *name)
 {
   while( *name )
     {
@@ -138,7 +140,7 @@ void IECSD::fromPETSCII(byte *name)
 
 #if defined(SUPPORT_EPYX) && defined(SUPPORT_EPYX_SECTOROPS)
 
-bool IECSD::epyxReadSector(byte track, byte sector, byte *buffer)
+bool IECSD::epyxReadSector(uint8_t track, uint8_t sector, uint8_t *buffer)
 {
   bool res = false;
 
@@ -192,7 +194,7 @@ bool IECSD::epyxReadSector(byte track, byte sector, byte *buffer)
               else
                 b[0] = 0x82; // program file
 
-              toPETSCII((byte *) m_dirBuffer+m_dirBufferLen);
+              toPETSCII((uint8_t *) m_dirBuffer+m_dirBufferLen);
               memset(b+3+l, 0xA0, 16-l);
               b[28] = size&255;
               b[29] = size/256;
@@ -224,7 +226,7 @@ bool IECSD::epyxReadSector(byte track, byte sector, byte *buffer)
   return res;
 }
 
-bool IECSD::epyxWriteSector(byte track, byte sector, byte *buffer)
+bool IECSD::epyxWriteSector(uint8_t track, uint8_t sector, uint8_t *buffer)
 {
   // for debug log
   IECFileDevice::epyxWriteSector(track, sector, buffer);
@@ -236,9 +238,9 @@ bool IECSD::epyxWriteSector(byte track, byte sector, byte *buffer)
 #endif
 
 
-byte IECSD::openDir()
+uint8_t IECSD::openDir()
 {
-  byte res = E_OK;
+  uint8_t res = E_OK;
 
   if( m_dir.openCwd() )
     {
@@ -251,7 +253,7 @@ byte IECSD::openDir()
       m_dirBuffer[6] = 18;
       m_dirBuffer[7] = '"';
       size_t n = m_dir.getName(m_dirBuffer+8, 16);
-      toPETSCII((byte *) m_dirBuffer+8);
+      toPETSCII((uint8_t *) m_dirBuffer+8);
       while( n<16 ) { m_dirBuffer[8+n] = ' '; n++; }
       strcpy_P(m_dirBuffer+24, PSTR("\" 00 2A"));
       m_dirBufferLen = 32;
@@ -265,7 +267,7 @@ byte IECSD::openDir()
 }
 
 
-bool IECSD::readDir(byte *data)
+bool IECSD::readDir(uint8_t *data)
 {
   if( m_dirBufferPtr==m_dirBufferLen && m_dir )
     {
@@ -299,7 +301,7 @@ bool IECSD::readDir(byte *data)
 #endif
               if( n>0 )
                 {
-                  toPETSCII((byte *) m_dirBuffer+m_dirBufferLen);
+                  toPETSCII((uint8_t *) m_dirBuffer+m_dirBufferLen);
 
                   const char *ftype = NULL;
                   if( n>4 && strcasecmp_P(m_dirBuffer+m_dirBufferLen+n-4, PSTR(".prg"))==0 )
@@ -351,11 +353,11 @@ bool IECSD::readDir(byte *data)
 }
 
 
-bool IECSD::isMatch(const char *name, const char *pattern, byte extmatch)
+bool IECSD::isMatch(const char *name, const char *pattern, uint8_t extmatch)
 {
   signed char found = -1;
 
-  for(byte i=0; found<0; i++)
+  for(uint8_t i=0; found<0; i++)
     {
       if( pattern[i]=='*' )
         found = 1;
@@ -400,9 +402,9 @@ const char *IECSD::findFile(const char *pattern, char ftype)
 }
 
 
-byte IECSD::openFile(byte channel, const char *constName)
+uint8_t IECSD::openFile(uint8_t channel, const char *constName)
 {
-  byte res = E_OK;
+  uint8_t res = E_OK;
   char ftype = 'P';
   char mode  = 'R';
   char *name = m_dirBuffer;
@@ -410,7 +412,7 @@ byte IECSD::openFile(byte channel, const char *constName)
   strcpy(name, constName);
   char *c = strchr(name, '\xa0');
   if( c!=NULL ) *c = 0;
-  fromPETSCII((byte *) name);
+  fromPETSCII((uint8_t *) name);
 
   char *comma = strchr(name, ',');
   if( comma!=NULL )
@@ -469,7 +471,7 @@ byte IECSD::openFile(byte channel, const char *constName)
             }
           
           strcat_P(name, ftype=='P' ? PSTR(".prg") : PSTR(".seq"));
-          if( m_file.open(name, O_WRONLY | O_CREAT | (overwrite ? 0 : O_EXCL)) )
+          if( m_file.open(name, O_WRONLY | O_CREAT | (overwrite ? O_TRUNC : O_EXCL)) )
             res = E_OK;
           else
             {
@@ -487,7 +489,7 @@ byte IECSD::openFile(byte channel, const char *constName)
 }
 
 
-void IECSD::open(byte channel, const char *name)
+void IECSD::open(uint8_t channel, const char *name)
 {
   if( !checkCard() )
     m_errorCode = E_NOTREADY;
@@ -506,7 +508,7 @@ void IECSD::open(byte channel, const char *name)
 }
 
 
-byte IECSD::read(byte channel, byte *buffer, byte bufferSize)
+uint8_t IECSD::read(uint8_t channel, uint8_t *buffer, uint8_t bufferSize)
 {
   if( m_file.isOpen() )
     return m_file.read(buffer, bufferSize);
@@ -515,7 +517,7 @@ byte IECSD::read(byte channel, byte *buffer, byte bufferSize)
 }
 
 
-byte IECSD::write(byte channel, byte *buffer, byte bufferSize)
+uint8_t IECSD::write(uint8_t channel, uint8_t *buffer, uint8_t bufferSize)
 {
   if( m_file.isOpen() )
     return m_file.write(buffer, bufferSize);
@@ -524,7 +526,7 @@ byte IECSD::write(byte channel, byte *buffer, byte bufferSize)
 }
 
 
-void IECSD::close(byte channel)
+void IECSD::close(uint8_t channel)
 {
   if( m_dir )
     { 
@@ -536,7 +538,7 @@ void IECSD::close(byte channel)
 }
 
 
-void IECSD::execute(const char *command, byte len)
+void IECSD::execute(const char *command, uint8_t len)
 {
   // clear the status buffer so getStatus() is called again next time the buffer is queried
   clearStatus();
@@ -551,7 +553,7 @@ void IECSD::execute(const char *command, byte len)
 
           strncpy(pattern, command+2, 16);
           pattern[16]=0;
-          fromPETSCII((byte *) pattern);
+          fromPETSCII((uint8_t *) pattern);
           
           while( m_file.openNext(&m_dir, O_RDONLY) )
             {
@@ -570,14 +572,14 @@ void IECSD::execute(const char *command, byte len)
     {
       // hack: DolphinDos' MultiDubTwo reads 02FA-02FC to determine
       // number of free blocks => pretend we have 664 (0298h) blocks available
-      byte data[3] = {0x98, 0, 0x02};
+      uint8_t data[3] = {0x98, 0, 0x02};
       setStatus((char *) data, 3);
       m_errorCode = E_OK;
     }
   else if( strncmp_P(command, PSTR("M-R"), 3)==0 && len>=6 && command[5]<=32 )
     {
       // memory read not supported => always return 0xFF
-      byte n = command[5];
+      uint8_t n = command[5];
       char buf[32];
       memset(buf, 0xFF, n);
       setStatus(buf, n);
@@ -592,7 +594,7 @@ void IECSD::execute(const char *command, byte len)
     {
       strncpy(m_dirBuffer, command+3, 16);
       m_dirBuffer[16]=0;
-      fromPETSCII((byte *) m_dirBuffer);
+      fromPETSCII((uint8_t *) m_dirBuffer);
 
       if( command[0]=='C' )
         {
@@ -618,7 +620,7 @@ void IECSD::execute(const char *command, byte len)
 }
 
 
-void IECSD::getStatus(char *buffer, byte bufferSize)
+void IECSD::getStatus(char *buffer, uint8_t bufferSize)
 {
   const char *message = NULL;
   switch( m_errorCode )
@@ -637,7 +639,7 @@ void IECSD::getStatus(char *buffer, byte bufferSize)
     default:                     { message = PSTR("UNKNOWN"); break; }
     }
 
-  byte i = 0;
+  uint8_t i = 0;
   buffer[i++] = '0' + (m_errorCode / 10);
   buffer[i++] = '0' + (m_errorCode % 10);
   buffer[i++] = ',';
