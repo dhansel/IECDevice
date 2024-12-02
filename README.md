@@ -29,7 +29,7 @@ So far I have tested this library on the following microcontrollers:
   -  Arduino 8-bit ATMega devices (Uno R3, Mega, Mini, Micro, Leonardo)
   -  Arduino Uno R4
   -  Arduino Due (32-bit)
-  -  ESP32
+  -  ESP32 (in Arduino IDE as well as using PlatformIO with ESP-IDF framework)
   -  Raspberry Pi Pico
 
 A number of examples are included to demonstrate how to implement devices using the two classes:
