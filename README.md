@@ -97,8 +97,8 @@ class IECBasicSerial : public IECDevice
  public:
   IECBasicSerial();
 
-  virtual int8_t canRead();
-  virtual uint8_t   read();
+  virtual int8_t  canRead();
+  virtual uint8_t read();
 
   virtual int8_t canWrite();
   virtual void   write(uint8_t data, bool eoi);
