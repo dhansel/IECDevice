@@ -571,7 +571,7 @@ executes a SAVE command.
   If you overload this function, make sure to call IECFileDevice::begin() from within your overloaded function.
   Note that IECFileDevice::begin() will (among other things), enable all fastload protocols
   that are set to be enabled in ```IECConfig.h```. If you want your device to **not** support
-  one or more protocols, call the ```enable*Support(falst)``` functions in your device **after**
+  one or more protocols, call the ```enable*Support(false)``` functions in your device **after**
   calling IECFileDevice::begin(). 
 - ```void task()```
   This function will automatically be called on every execution of IECBusHandler::task(), once for all attached devices. 
@@ -655,7 +655,7 @@ Apart from the ATN signal timing requirements there are a few functions in the
 IECDevice class that have limitations on how long they may take before returning.
 Those are described in the [IECDevice Class Reference](#iecdevice-class-reference) section.
 
-Devices derived from the IECFileDevice class have no requirements apart from the ATN timing
+Devices derived from the IECFileDevice class have no other timing requirements apart from the ATN timing
 as the IECFileDevice class handles all of them internally.
 
 Finally, JiffyDos and Epyx FastLoad transfers require very precise timing which requires the IECDevice
@@ -664,7 +664,7 @@ support is enabled, the IECDevice::task() function may take up to to 20ms before
 with interrupts disabled during JiffyDos transfers. Devices derived from the IECFileDevice
 class will automatically have JiffyDos and Epyx FastLoad support enabled. See the 
 [JiffyDos support](jiffydos-support) and [Epyx FastLoad support](expyx-fastload-support) sections 
-below for how to disable JiffyDos support if desired.
+below for how to disable fastloader support if desired.
 
 ## JiffyDos support
 
