@@ -28,35 +28,35 @@
 class IECFDC : public IECFileDevice
 {
  public: 
-  IECFDC(byte devnr, byte pinLED);
+  IECFDC(uint8_t devnr, uint8_t pinLED);
   virtual void begin();
   virtual void task();
 
  protected:
-  virtual void open(byte channel, const char *name);
-  virtual byte write(byte channel, byte *buffer, byte bufferSize);
-  virtual byte read(byte channel, byte *buffer, byte bufferSize);
-  virtual void close(byte channel);
-  virtual void getStatus(char *buffer, byte bufferSize);
-  virtual void execute(const char *command, byte len);
+  virtual void open(uint8_t channel, const char *name);
+  virtual uint8_t write(uint8_t channel, uint8_t *buffer, uint8_t bufferSize);
+  virtual uint8_t read(uint8_t channel, uint8_t *buffer, uint8_t bufferSize);
+  virtual void close(uint8_t channel);
+  virtual void getStatus(char *buffer, uint8_t bufferSize);
+  virtual void execute(const char *command, uint8_t len);
   virtual void reset();
 
  private:
-  void openFile(FIL *f, byte channel, const char *name);
+  void openFile(FIL *f, uint8_t channel, const char *name);
   void openDir(FIL *f, const char *name);
-  bool readDir(FIL *f, byte *data);
+  bool readDir(FIL *f, uint8_t *data);
   void openRawDir(FIL *f, const char *name);
-  bool readRawDir(FIL *f, byte *data);
+  bool readRawDir(FIL *f, uint8_t *data);
 
-  void startDiskOp(byte drive);
-  void format(byte drive, const char *name, bool lowLevel, byte interleave);
+  void startDiskOp(uint8_t drive);
+  void format(uint8_t drive, const char *name, bool lowLevel, uint8_t interleave);
   char *findFile(FIL *f, char *fname);
 
-  const char *getDriveSpec(byte unit);
+  const char *getDriveSpec(uint8_t unit);
   const char *getCurrentDriveSpec();
-  bool parseCommand(const char *prefix, const char **command, byte *drive);
-  const char *prefixDriveSpec(byte drive, const char *name, byte maxNameLen = 0xFF);
-  byte getAvailableFileIdx();
+  bool parseCommand(const char *prefix, const char **command, uint8_t *drive);
+  const char *prefixDriveSpec(uint8_t drive, const char *name, uint8_t maxNameLen = 0xFF);
+  uint8_t getAvailableFileIdx();
   FIL *getAvailableFile();
 
   FATFS   m_fatFs[2];
@@ -64,9 +64,9 @@ class IECFDC : public IECFileDevice
   FILINFO m_fatFsFileInfo;
   
   FRESULT m_ferror;
-  byte m_errorTrack, m_errorSector, m_numOpenFiles;
-  byte m_pinLED, m_curDrive, m_channelFiles[16];
-  word m_dirBufferLen, m_dirBufferPtr;
+  uint8_t m_errorTrack, m_errorSector, m_numOpenFiles;
+  uint8_t m_pinLED, m_curDrive, m_channelFiles[16];
+  uint16_t m_dirBufferLen, m_dirBufferPtr;
 };
 
 #endif
