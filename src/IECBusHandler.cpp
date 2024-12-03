@@ -2325,10 +2325,11 @@ void IECBusHandler::task()
       //    ATN request.
       noInterrupts();
 
-      if( receiveIECByteATN(m_primary) &&
-          ((m_primary == 0x3f) || (m_primary == 0x5f) || (findDevice((unsigned int) m_primary & 0x1f)!=NULL && receiveIECByteATN(m_secondary))) )
+      if( receiveIECByteATN(m_primary) && ((m_primary == 0x3f) || (m_primary == 0x5f) || (findDevice((unsigned int) m_primary & 0x1f)!=NULL)) )
         {
-          // this is either UNLISTEN or UNTALK or we were addressed and properly received the secondary address
+          // this is either UNLISTEN or UNTALK or we were addressed
+          // => receive the secondary address, assume 0 if not sent
+          if( (m_primary == 0x3f) || (m_primary == 0x5f) || !receiveIECByteATN(m_secondary) ) m_secondary = 0;
 
           // wait until ATN is released
           while( !readPinATN() );
@@ -2404,9 +2405,7 @@ void IECBusHandler::task()
         }
       else
         {
-          // either we were not addressed or there was an error receiving the
-          // primary/secondary address
-
+          // either we were not addressed or there was an error receiving the primary address
           delayMicrosecondsISafe(150);
           writePinCLK(HIGH);
           writePinDATA(HIGH);
