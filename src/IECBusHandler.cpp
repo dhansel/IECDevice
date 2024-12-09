@@ -474,7 +474,19 @@ bool IECBusHandler::waitPinCLK(bool state, uint16_t timeout)
 }
 
 
-IECBusHandler::IECBusHandler(uint8_t pinATN, uint8_t pinCLK, uint8_t pinDATA, uint8_t pinRESET, uint8_t pinCTRL)
+void IECBusHandler::sendSRQ()
+{
+  if( m_pinSRQ!=0xFF )
+    {
+      digitalWrite(m_pinSRQ, LOW);
+      pinMode(m_pinSRQ, OUTPUT);
+      delayMicrosecondsISafe(1);
+      pinMode(m_pinSRQ, INPUT);
+    }
+}
+
+
+IECBusHandler::IECBusHandler(uint8_t pinATN, uint8_t pinCLK, uint8_t pinDATA, uint8_t pinRESET, uint8_t pinCTRL, uint8_t pinSRQ)
 #if defined(SUPPORT_DOLPHIN)
 #if defined(ESP_PLATFORM)
   // ESP32
@@ -513,6 +525,7 @@ IECBusHandler::IECBusHandler(uint8_t pinATN, uint8_t pinCLK, uint8_t pinDATA, ui
   m_pinDATA      = pinDATA;
   m_pinRESET     = pinRESET;
   m_pinCTRL      = pinCTRL;
+  m_pinSRQ       = pinSRQ;
 
 #if defined(SUPPORT_JIFFY) || defined(SUPPORT_EPYX) || defined(SUPPORT_DOLPHIN)
 #if IEC_DEFAULT_FASTLOAD_BUFFER_SIZE>0
@@ -555,6 +568,7 @@ void IECBusHandler::begin()
   pinMode(m_pinDATA,  INPUT);
   if( m_pinCTRL<0xFF )  pinMode(m_pinCTRL,  OUTPUT);
   if( m_pinRESET<0xFF ) pinMode(m_pinRESET, INPUT);
+  if( m_pinSRQ<0xFF )   pinMode(m_pinSRQ,   INPUT);
   m_flags = 0;
 
   // allow ATN to pull DATA low in hardware
@@ -2410,9 +2424,31 @@ void IECBusHandler::task()
           writePinCLK(HIGH);
           writePinDATA(HIGH);
           while( !readPinATN() );
+
+          // allow ATN to pull DATA low in hardware
+          writePinCTRL(LOW);
         }
 
       interrupts();
+
+      if( (m_flags & P_LISTENING)!=0 )
+        {
+          // a device is supposed to listen, check if it can accept data
+          // (meanwhile allow atnRequest to be called in interrupt)
+          IECDevice *dev = m_currentDevice;
+          m_inTask = false;
+          dev->task();
+          bool canWrite = (dev->canWrite()>0);
+          m_inTask = true;
+
+          // m_currentDevice could have been reset to NULL while m_inTask was 'false'
+          if( m_currentDevice!=NULL && !canWrite )
+            {
+              // device can't accept data => signal error by releasing DATA line
+              writePinDATA(HIGH);
+              m_flags |= P_DONE;
+            }
+        }
     }
   else if( (m_flags & P_ATN)!=0 && readPinATN() )
     {
@@ -2545,12 +2581,14 @@ void IECBusHandler::task()
 
       // check if we can write (also gives devices a chance to
       // execute time-consuming tasks while bus master waits for ready-for-data)
-      // (if we are receiving under ATN then m_currentDevice==NULL)
+      IECDevice *dev = m_currentDevice;
       m_inTask = false;
-      int8_t numData = m_currentDevice->canWrite();
+      int8_t numData = dev->canWrite();
       m_inTask = true;
 
-      if( !readPinATN() )
+      if( m_currentDevice==NULL )
+        { /* m_currentDevice was reset while we were stuck in "canRead" */ }
+      else if( !readPinATN() )
         {
           // a falling edge on ATN happened while we were stuck in "canWrite"
           atnRequest();
@@ -2632,13 +2670,16 @@ void IECBusHandler::task()
      else
 #endif
        {
-         // check if we can read (also gives devices a chance to
-         // execute time-consuming tasks while bus master waits for ready-to-send)
+        // check if we can read (also gives devices a chance to
+        // execute time-consuming tasks while bus master waits for ready-to-send)
+        IECDevice *dev = m_currentDevice;
         m_inTask = false;
-        int8_t numData = m_currentDevice->canRead();
+        int8_t numData = dev->canRead();
         m_inTask = true;
 
-        if( !readPinATN() )
+        if( m_currentDevice==NULL )
+          { /* m_currentDevice was reset while we were stuck in "canRead" */ }
+        else if( !readPinATN() )
           {
             // a falling edge on ATN happened while we were stuck in "canRead"
             atnRequest();

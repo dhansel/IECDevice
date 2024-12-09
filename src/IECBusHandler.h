@@ -45,7 +45,7 @@ class IECBusHandler
   // (e.g. 2 or 3 on the Arduino UNO), if not then make sure the task() function
   // gets called at least once evey millisecond, otherwise "device not present" 
   // errors may result
-  IECBusHandler(uint8_t pinATN, uint8_t pinCLK, uint8_t pinDATA, uint8_t pinRESET = 0xFF, uint8_t pinCTRL = 0xFF);
+  IECBusHandler(uint8_t pinATN, uint8_t pinCLK, uint8_t pinDATA, uint8_t pinRESET = 0xFF, uint8_t pinCTRL = 0xFF, uint8_t pinSRQ = 0xFF);
 
   // must be called once at startup before the first call to "task", devnr
   // is the IEC bus device number that this device should react to
@@ -89,13 +89,14 @@ class IECBusHandler
   IECDevice *findDevice(uint8_t devnr, bool includeInactive = false);
   bool canServeATN();
   bool inTransaction();
+  void sendSRQ();
 
   IECDevice *m_currentDevice;
   IECDevice *m_devices[MAX_DEVICES];
 
   uint8_t m_numDevices;
   int  m_atnInterrupt;
-  uint8_t m_pinATN, m_pinCLK, m_pinDATA, m_pinRESET, m_pinCTRL;
+  uint8_t m_pinATN, m_pinCLK, m_pinDATA, m_pinRESET, m_pinSRQ, m_pinCTRL;
 
  private:
   inline bool readPinATN();
@@ -108,7 +109,6 @@ class IECBusHandler
   bool waitTimeout(uint16_t timeout, uint8_t cond = 0);
   bool waitPinDATA(bool state, uint16_t timeout = 1000);
   bool waitPinCLK(bool state, uint16_t timeout = 1000);
-
   void atnRequest();
   bool receiveIECByteATN(uint8_t &data);
   bool receiveIECByte(bool canWriteOk);

@@ -177,6 +177,9 @@ class IECDevice
   // if isActive() is not overloaded then use this to activate/deactivate a device
   void setActive(bool b) { m_isActive = b; }
 
+  // send pulse on SRQ line (if SRQ pin was set in IECBusHandler constructor)
+  void sendSRQ();
+
  protected:
   bool       m_isActive;
   uint8_t    m_devnr;

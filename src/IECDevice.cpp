@@ -38,6 +38,13 @@ void IECDevice::setDeviceNumber(uint8_t devnr)
   m_devnr = devnr;
 }
 
+
+void IECDevice::sendSRQ()
+{
+  if( m_handler ) m_handler->sendSRQ();
+}
+
+
 #ifdef SUPPORT_JIFFY
 bool IECDevice::enableJiffyDosSupport(bool enable)
 {
