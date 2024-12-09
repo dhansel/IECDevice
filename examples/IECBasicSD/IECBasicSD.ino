@@ -63,7 +63,7 @@ class IECBasicSD : public IECFileDevice
   virtual void begin();
   virtual void reset();
 
-  virtual void open(uint8_t channel, const char *name);
+  virtual bool open(uint8_t channel, const char *name);
   virtual uint8_t read(uint8_t channel, uint8_t *buffer, uint8_t bufferSize);
   virtual uint8_t write(uint8_t channel, uint8_t *buffer, uint8_t bufferSize);
   virtual void close(uint8_t channel);
@@ -96,12 +96,12 @@ void IECBasicSD::begin()
 }
 
 
-void IECBasicSD::open(uint8_t channel, const char *name)
+bool IECBasicSD::open(uint8_t channel, const char *name)
 {
   // open file for reading or writing. Use channel number to determine
   // whether to read (channel 0) or write (channel 1). These channel numbers
   // correspond to the channels used by the C64 LOAD and SAVE commands.
-  m_file.open(name, channel==0 ? O_RDONLY : (O_WRONLY | O_CREAT));
+  return m_file.open(name, channel==0 ? O_RDONLY : (O_WRONLY | O_CREAT));
 }
 
 

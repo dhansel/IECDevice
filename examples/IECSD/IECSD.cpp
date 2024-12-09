@@ -489,7 +489,7 @@ uint8_t IECSD::openFile(uint8_t channel, const char *constName)
 }
 
 
-void IECSD::open(uint8_t channel, const char *name)
+bool IECSD::open(uint8_t channel, const char *name)
 {
   if( !checkCard() )
     m_errorCode = E_NOTREADY;
@@ -505,6 +505,8 @@ void IECSD::open(uint8_t channel, const char *name)
 
   // clear the status buffer so getStatus() is called again next time the buffer is queried
   clearStatus();
+
+  return m_errorCode==E_OK;
 }
 
 

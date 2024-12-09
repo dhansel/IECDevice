@@ -383,7 +383,7 @@ void IECFDC::openFile(uint8_t channel, const char *name)
 }
 
 
-void IECFDC::open(uint8_t channel, const char *name)
+bool IECFDC::open(uint8_t channel, const char *name)
 {
   // The "~" (0x7E) used by FAT in shortened file names translates
   // to the "pi" symbol in PETSCII (when listing the directory).
@@ -400,6 +400,8 @@ void IECFDC::open(uint8_t channel, const char *name)
 
   // clear the status buffer so getStatus() is called again next time the buffer is queried
   clearStatus();
+
+  return m_ferror == FR_OK;
 }
 
 

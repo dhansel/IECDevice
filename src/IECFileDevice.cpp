@@ -57,7 +57,7 @@ void dbg_print_data()
           if( (i&7)==0 ) Serial.write(' ');
           Serial.write(isprint(dbgbuf[i]) ? dbgbuf[i] : '.');
         }
-      Serial.write('\n');
+      Serial.write('\r'); Serial.write('\n');
       dbgnum = 0;
     }
 }
@@ -73,10 +73,9 @@ void dbg_data(uint8_t data)
 
 #define IFD_NONE  0
 #define IFD_OPEN  1
-#define IFD_READ  2
-#define IFD_WRITE 3
-#define IFD_CLOSE 4
-#define IFD_EXEC  5
+#define IFD_CLOSE 2
+#define IFD_EXEC  3
+#define IFD_WRITE 4
 
 
 IECFileDevice::IECFileDevice(uint8_t devnr) : 
@@ -118,8 +117,10 @@ void IECFileDevice::begin()
 
   m_statusBufferPtr = 0;
   m_statusBufferLen = 0;
-  memset(m_dataBufferLen, 0, 15);
+  m_writeBufferLen = 0;
+  memset(m_readBufferLen, 0, 15);
   m_cmd = IFD_NONE;
+  m_channel = 0xFF;
   m_opening = false;
 
   // calling fileTask() may result in significant time spent accessing the
@@ -188,46 +189,26 @@ int8_t IECFileDevice::canRead()
       
       return m_statusBufferLen-m_statusBufferPtr;
     }
-  else if( m_dataBufferLen[m_channel]<0 )
+  else if( m_channel > 15 || m_readBufferLen[m_channel]==-128 )
     {
-      // first canRead() call after open()
-      if( !read(m_channel, &(m_dataBuffer[m_channel][0]), 1) )
-        {
-          m_dataBufferLen[m_channel] = 0;
-        }
-      else if( !read(m_channel, &(m_dataBuffer[m_channel][1]), 1) )
-        {
-          m_dataBufferLen[m_channel] = 1;
-#if DEBUG==1
-          dbg_data(m_dataBuffer[m_channel][0]);
-#endif
-        }
-      else
-        {
-          m_dataBufferLen[m_channel] = 2;
-#if DEBUG==1
-          dbg_data(m_dataBuffer[m_channel][0]);
-          dbg_data(m_dataBuffer[m_channel][1]);
-#endif
-        }
-
-      return m_dataBufferLen[m_channel];
+      return 0; // invalid channel or OPEN failed for channel
     }
   else
     {
-      return m_dataBufferLen[m_channel];
+      fillReadBuffer();
+      return m_readBufferLen[m_channel];
     }
 }
 
 
 uint8_t IECFileDevice::peek() 
 {
-  uint8_t data;
+  uint8_t data = 0;
 
   if( m_channel==15 )
     data = m_statusBuffer[m_statusBufferPtr];
-  else 
-    data = m_dataBuffer[m_channel][0];
+  else if( m_channel < 15 )
+    data = m_readBuffer[m_channel][0];
 
 #if DEBUG>1
   Serial.write('P'); print_hex(data);
@@ -239,21 +220,20 @@ uint8_t IECFileDevice::peek()
 
 uint8_t IECFileDevice::read() 
 { 
-  uint8_t data;
+  uint8_t data = 0;
 
   if( m_channel==15 )
     data = m_statusBuffer[m_statusBufferPtr++];
-  else 
+  else if( m_channel<15 )
     {
-      data = m_dataBuffer[m_channel][0];
-      if( m_dataBufferLen[m_channel]==2 )
+      data = m_readBuffer[m_channel][0];
+      if( m_readBufferLen[m_channel]==2 )
         {
-          m_dataBuffer[m_channel][0] = m_dataBuffer[m_channel][1];
-          m_dataBufferLen[m_channel] = 1;
-          m_cmd = IFD_READ;
+          m_readBuffer[m_channel][0] = m_readBuffer[m_channel][1];
+          m_readBufferLen[m_channel] = 1;
         }
       else
-        m_dataBufferLen[m_channel] = 0;
+        m_readBufferLen[m_channel] = 0;
     }
 
 #if DEBUG>1
@@ -270,11 +250,11 @@ uint8_t IECFileDevice::read(uint8_t *buffer, uint8_t bufferSize)
 
   // get data from our own 2-uint8_t buffer (if any)
   // properly deal with the case where bufferSize==1
-  while( m_dataBufferLen[m_channel]>0 && res<bufferSize )
+  while( m_readBufferLen[m_channel]>0 && res<bufferSize )
     {
-      buffer[res++] = m_dataBuffer[m_channel][0];
-      m_dataBuffer[m_channel][0] = m_dataBuffer[m_channel][1];
-      m_dataBufferLen[m_channel]--;
+      buffer[res++] = m_readBuffer[m_channel][0];
+      m_readBuffer[m_channel][0] = m_readBuffer[m_channel][1];
+      m_readBufferLen[m_channel]--;
     }
 
   // get data from higher class
@@ -301,7 +281,22 @@ int8_t IECFileDevice::canWrite()
   // see comment in IECFileDevice constructor
   if( !m_canServeATN ) fileTask();
 
-  return (m_opening || m_channel==15 || m_dataBufferLen[m_channel]<1) ? 1 : 0;
+  if( m_channel == 15 || m_opening )
+    {
+      return 1; // command channel or opening file
+    }
+  else if( m_channel > 15 || m_readBufferLen[m_channel]==-128 )
+    {
+      return 0; // invalid channel or OPEN failed
+    }
+  else
+    {
+      // if write buffer is full then send it on now
+      if( m_writeBufferLen==IECFILEDEVICE_WRITE_BUFFER_SIZE-1 )
+        emptyWriteBuffer();
+      
+      return (m_writeBufferLen<IECFILEDEVICE_WRITE_BUFFER_SIZE-1) ? 1 : 0;
+    }
 }
 
 
@@ -311,15 +306,9 @@ void IECFileDevice::write(uint8_t data, bool eoi)
   // => do not add Serial.print or function call that may take longer!
   // (at 115200 baud we can send 10 characters in less than 1 ms)
 
-  if( m_channel<15 && !m_opening )
-    {
-      m_dataBuffer[m_channel][0] = data;
-      m_dataBufferLen[m_channel] = 1;
-      m_cmd = IFD_WRITE;
-    }
-  else if( m_nameBufferLen<IECFILEDEVICE_NAME_BUFFER_SIZE-1 )
-    m_nameBuffer[m_nameBufferLen++] = data;
-
+  if( m_writeBufferLen<IECFILEDEVICE_WRITE_BUFFER_SIZE-1 )
+    m_writeBuffer[m_writeBufferLen++] = data;
+ 
 #if DEBUG>1
   Serial.write('W'); print_hex(data);
 #endif
@@ -328,24 +317,22 @@ void IECFileDevice::write(uint8_t data, bool eoi)
 
 uint8_t IECFileDevice::write(uint8_t *buffer, uint8_t bufferSize, bool eoi)
 {
-  uint8_t nn;
-  int8_t n = m_dataBufferLen[m_channel];
-  if( n>0 )
+  if( m_channel < 15 )
     {
-      nn = write(m_channel, m_dataBuffer[m_channel], n);
-#if DEBUG>0
-      for(uint8_t i=0; i<nn; i++) dbg_data(m_dataBuffer[m_channel][i]);
-#endif
-      n -= nn;
-      m_dataBufferLen[m_channel] = n;
-      if( n>0 ) return 0;
-    }
+      // first transmit data that has been buffered (if any), if that is not
+      // possible then return indicating that nothing of the new data has been sent
+      emptyWriteBuffer();
+      if( m_writeBufferLen>0 ) return 0;
 
-  nn = write(m_channel, buffer, bufferSize);
+      // now send data
+      uint8_t nn = write(m_channel, buffer, bufferSize);
 #if DEBUG>0
-  for(uint8_t i=0; i<nn; i++) dbg_data(buffer[i]);
+      for(uint8_t i=0; i<nn; i++) dbg_data(buffer[i]);
 #endif
-  return nn;
+      return nn;
+    }
+  else
+    return 0;
 }
 
 
@@ -365,9 +352,8 @@ void IECFileDevice::untalk()
   Serial.write('t');
 #endif
 
-  // need to set channel to anything other than 15 so we don't go
-  // into the m_channel==15 branch in unlisten() later
-  m_channel = 0;
+  // no current channel
+  m_channel = 0xFF; 
 }
 
 
@@ -376,15 +362,14 @@ void IECFileDevice::listen(uint8_t secondary)
 #if DEBUG>1
   Serial.write('L'); print_hex(secondary);
 #endif
-
   m_channel = secondary & 0x0F;
-  
+
   if( m_channel==15 )
-    m_nameBufferLen = 0;
+    m_writeBufferLen = 0;
   else if( (secondary & 0xF0) == 0xF0 )
     {
       m_opening = true;
-      m_nameBufferLen = 0;
+      m_writeBufferLen = 0;
     }
   else if( (secondary & 0xF0) == 0xE0 )
     {
@@ -396,27 +381,31 @@ void IECFileDevice::listen(uint8_t secondary)
 void IECFileDevice::unlisten() 
 {
 #if DEBUG>1
-  Serial.write('l');
+  Serial.write('l'); Serial.write('0'+m_channel);
 #endif
 
   if( m_channel==15 )
     {
-      if( m_nameBufferLen>0 )
+      if( m_writeBufferLen>0 )
         {
-          if( m_nameBuffer[m_nameBufferLen-1]==13 ) m_nameBufferLen--;
-          m_nameBuffer[m_nameBufferLen]=0;
+          if( m_writeBuffer[m_writeBufferLen-1]==13 ) m_writeBufferLen--;
+          m_writeBuffer[m_writeBufferLen]=0;
           m_cmd = IFD_EXEC;
         }
 
-      // need to set channel to anything other than 15 so we don't get here
-      // again if we intercept an UNLISTEN for a different device
-      m_channel = 0;
+      m_channel = 0xFF;
     }
   else if( m_opening )
     {
       m_opening = false;
-      m_nameBuffer[m_nameBufferLen] = 0;
+      m_writeBuffer[m_writeBufferLen] = 0;
       m_cmd = IFD_OPEN;
+      // m_channel gets set to 0xFF after IFD_OPEN is processed
+    }
+  else if( m_writeBufferLen>0 )
+    {
+      m_cmd = IFD_WRITE;
+      // m_channel gets set to 0xFF after IFD_WRITE is processed
     }
 }
 
@@ -452,6 +441,40 @@ bool IECFileDevice::epyxWriteSector(uint8_t track, uint8_t sector, uint8_t *buff
 #endif
 
 
+void IECFileDevice::fillReadBuffer()
+{
+  if( m_readBufferLen[m_channel]<2 )
+    {
+      uint8_t n = 2-m_readBufferLen[m_channel];
+      n = read(m_channel, m_readBuffer[m_channel]+m_readBufferLen[m_channel], n);
+#if DEBUG==1
+      for(uint8_t i=0; i<n; i++) dbg_data(m_readBuffer[m_channel][m_readBufferLen[m_channel]+i]);
+#endif
+      m_readBufferLen[m_channel] += n;
+    }
+}
+
+
+void IECFileDevice::emptyWriteBuffer()
+{
+  if( m_writeBufferLen>0 )
+    {
+      uint8_t n = write(m_channel, m_writeBuffer, m_writeBufferLen);
+#if DEBUG==1
+      for(uint8_t i=0; i<n; i++) dbg_data(m_writeBuffer[i]);
+#endif
+      if( n<m_writeBufferLen ) 
+        {
+          memmove(m_writeBuffer, m_writeBuffer+n, m_writeBufferLen-n);
+          m_writeBufferLen -= n;
+        }
+      else
+        m_writeBufferLen = 0;
+    }
+}
+
+
+
 void IECFileDevice::fileTask()
 {
   switch( m_cmd )
@@ -459,40 +482,19 @@ void IECFileDevice::fileTask()
     case IFD_OPEN:
       {
 #if DEBUG>0
-        for(uint8_t i=0; m_nameBuffer[i]; i++) dbg_data(m_nameBuffer[i]);
+        for(uint8_t i=0; m_writeBuffer[i]; i++) dbg_data(m_writeBuffer[i]);
         dbg_print_data();
         Serial.print(F("OPEN #")); 
 #if MAX_DEVICES>1
         Serial.print(m_devnr); Serial.write('#');
 #endif
-        Serial.print(m_channel); Serial.print(F(": ")); Serial.println(m_nameBuffer);
+        Serial.print(m_channel); Serial.print(F(": ")); Serial.println((const char *) m_writeBuffer);
 #endif
-        open(m_channel, m_nameBuffer); 
-        m_dataBufferLen[m_channel] = -1;
-        break;
-      }
-      
-    case IFD_READ:
-      {
-        if( read(m_channel, &(m_dataBuffer[m_channel][m_dataBufferLen[m_channel]]), 1) )
-          {
-#if DEBUG==1
-            dbg_data(m_dataBuffer[m_channel][m_dataBufferLen[m_channel]]);
-#endif
-            m_dataBufferLen[m_channel]++;
-          }
-        break;
-      }
-
-    case IFD_WRITE:
-      {
-        if( write(m_channel, m_dataBuffer[m_channel], 1)==1 )
-          {
-#if DEBUG==1
-            dbg_data(m_dataBuffer[m_channel][0]);
-#endif
-            m_dataBufferLen[m_channel] = 0;
-          }
+        bool ok = open(m_channel, (const char *) m_writeBuffer);
+        
+        m_readBufferLen[m_channel] = ok ? 0 : -128;
+        m_writeBufferLen = 0;
+        m_channel = 0xFF; 
         break;
       }
       
@@ -506,25 +508,41 @@ void IECFileDevice::fileTask()
 #endif
         Serial.println(m_channel);
 #endif
+        // note: any data that cannot be sent on at this point is lost!
+        emptyWriteBuffer();
+        m_writeBufferLen = 0;
+
         close(m_channel); 
-        m_dataBufferLen[m_channel] = 0;
+        m_readBufferLen[m_channel] = 0;
+        m_channel = 0xFF;
+        break;
+      }
+      
+    case IFD_WRITE:
+      {
+        // note: any data that cannot be sent on at this point is lost!
+        emptyWriteBuffer();
+        m_writeBufferLen = 0;
+        m_channel = 0xFF;
         break;
       }
 
     case IFD_EXEC:  
       {
         bool handled = false;
+        const char *cmd = (const char *) m_writeBuffer;
+
 #if DEBUG>0
 #if defined(SUPPORT_DOLPHIN)
         // Printing debug output here may delay our response to DolphinDos
         // 'XQ' and 'XZ' commands (burst mode request) too long and cause
         // the C64 to time out, causing the transmission to hang
-        if( m_nameBuffer[0]!='X' || (m_nameBuffer[1]!='Q' && m_nameBuffer[1]!='Z') )
+        if( cmd[0]!='X' || (cmd[1]!='Q' && cmd[1]!='Z') )
 #endif
           {
-            for(uint8_t i=0; i<m_nameBufferLen; i++) dbg_data(m_nameBuffer[i]);
+            for(uint8_t i=0; i<m_writeBufferLen; i++) dbg_data(m_writeBuffer[i]);
             dbg_print_data();
-            Serial.print(F("EXECUTE: ")); Serial.println(m_nameBuffer);
+            Serial.print(F("EXECUTE: ")); Serial.println(cmd);
           }
 #endif
 #ifdef SUPPORT_EPYX
@@ -532,7 +550,7 @@ void IECFileDevice::fileTask()
           { m_epyxCtr = 11; handled = true; }
         else if( m_epyxCtr==11 && checkMWcmd(0x01A0, 0x20, 0xA5) )
           { m_epyxCtr = 12; handled = true; }
-        else if( m_epyxCtr==12 && strncmp_P(m_nameBuffer, PSTR("M-E\xa2\x01"), 5)==0 )
+        else if( m_epyxCtr==12 && strncmp_P(cmd, PSTR("M-E\xa2\x01"), 5)==0 )
           { m_epyxCtr = 99; handled = true; } // EPYX V1
         else if( m_epyxCtr== 0 && checkMWcmd(0x0180, 0x19, 0x53) )
           { m_epyxCtr = 21; handled = true; }
@@ -540,7 +558,7 @@ void IECFileDevice::fileTask()
           { m_epyxCtr = 22; handled = true; }
         else if( m_epyxCtr==22 && checkMWcmd(0x01B2, 0x19, 0x8F) )
           { m_epyxCtr = 23; handled = true; }
-        else if( m_epyxCtr==23 && strncmp_P(m_nameBuffer, PSTR("M-E\xa9\x01"), 5)==0 )
+        else if( m_epyxCtr==23 && strncmp_P(cmd, PSTR("M-E\xa9\x01"), 5)==0 )
           { m_epyxCtr = 99; handled = true; } // EPYX V2 or V3
         else
           m_epyxCtr = 0;
@@ -555,39 +573,38 @@ void IECFileDevice::fileTask()
           }
 #endif
 #ifdef SUPPORT_DOLPHIN
-        if( strcmp_P(m_nameBuffer, PSTR("XQ"))==0 )
+        if( strcmp_P(cmd, PSTR("XQ"))==0 )
           { dolphinBurstTransmitRequest(); m_channel = 0; handled = true; }
-        else if( strcmp_P(m_nameBuffer, PSTR("XZ"))==0 )
+        else if( strcmp_P(cmd, PSTR("XZ"))==0 )
           { dolphinBurstReceiveRequest(); m_channel = 1; handled = true; }
-        else if( strcmp_P(m_nameBuffer, PSTR("XF+"))==0 )
+        else if( strcmp_P(cmd, PSTR("XF+"))==0 )
           { enableDolphinBurstMode(true); setStatus(NULL, 0); handled = true; }
-        else if( strcmp_P(m_nameBuffer, PSTR("XF-"))==0 )
+        else if( strcmp_P(cmd, PSTR("XF-"))==0 )
           { enableDolphinBurstMode(false); setStatus(NULL, 0); handled = true; }
 #endif
-        if( !handled ) execute(m_nameBuffer, m_nameBufferLen);
+        if( !handled ) execute(cmd, m_writeBufferLen);
+        m_writeBufferLen = 0;
         break;
       }
     }
-  
+
   m_cmd = IFD_NONE;
 }
 
 
 bool IECFileDevice::checkMWcmd(uint16_t addr, uint8_t len, uint8_t checksum) const
 {
-  uint8_t *buf = (uint8_t *) m_nameBuffer;
-
   // check buffer length and M-W command
-  if( m_nameBufferLen<len+6 || strncmp_P(m_nameBuffer, PSTR("M-W"), 3)!=0 )
+  if( m_writeBufferLen<len+6 || strncmp_P((const char *) m_writeBuffer, PSTR("M-W"), 3)!=0 )
     return false;
 
   // check data length and destination address
-  if( buf[3]!=(addr&0xFF) || buf[4]!=((addr>>8)&0xFF) || buf[5]!=len )
+  if( m_writeBuffer[3]!=(addr&0xFF) || m_writeBuffer[4]!=((addr>>8)&0xFF) || m_writeBuffer[5]!=len )
     return false;
 
   // check checksum
   uint8_t c = 0;
-  for(uint8_t i=0; i<len; i++) c += buf[6+i];
+  for(uint8_t i=0; i<len; i++) c += m_writeBuffer[6+i];
   return c==checksum;
 }
 
@@ -625,7 +642,9 @@ void IECFileDevice::reset()
 
   m_statusBufferPtr = 0;
   m_statusBufferLen = 0;
-  memset(m_dataBufferLen, 0, 15);
+  m_writeBufferLen = 0;
+  memset(m_readBufferLen, 0, 15);
+  m_channel = 0xFF;
   m_cmd = IFD_NONE;
   m_opening = false;
 

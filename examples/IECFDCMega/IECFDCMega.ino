@@ -28,6 +28,10 @@
 #define PIN_LED   A7
 #define PIN_RESET 0xFF
 
+#ifndef __AVR_ATmega2560__
+#error "This sketch is meant only for use on an Arduino Mega 2560"
+#endif
+
 IECFDC iecFDC(DEVICE, PIN_LED);
 IECBusHandler iecBus(PIN_ATN, PIN_CLK, PIN_DATA, PIN_RESET, PIN_CTRL);
 

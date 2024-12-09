@@ -37,7 +37,7 @@ class IECFileDevice : public IECDevice
   virtual void task();
 
   // open file "name" on channel
-  virtual void open(uint8_t channel, const char *name) {}
+  virtual bool open(uint8_t channel, const char *name) { return true; }
 
   // close file on channel
   virtual void close(uint8_t channel) {}
@@ -64,7 +64,7 @@ class IECFileDevice : public IECDevice
   // - fill buffer with up to bufferSize bytes of data
   // - return the number of data bytes stored in the buffer
   // The default implementation of getStatusData just calls getStatus().
-  virtual uint8_t getStatusData(char *buffer, uint8_t bufferSize);
+ virtual uint8_t getStatusData(char *buffer, uint8_t bufferSize);
 
   // called when the bus master sends data (i.e. a command) to channel 15
   // command is a 0-terminated string representing the command to execute
@@ -101,16 +101,18 @@ class IECFileDevice : public IECDevice
   virtual uint8_t read(uint8_t *buffer, uint8_t bufferSize);
   virtual uint8_t peek();
 
+  void fillReadBuffer();
+  void emptyWriteBuffer();
   void fileTask();
   bool checkMWcmd(uint16_t addr, uint8_t len, uint8_t checksum) const;
 
-  bool   m_opening, m_canServeATN;
-  uint8_t   m_channel, m_cmd;
-  char   m_nameBuffer[IECFILEDEVICE_NAME_BUFFER_SIZE];
+  bool    m_opening, m_canServeATN;
+  uint8_t m_channel, m_cmd;
+  uint8_t m_writeBuffer[IECFILEDEVICE_WRITE_BUFFER_SIZE];
 
-  uint8_t   m_dataBuffer[15][2];
-  int8_t m_statusBufferLen, m_statusBufferPtr, m_nameBufferLen, m_dataBufferLen[15];
-  char   m_statusBuffer[IECFILEDEVICE_STATUS_BUFFER_SIZE];
+  uint8_t m_readBuffer[15][2];
+  int8_t  m_statusBufferLen, m_statusBufferPtr, m_writeBufferLen, m_readBufferLen[15];
+  char    m_statusBuffer[IECFILEDEVICE_STATUS_BUFFER_SIZE];
 
 #ifdef SUPPORT_EPYX
   uint8_t m_epyxCtr;

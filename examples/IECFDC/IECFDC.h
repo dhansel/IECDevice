@@ -31,7 +31,7 @@ class IECFDC : public IECFileDevice
   virtual void task();
 
  protected:
-  virtual void open(uint8_t channel, const char *name);
+  virtual bool open(uint8_t channel, const char *name);
   virtual uint8_t write(uint8_t channel, uint8_t *buffer, uint8_t bufferSize);
   virtual uint8_t read(uint8_t channel, uint8_t *buffer, uint8_t bufferSize);
   virtual void close(uint8_t channel);

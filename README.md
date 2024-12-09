@@ -57,9 +57,21 @@ It is recommended to choose an interrupt-capable pin for the ATN
 signal (see [timing considerations](#timing-considerations) section below). 
 
 When looking at the IEC bus connector at the back of your computer, the pins are as follows:<br>
-(1=SRQ [not used], 2=GND, 3=ATN, 4=Clock, 5=Data, 6=Reset)
+(1=SRQ, 2=GND, 3=ATN, 4=Clock, 5=Data, 6=Reset)
 
 <img src="IECBusPins.jpg" width="25%" align="center">
+
+Note that the SRQ signal will not be needed for most applications. The SRQ signal allows a device on the
+IEC bus to signal request attention from the computer. In the C64, the SRQ signal is connected to the
+FLAG input of CIA1 and therefore, if the CIA is set up to do so, can create a processor interrupt.
+This can be useful in some cases, for example if a modem device on the IEC bus wants to signal that more
+data is available for reading. However, the C64 kernal itself does not use this signal at all and very
+little (if any) software exists that uses it. In general you can leave this pin unconnected, unless you
+are building a device that uses it (and you are writing the C64 software for it). If you do want to use
+the SRQ functionality, do the following:
+  - Pick a pin on your microcontroller for the SRQ signal and connect it to the SRQ line on the IEC bus
+  - In the IECBusHandler() constructor, specify the pin used for SRQ
+  - When your device needs to cause a SRQ interrupt on the computer, call the IECDevice::sendSRQ() function.
 
 Here is a picture of an Arduino UNO directly connected to the IEC bus of a C64:
 
@@ -228,7 +240,7 @@ class IECBasicSD : public IECFileDevice
 
  protected:
   virtual void begin();
-  virtual void open(uint8_t channel, const char *name);
+  virtual bool open(uint8_t channel, const char *name);
   virtual uint8_t read(uint8_t channel, uint8_t *buffer, uint8_t bufferSize);
   virtual uint8_t write(uint8_t channel, uint8_t *buffer, uint8_t n);
   virtual void close(uint8_t channel);
@@ -263,17 +275,14 @@ interface, using pin 10 for CS. Note that we must also call the IECFileDevice::b
 function to properly initialize the device.
 
 ```
-void IECBasicSD::open(uint8_t channel, const char *name)
+bool IECBasicSD::open(uint8_t channel, const char *name)
 {
-  m_file.open(name, channel==0 ? O_RDONLY : (O_WRONLY | O_CREAT));
+  return m_file.open(name, channel==0 ? O_RDONLY : (O_WRONLY | O_CREAT));
 }
 ```
 
 The "open()" function is called whenever the bus controller (computer) issues an OPEN command.
-Note that this function does not return a value to signify success or failure to open the
-file. The IEC bus protocol does not provide a method to transmit this information directly.
-For more information on this see the description of the open() function in 
-[IECFileDevice Class Reference](#iecfiledevice-class-reference) section below.
+The function will return true if the open() call succeeded and false otherwise.
 
 ```
 uint8_t IECBasicSD::read(uint8_t channel, uint8_t *buffer, uint8_t bufferSize)
@@ -285,8 +294,6 @@ uint8_t IECBasicSD::read(uint8_t channel, uint8_t *buffer, uint8_t bufferSize)
 This function must fill the given buffer with up to bufferSize bytes of data from
 the file that was previously opened for the given channel number. It must return the number of bytes 
 written to the buffer. Returning 0 signals that no more data is left to read. 
-Returning 0 on the first call after "open()" signals that there was an
-error opening the file.
 
 ```
 uint8_t IECBasicSD::write(uint8_t channel, uint8_t *buffer, uint8_t n)
@@ -343,11 +350,12 @@ section for a detailed description of these functions.
 The IECBusHandler class facilitates the bus communication and will call the read/write functions
 in its attached device(s) when necessary.
 
-- ```IECBusHandler(uint8_t pinATN, uint8_t pinCLK, uint8_t pinDATA, uint8_t pinRESET = 0xFF, uint8_t pinCTRL = 0xFF)```  
+- ```IECBusHandler(uint8_t pinATN, uint8_t pinCLK, uint8_t pinDATA, uint8_t pinRESET = 0xFF, uint8_t pinCTRL = 0xFF, uint8_t pinSRQ = 0xFF)```  
   The IECBusHandler constructor defines the pins to which the IEC bus signals are connected. The pinRESET parameter is optional,
   if not given, the device will simply not respond to a bus reset. The pinCTRL parameter (also optional) is helpful
   for applications where the microcontroller may not be able to respond quickly enough to ATN requests 
-  (see [Timing considerations](#timing-considerations) section below).
+  (see [Timing considerations](#timing-considerations) section below). Finally, the pinSRQ parameter (also optional)
+  can be used to specify a pin for the SRQ functionality (see the [Wiring](#wiring) section above).
 
 - ```bool attachDevice(IECDevice *dev)```  
   Attaches a new device to the bus handler. The maximum number of devices that can be attached is 
@@ -393,6 +401,10 @@ The IECDevice class has the following functions that may/must be called from you
 - ```void setActive(bool active)```
   Allows to deactivate a device without detaching it from the bus entirely. An inactive
   device will not respond to any bus requests.
+
+- ```void sendSRQ()```
+  Allows the device to generate an SRQ interrupt in the bus controller (computer). 
+  See the [Wiring](#wiring) section above.
 
 - ```void enableJiffyDosSupport(bool enable)```  
   This function must be called **if** your device should support the JiffyDos protocol.
@@ -548,6 +560,10 @@ The IECFileDevice class has the following functions that may/must be called from
   Allows to deactivate a device without detaching it from the bus entirely. An inactive
   device will not respond to any bus requests.
 
+- ```void sendSRQ()```
+  Allows the device to generate an SRQ interrupt in the bus controller (computer). 
+  See the [Wiring](#wiring) section above.
+
 The following functions can be overloaded in the derived device class to implement the device functions.
 None of these function are *required*. For example, if your device only receives data then only the
 canWrite() and write() functions need to be overloaded.
@@ -577,33 +593,18 @@ executes a SAVE command.
   This function will automatically be called on every execution of IECBusHandler::task(), once for all attached devices. 
   It can be used to handle device-specific periodic tasks. 
   If you overload this function, make sure to call IECFileDevice::task() from within your overloaded function.
-- ```void open(uint8_t channel, const char *filename)```  
+- ```bool open(uint8_t channel, const char *filename)```  
   This function is called whenever the bus controller (computer) issues an OPEN command.
   The *channel* parameter specifies the channel as described above and the *filename* 
   parameter is a zero-terminated string representing the file name given in the OPEN command.
-
-  Note that open() does not return a value to signify success or failure to open the
-  file. The IEC bus protocol does not provide a method to transmit this information directly.
-  
-  On the computer side, success or failure for opening a file can be determined by attempting to 
-  read/write to it and checking the bus status (ST variable in BASIC) afterwards. If the read/write
-  failed (ST<>0) then the file could not be opened.
-  
-  When LOADing a program, the computer will display a "file not found" error if the device returns 0
-  on the *first* read() call  after open().
-  
-  For SAVEing a program, the computer will never show an error even in the case of failure. It is
-  expected that the device signals the error condition separately to the user (e.g. the blinking
-  LED on a floppy disk drive).
+  The function should return true if opening the file succeeded and false otherwise.
 - ```void close(uint8_t channel)```  
   Close the file that was previously opened on *channel*. The close() function does not have a 
   return value to signal success or failure since the IEC bus protocol does not include a method 
   to transmit this information.  
 - ```uint8_t read(uint8_t channel, uint8_t *buffer, uint8_t bufferSize)```  
   Read up to *bufferSize* bytes of data from the file opened for *channel*, returning the number 
-  of bytes read. Returning 0 will signal end-of-file to the receiver. Returning 0
-  for the FIRST call after open() signals an error condition.
-  (LOAD on the computer will show "file not found" in this case)
+  of bytes read. Returning 0 will signal end-of-file to the receiver.
 - ```uint8_t write(uint8_t channel, uint8_t *buffer, uint8_t bufferSize)```  
   Write *bufferSize* bytes of data to the file opened for *channel*, returning the number 
   of bytes written. Returning a number less than *bufferSize* signals an error condition.

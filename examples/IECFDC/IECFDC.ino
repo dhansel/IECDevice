@@ -29,6 +29,10 @@
 #define PIN_LED   A0
 
 
+#ifndef __AVR_ATmega328P__
+#error "This sketch is meant only for use on an Arduino Uno"
+#endif
+
 #ifdef SUPPORT_DOLPHIN
 #error "Not enough program space (or pins) on Arduino UNO to support Dolphin DOS in this sketch - remove '#define SUPPORT_DOLPHIN' in file IECDevice.h"
 #endif
