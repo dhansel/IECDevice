@@ -61,9 +61,11 @@ When looking at the IEC bus connector at the back of your computer, the pins are
 
 <img src="IECBusPins.jpg" width="25%" align="center">
 
-Note that the SRQ signal will not be needed for most applications. The SRQ signal allows a device on the
-IEC bus to signal request attention from the computer. In the C64, the SRQ signal is connected to the
-FLAG input of CIA1 and therefore, if the CIA is set up to do so, can create a processor interrupt.
+Note that the SRQ line will rarely be needed (and can be left unconnected). The SRQ signal allows a device on the
+IEC bus to request attention from the computer. In the C64, the SRQ signal is connected to the
+FLAG input of CIA1 and therefore, if the CIA is set up to do so, can create a processor interrupt. The
+processor can see that the interrupt originated from the SRQ line, i.e. that a device requested attention 
+(although it can not see *which* device produced the request) and act accordingly.
 This can be useful in some cases, for example if a modem device on the IEC bus wants to signal that more
 data is available for reading. However, the C64 kernal itself does not use this signal at all and very
 little (if any) software exists that uses it. In general you can leave this pin unconnected, unless you
