@@ -650,7 +650,7 @@ IECDevice *IECBusHandler::findDevice(uint8_t devnr, bool includeInactive)
 }
 
 
-void IECBusHandler::atnInterruptFcn(INTERRUPT_FCN_ARG)
+void IRAM_ATTR IECBusHandler::atnInterruptFcn(INTERRUPT_FCN_ARG)
 { 
   if( s_bushandler!=NULL && !s_bushandler->m_inTask & ((s_bushandler->m_flags & P_ATN)==0) )
     s_bushandler->atnRequest();
@@ -1022,7 +1022,7 @@ bool IRAM_ATTR IECBusHandler::transmitJiffyBlock(uint8_t *buffer, uint8_t numByt
 #if !defined(__AVR_ATmega328P__) && !defined(__AVR_ATmega2560__)
 
 volatile static bool _handshakeReceived = false;
-static void handshakeIRQ(INTERRUPT_FCN_ARG) { _handshakeReceived = true; }
+static void IRAM_ATTR handshakeIRQ(INTERRUPT_FCN_ARG) { _handshakeReceived = true; }
 
 bool IRAM_ATTR IECBusHandler::parallelCableDetect()
 {
@@ -2242,7 +2242,7 @@ bool IECBusHandler::transmitIECByte(uint8_t numData)
 
 // called when a falling edge on ATN is detected, either by the pin change
 // interrupt handler or by polling within the microTask function
-void IECBusHandler::atnRequest()
+void IRAM_ATTR IECBusHandler::atnRequest()
 {
   // check if ATN is actually LOW, if not then just return (stray interrupt request)
   if( readPinATN() ) return;
@@ -2253,7 +2253,16 @@ void IECBusHandler::atnRequest()
   m_currentDevice = NULL;
 
   // ignore anything for 100us after ATN falling edge
+#ifdef ESP_PLATFORM
+  // calling "micros()" (aka esp_timer_get_time()) within an interrupt handler
+  // on ESP32 appears to sometimes return incorrect values. This was observed
+  // when running Meatloaf on a LOLIN D32 board. So we just note that the 
+  // timeout needs to be started and will actually set m_timeoutStart outside 
+  // of the interrupt handler within the task() function
+  m_timeoutStart = 0xFFFFFFFF;
+#else
   m_timeoutStart = micros();
+#endif
 
   // release CLK (in case we were holding it LOW before)
   writePinCLK(HIGH);
@@ -2315,7 +2324,14 @@ void IECBusHandler::task()
       atnRequest();
     } 
 
+#ifdef ESP_PLATFORM
+  // see comment in atnRequest function
+  if( (m_flags & P_ATN)!=0 && !readPinATN() &&
+      (m_timeoutStart==0xFFFFFFFF ? (m_timeoutStart=micros(),false) : (micros()-m_timeoutStart)>100) &&
+      readPinCLK() )
+#else
   if( (m_flags & P_ATN)!=0 && !readPinATN() && (micros()-m_timeoutStart)>100 && readPinCLK() )
+#endif
     {
       // we are under ATN, have waited 100us and the host has released CLK
       // => no more interrupts until the ATN sequence is finished. If we allowed interrupts
