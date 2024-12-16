@@ -1989,6 +1989,10 @@ bool IECBusHandler::receiveEpyxHeader()
 
 bool IECBusHandler::transmitEpyxBlock()
 {
+  // set channel number for read() call below
+  m_currentDevice->talk(0);
+
+  // get data
   uint8_t n = m_currentDevice->read(m_buffer, m_bufferSize);
 
   noInterrupts();
