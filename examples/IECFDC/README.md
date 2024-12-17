@@ -52,7 +52,7 @@ the Arduino through a 150 Ohm resistor to GND.
 Finally, you can wire the IEC bus RESET signal to the RST pin of the Arduino. Doing so will reset the
 Arduino whenever the computer is reset.
 
-Note that the IEC bus does supply 5V power so you will need to power
+Note that the IEC bus does not supply 5V power so you will need to power
 your device either from an external 5V supply or use the 5V output available on
 the computer's user port, cassette port or expansion port.
 
