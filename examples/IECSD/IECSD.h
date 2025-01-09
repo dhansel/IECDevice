@@ -1,8 +1,17 @@
 #ifndef IECSD_H
 #define IECSD_H
 
+#if defined(ARDUINO_ARCH_RP2040) || defined(ESP_PLATFORM) || defined(__SAM3X8E__)
+// Un-comment the line below if you have the VDrive library (https://github.com/dhansel/VDrive) 
+// installed. This will allow to "CD" into Commodore disk image files (D64/G64 etc).
+//#define HAVE_VDRIVE
+#endif
+
 #include <IECFileDevice.h>
 #include <SdFat.h>
+#ifdef HAVE_VDRIVE
+#include <VDriveClass.h>
+#endif
 
 #define IECSD_BUFSIZE 64
 
@@ -42,6 +51,10 @@ class IECSD : public IECFileDevice
   SdFat m_sd;
   SdFile m_file, m_dir;
   bool m_cardOk;
+
+#ifdef HAVE_VDRIVE
+  VDrive *m_drive;
+#endif
 
   uint8_t m_pinLED, m_pinChipSelect, m_errorCode, m_scratched;
   uint8_t m_dirBufferLen, m_dirBufferPtr;

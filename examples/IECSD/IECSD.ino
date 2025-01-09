@@ -17,7 +17,7 @@
 // -----------------------------------------------------------------------------
 
 #include "IECSD.h"
-#include "IECBusHandler.h"
+#include <IECBusHandler.h>
 
 // IEC bus device number
 #define DEVICE_NUMBER 9
@@ -61,7 +61,7 @@
 
 #if defined(__AVR_ATmega328P__) || defined(ARDUINO_UNOR4_MINIMA) || defined(ARDUINO_UNOR4_WIFI)
 #undef PIN_LED
-#define PIN_LED  PIN_SPI_CS      // LED shares pin with SPI CS
+#define PIN_LED  8 // PIN_SPI_CS      // LED shares pin with SPI CS
 #elif defined(ARDUINO_AVR_MICRO)
 #undef PIN_LED
 #define PIN_LED  LED_BUILTIN_TX  // use "TX" LED on PRO MICRO
@@ -91,17 +91,17 @@
 
 #include <SPI.h>
 
-#define PIN_IEC_ATN   34
-#define PIN_IEC_CLK   32
-#define PIN_IEC_DATA  33
-#define PIN_IEC_RESET 35
+#define PIN_IEC_ATN   32
+#define PIN_IEC_CLK   33
+#define PIN_IEC_DATA  25
+#define PIN_IEC_RESET 34
 
 #define PIN_SPI_CLK   SCK
 #define PIN_SPI_MISO  MISO
 #define PIN_SPI_MOSI  MOSI
 #define PIN_SPI_CS    SS
 
-#define PIN_LED       21
+#define PIN_LED       5
 
 #endif
 
