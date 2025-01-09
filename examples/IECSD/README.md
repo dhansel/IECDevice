@@ -76,5 +76,5 @@ Limitations:
 
 If you would like to be able to use Commodore disk image files (D64, G64 etc) then
 install my [VDrive library](https://github.com/dhansel/VDrive) and un-comment the
-```#define HAVE_VDRIVE`` line in the ```IECSD.h``` file. Note that due to the memory
+```#define HAVE_VDRIVE``` line in the ```IECSD.h``` file. Note that due to the memory
 requirements this only works on 32-bit architectures (Pi Pico, ESP32 or Arduino Due).
