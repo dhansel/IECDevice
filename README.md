@@ -243,8 +243,8 @@ class IECBasicSD : public IECFileDevice
  protected:
   virtual void begin();
   virtual bool open(uint8_t channel, const char *name);
-  virtual uint8_t read(uint8_t channel, uint8_t *buffer, uint8_t bufferSize);
-  virtual uint8_t write(uint8_t channel, uint8_t *buffer, uint8_t n);
+  virtual uint8_t read(uint8_t channel, uint8_t *buffer, uint8_t bufferSize, bool *eoi);
+  virtual uint8_t write(uint8_t channel, uint8_t *buffer, uint8_t n, bool eoi);
   virtual void close(uint8_t channel);
 
  private:
@@ -287,7 +287,7 @@ The "open()" function is called whenever the bus controller (computer) issues an
 The function will return true if the open() call succeeded and false otherwise.
 
 ```
-uint8_t IECBasicSD::read(uint8_t channel, uint8_t *buffer, uint8_t bufferSize)
+uint8_t IECBasicSD::read(uint8_t channel, uint8_t *buffer, uint8_t bufferSize, bool *eoi)
 {
   return m_file.isOpen() ? m_file.read(buffer, bufferSize) : 0;
 }
@@ -298,7 +298,7 @@ the file that was previously opened for the given channel number. It must return
 written to the buffer. Returning 0 signals that no more data is left to read. 
 
 ```
-uint8_t IECBasicSD::write(uint8_t channel, uint8_t *buffer, uint8_t n)
+uint8_t IECBasicSD::write(uint8_t channel, uint8_t *buffer, uint8_t n, bool eoi)
 {
   return m_file.isOpen() ? m_file.write(buffer, n) : 0;
 }
@@ -567,8 +567,8 @@ The IECFileDevice class has the following functions that may/must be called from
   See the [Wiring](#wiring) section above.
 
 The following functions can be overloaded in the derived device class to implement the device functions.
-None of these function are *required*. For example, if your device only receives data then only the
-canWrite() and write() functions need to be overloaded.
+Only the open/close/read/write functions are required to be overloaded, others have default implementations
+that will be used if not overloaded.
 
 Most of these functions take an argument named *channel* which is the channel number given in
 the OPEN command that opened the file on the computer side, i.e. ```OPEN fileNum, deviceNum, channel, name$```
@@ -604,10 +604,14 @@ executes a SAVE command.
   Close the file that was previously opened on *channel*. The close() function does not have a 
   return value to signal success or failure since the IEC bus protocol does not include a method 
   to transmit this information.  
-- ```uint8_t read(uint8_t channel, uint8_t *buffer, uint8_t bufferSize)```  
+- ```uint8_t read(uint8_t channel, uint8_t *buffer, uint8_t bufferSize, bool *eoi)```  
   Read up to *bufferSize* bytes of data from the file opened for *channel*, returning the number 
-  of bytes read. Returning 0 will signal end-of-file to the receiver.
-- ```uint8_t write(uint8_t channel, uint8_t *buffer, uint8_t bufferSize)```  
+  of bytes read. There are two ways to signal end-of-data (EOI) to the receiver:
+    - Returning a data length of 0.
+    - Returning a data length of >0 and setting the *eoi parameter to true signals EOI after transmitting the data returned in this call.
+  Note that read() may be called again even after signaling EOI once if the receiver requests
+  more data 
+- ```uint8_t write(uint8_t channel, uint8_t *buffer, uint8_t bufferSize, bool eoi)```  
   Write *bufferSize* bytes of data to the file opened for *channel*, returning the number 
   of bytes written. Returning a number less than *bufferSize* signals an error condition.
 - ```void getStatus(char *buffer, uint8_t bufferSize)```  

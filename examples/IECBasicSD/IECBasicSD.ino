@@ -64,8 +64,8 @@ class IECBasicSD : public IECFileDevice
   virtual void reset();
 
   virtual bool open(uint8_t channel, const char *name);
-  virtual uint8_t read(uint8_t channel, uint8_t *buffer, uint8_t bufferSize);
-  virtual uint8_t write(uint8_t channel, uint8_t *buffer, uint8_t bufferSize);
+  virtual uint8_t read(uint8_t channel, uint8_t *buffer, uint8_t bufferSize, bool *eoi);
+  virtual uint8_t write(uint8_t channel, uint8_t *buffer, uint8_t bufferSize, bool eoi);
   virtual void close(uint8_t channel);
 
  private:
@@ -83,13 +83,16 @@ void IECBasicSD::begin()
 {
   // initialize SD card (note: Pi Pico crashes if m_sd.begin() is called from within IECBasicSD constructor)
 #if defined(ARDUINO_ARCH_ESP32)
-  SPI.begin(SCK, MISO, MOSI, PIN_SPI_CS);
+  //SPI.begin(SCK, MISO, MOSI, PIN_SPI_CS);
 #endif
+
+  /*
 #if defined(__SAM3X8E__) || defined(ARDUINO_ARCH_ESP32)
   m_sd.begin(PIN_SPI_CS, SD_SCK_MHZ(8));
 #else
   m_sd.begin(PIN_SPI_CS);
 #endif
+  */
 
   // initialize IEC bus
   IECFileDevice::begin();
@@ -101,35 +104,38 @@ bool IECBasicSD::open(uint8_t channel, const char *name)
   // open file for reading or writing. Use channel number to determine
   // whether to read (channel 0) or write (channel 1). These channel numbers
   // correspond to the channels used by the C64 LOAD and SAVE commands.
-  return m_file.open(name, channel==0 ? O_RDONLY : (O_WRONLY | O_CREAT));
+  return false;
+  //return m_file.open(name, channel==0 ? O_RDONLY : (O_WRONLY | O_CREAT));
 }
 
 
-uint8_t IECBasicSD::read(uint8_t channel, uint8_t *buffer, uint8_t bufferSize)
+uint8_t IECBasicSD::read(uint8_t channel, uint8_t *buffer, uint8_t bufferSize, bool *eoi)
 {
   // read up to bufferSize bytes from the file opened before, return the number
   // of bytes read or 0 if the file is not open (i.e. an error occurred during open)
-  return m_file.isOpen() ? m_file.read(buffer, bufferSize) : 0;
+  return 0;
+  //return m_file.isOpen() ? m_file.read(buffer, bufferSize) : 0;
 }
 
 
-uint8_t IECBasicSD::write(uint8_t channel, uint8_t *buffer, uint8_t bufferSize)
+uint8_t IECBasicSD::write(uint8_t channel, uint8_t *buffer, uint8_t bufferSize, bool eoi)
 {
   // writhe bufferSize bytes to the file opened before, return the number
   // of bytes written or 0 if the file is not open (i.e. an error occurred during open)
-  return m_file.isOpen() ? m_file.write(buffer, bufferSize) : 0;
+  return 0;
+  //return m_file.isOpen() ? m_file.write(buffer, bufferSize) : 0;
 }
 
 
 void IECBasicSD::close(uint8_t channel)
 {
-  m_file.close(); 
+  //m_file.close(); 
 }
 
 
 void IECBasicSD::reset()
 {
-  m_file.close();
+  //m_file.close();
   IECFileDevice::reset();
 }
 

@@ -32,8 +32,8 @@ class IECFDC : public IECFileDevice
 
  protected:
   virtual bool open(uint8_t channel, const char *name);
-  virtual uint8_t write(uint8_t channel, uint8_t *buffer, uint8_t bufferSize);
-  virtual uint8_t read(uint8_t channel, uint8_t *buffer, uint8_t bufferSize);
+  virtual uint8_t write(uint8_t channel, uint8_t *buffer, uint8_t bufferSize, bool eoi);
+  virtual uint8_t read(uint8_t channel, uint8_t *buffer, uint8_t bufferSize, bool *eoi);
   virtual void close(uint8_t channel);
   virtual void getStatus(char *buffer, uint8_t bufferSize);
   virtual void execute(const char *command, uint8_t len);

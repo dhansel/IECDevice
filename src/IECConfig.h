@@ -54,6 +54,6 @@
 // IECFileDevice::setStatus() is called with data longer than this it will be clipped.
 // every instance of IECFileDevice will allocate this buffer so it should be
 // kept small on platforms with little RAM (e.g. Arduino UNO)
-#define IECFILEDEVICE_STATUS_BUFFER_SIZE 32
+#define IECFILEDEVICE_STATUS_BUFFER_SIZE 40
 
 #endif

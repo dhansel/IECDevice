@@ -510,7 +510,7 @@ bool IECSD::open(uint8_t channel, const char *name)
 }
 
 
-uint8_t IECSD::read(uint8_t channel, uint8_t *buffer, uint8_t bufferSize)
+uint8_t IECSD::read(uint8_t channel, uint8_t *buffer, uint8_t bufferSize, bool *eoi)
 {
   if( m_file.isOpen() )
     return m_file.read(buffer, bufferSize);
@@ -519,7 +519,7 @@ uint8_t IECSD::read(uint8_t channel, uint8_t *buffer, uint8_t bufferSize)
 }
 
 
-uint8_t IECSD::write(uint8_t channel, uint8_t *buffer, uint8_t bufferSize)
+uint8_t IECSD::write(uint8_t channel, uint8_t *buffer, uint8_t bufferSize, bool eoi)
 {
   if( m_file.isOpen() )
     return m_file.write(buffer, bufferSize);

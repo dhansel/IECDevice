@@ -405,7 +405,7 @@ bool IECFDC::open(uint8_t channel, const char *name)
 }
 
 
-uint8_t IECFDC::read(uint8_t channel, uint8_t *buffer, uint8_t bufferSize)
+uint8_t IECFDC::read(uint8_t channel, uint8_t *buffer, uint8_t bufferSize, bool *eoi)
 {
   if( m_fatFsFile.obj.fs!=0 )
     {
@@ -419,7 +419,7 @@ uint8_t IECFDC::read(uint8_t channel, uint8_t *buffer, uint8_t bufferSize)
 }
 
 
-uint8_t IECFDC::write(uint8_t channel, uint8_t *buffer, uint8_t bufferSize)
+uint8_t IECFDC::write(uint8_t channel, uint8_t *buffer, uint8_t bufferSize, bool eoi)
 {
   uint8_t res = 0;
 
