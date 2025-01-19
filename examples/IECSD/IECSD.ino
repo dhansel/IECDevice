@@ -41,7 +41,7 @@
 // --- Activity LED connection (*=on-board LED)
 //
 //       Uno    Mega   Micro   Due   PiPico   ESP32  WT-ETH01
-// LED   10     13/*   *       13/*  *        IO21   -
+// LED   8      13/*   *       13/*  *        IO21   -
 
 
 
@@ -61,7 +61,11 @@
 
 #if defined(__AVR_ATmega328P__) || defined(ARDUINO_UNOR4_MINIMA) || defined(ARDUINO_UNOR4_WIFI)
 #undef PIN_LED
-#define PIN_LED  PIN_SPI_CS      // LED shares pin with SPI CS
+#if defined(SUPPORT_DOLPHIN) && !defined(SUPPORT_DOLPHIN_XRA1405)
+#define PIN_LED  0xFF // parallel cable directly connected => no pin left for LED
+#else
+#define PIN_LED  8
+#endif
 #elif defined(ARDUINO_AVR_MICRO)
 #undef PIN_LED
 #define PIN_LED  LED_BUILTIN_TX  // use "TX" LED on PRO MICRO
