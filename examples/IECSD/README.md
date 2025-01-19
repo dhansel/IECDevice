@@ -31,8 +31,8 @@ The example uses the following pins for the SPI connections to the SD card modul
 Signal | Arduino Uno | Mega | Mico | Due | Raspberry Pi Pico | ESP32
 -------|-------------|------|------|-----|-------------------|------
 SCK    | 13/*        | 52   | 15   |  *  |  GPIO18           | IO18
-MISO   | 12/*        | 50   | 14   |  *  |  GPIO16           | IO19
-MOSI   | 11/*        | 51   | 16   |  *  |  GPIO19           | IO23
+CIPO   | 12/*        | 50   | 14   |  *  |  GPIO16           | IO19
+COPI   | 11/*        | 51   | 16   |  *  |  GPIO19           | IO23
 CS     | 10          | 10   | 10   | 10  |  GPIO17           | IO5
 
 
