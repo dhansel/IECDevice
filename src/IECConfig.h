@@ -25,6 +25,10 @@
 #define SUPPORT_EPYX
 //#define SUPPORT_DOLPHIN
 
+// un-comment this to use a XRA1405 port expander for the 8-bit parallel cable
+// instead of connecting the parallel pins directly to the microcontroller
+//#define SUPPORT_DOLPHIN_XRA1405
+
 // support Epyx FastLoad sector operations (disk editor, disk copy, file copy)
 // if this is enabled then the buffer in the setBuffer() call must have a size of
 // at least 256 bytes. Note that the "bufferSize" argument is a byte and therefore

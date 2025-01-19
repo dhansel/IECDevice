@@ -26,7 +26,7 @@ The library provides three classes:
     section for an example on how to use IECBusHandler class.
 
 So far I have tested this library on the following microcontrollers:
-  -  Arduino 8-bit ATMega devices (Uno R3, Mega, Mini, Micro, Leonardo)
+  -  Arduino 8-bit ATMega devices (Uno R3, Mega, Mini, Nano, Micro, Leonardo)
   -  Arduino Uno R4
   -  Arduino Due (32-bit)
   -  ESP32 (in Arduino IDE as well as using PlatformIO with ESP-IDF framework)
@@ -754,7 +754,8 @@ transmission speed. It will work without parallel cable will not provide any spe
 
 IECDevice has pre-defined pins for the different hardware platforms but those can be changed
 by calling the ```setDolphinDosPins(HT,HR,D0,D1,D2,D3,D4,D5,D6,D7)``` function. The pre-defined
-pin numbers are as follows:
+pin numbers are as follows (note: the "Arduino Uno" column includes the R3 and R4 versions
+as well as the Nano, Mini, Micro and Leonardo variants):
 
 C64 User Port pin | Signal | Arduino Uno | Mega | Due | Raspberry Pi Pico | ESP32
 ------------------|--------|-------------|------|-----|-------------------|------
@@ -766,11 +767,77 @@ H (PB4)           | D4     | A4          | 26   | 47  | 11                | IO17
 J (PB5)           | D5     | A5          | 27   | 46  | 12                | IO25   
 K (PB6)           | D6     | 8           | 28   | 45  | 13                | IO26   
 L (PB7)           | D7     | 9           | 29   | 44  | 14                | IO27   
-8 (PC2)           | HR     | 2           | 2    | 53  | 15                | IO36 (VP)  
+8 (PC2)           | HR     | 2           | 2    | 53  | 15                | IO36 (VP)
 B (FLAG2)         | HT     | 7           | 30   | 52  | 6                 | IO4    
 
 Instructions for making a breakout board for the C64 user port that allows for easy connection 
 to the parallel port pins are available [here](hardware/README.md#user-port-breakout-board)
+
+### DolphinDos support using XRA1405 port extender
+
+Some of the supported microcontrollers (Arduino Uno/Micro/Nano, ESP32) have a limited number
+of available I/O pins which means that if the parallel cable is connected as shown above,
+few (if any) pins are left available for other functions. To mitigate that, the IECDevice
+library provides an option to use a port extender ([MaxLinear XRA1405](https://www.digikey.com/htmldatasheets/production/982544/0/0/1/xra1405.pdf))
+for the 8-bit parallel data transmission.
+
+The XRA1405 was chosen because:
+  - It has 5V-tolerant inputs which means that 3.3V systems such as the Pi
+    Pico and ESP32 do not require extra level conversion for the parallel data.
+  - It connects to the microcontroller via SPI which allows very fast
+    communication (24MHz). Also, since many use-cases for this library will
+    already include an SD card reader, the SPI bus pins can be shared between
+    the XRA1405 and the SD card reader, meaning that only three extra pins (CS, HR, HT)
+    on the microcontroller are needed for the parallel cable connection.
+
+Unfortunately, the XRA1405 is only available in QFN-24 a package, meaning some
+non-trivial SMD soldering is required. I soldered an XRA1405 onto a [QFN-24
+breakout board](https://www.digikey.com/en/products/detail/schmalztech-llc/ST-QFN-24-4X4-05/24617918) 
+so it can be easily used on breadboards. The XRA1405 pin numbers given below
+refer the the QFN-24 package.
+
+The default connections for the XRA1405 to the microcontroller are as follows
+(these can be changed by calling the setDolphinDosPins() function).
+The pin numbers in the "Arduino Uno" column apply to Arduino UNO R3 and R4
+as well as Arduino Micro and Nano.
+
+XRA1405 pin       | Signal | Arduino Uno | Raspberry Pi Pico | ESP32
+------------------|--------|-------------|-------------------|------
+18 (CS#)          | CS     | 9           | 20                | IO22
+19 (SCL)          | SCK    | 13          | 18                | IO18
+20 (SO)           | CIPO   | 12          | 16                | IO19
+24 (SI)           | COPI   | 11          | 19                | IO23
+21 (VCCP)         | 3.3V   | 3.3V        | 3.3V              | 3.3V
+23 (VCC)          | 3.3V   | 3.3V        | 3.3V              | 3.3V
+9 (GND)           | GND    | GND         | GND               | GND
+
+C64 User Port pin | Signal | Arduino Uno | Raspberry Pi Pico | ESP32
+------------------|--------|-------------|-------------------|------
+8 (PC2)           | HR     | 2           | 15                | IO36 (VP)
+B (FLAG2)         | HT     | 7           | 6                 | IO4
+
+Finally, connect User Port pins C-L (PB0-PB7) to XRA1405 pins 1-8 (P0-P7).
+
+To enable XRA1405 support in the library, un-comment the ```#define SUPPORT_DOLPHIN_XRA1405```
+line in file ```IECConfig.h```.
+
+Note that the XRA1405 has two 8-bit I/O ports of which only the first one
+is used by this library. You are free to use the other port (P8-P15) for your
+own functions, for example by emplying the [XRA1405 library](https://github.com/NaveItay/XRA1405).
+
+Finally, a few notes regarding 3.3V vs. 5V compatibility:
+  - The XRA1405 chip CAN be connected directly to 5V microcontrollers (Arduino UNO) as
+    it is 5V tolerant on its inputs. However, if you also connect an SD card reader then either
+    make sure the SD card reader also operates at 3.3V (and is 5V tolerant) or provide 5V-to-3.3V
+    level translation for (at least) the CIPO signal going from the XRA1405 to the microcontroller.
+    Otherwise you will likely see read errors on the SD card, because the 3.3V CIPO output of the
+    XRA1405 would be directly connected to the 5V CIPO output of the SD card reader, disrupting
+    the signal. This is true even though those two outputs are never active at the same time
+    (I suspect because of shunting diodes within the XRA1405).
+  - For 3.3V microcontrollers, the XRA1405 will provide the level translation for the 8-bit
+    data signals (PB0-PB7) but the PC2 and FLAG2 signals still are 5V signals and need
+    level translation between the C64 and the microcontroller.
+
 
 ## Raspberry Pi Pico development board
 
