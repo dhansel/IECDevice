@@ -710,8 +710,8 @@ void IECSD::execute(const char *command, uint8_t len)
     }
   else if( (strncmp_P(command, PSTR("CD:"),3)==0 || strncmp_P(command, PSTR("MD:"),3)==0 || strncmp_P(command, PSTR("RD:"),3)==0) && command[3]!=0 )
     {
-      strncpy(m_dirBuffer, command+3, 16);
-      m_dirBuffer[16]=0;
+      strncpy(m_dirBuffer, command+3, IECSD_BUFSIZE);
+      m_dirBuffer[IECSD_BUFSIZE-1]=0;
       fromPETSCII((uint8_t *) m_dirBuffer);
 
       if( command[0]=='C' )
