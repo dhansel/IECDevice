@@ -32,7 +32,7 @@ class IECSD : public IECFileDevice
   virtual void execute(const char *command, uint8_t len);
   virtual void reset();
 
-#if defined(SUPPORT_EPYX) && defined(SUPPORT_EPYX_SECTOROPS)
+#if defined(SUPPORT_EPYX) && defined(SUPPORT_EPYX_SECTOROPS) && defined(HAVE_VDRIVE)
   virtual bool epyxReadSector(uint8_t track, uint8_t sector, uint8_t *buffer);
   virtual bool epyxWriteSector(uint8_t track, uint8_t sector, uint8_t *buffer);
 #endif

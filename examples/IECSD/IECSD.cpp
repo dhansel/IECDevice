@@ -156,103 +156,33 @@ void IECSD::fromPETSCII(uint8_t *name)
     }
 }
 
-#if defined(SUPPORT_EPYX) && defined(SUPPORT_EPYX_SECTOROPS)
-
+#if defined(SUPPORT_EPYX) && defined(SUPPORT_EPYX_SECTOROPS) && defined(HAVE_VDRIVE)
 bool IECSD::epyxReadSector(uint8_t track, uint8_t sector, uint8_t *buffer)
 {
   bool res = false;
 
-  if( track==18 )
-    {
-      // fake track 18 (directory)
-      if( sector==0 )
-        {
-          // fake BAM
-          memset(buffer, 0, 256);
-          buffer[0] = 18;
-          buffer[1] = 1;
-          buffer[2] = 'A';
-          memset(buffer+4, 0xFF, 35*4); // all tracks/sectors unused
-          memset(buffer+18*4, 0x00, 4); // except track 18 (all in use)
-          int l = m_dir.getName((char *) buffer+144, 16);
-          toPETSCII(buffer+144);
-          memset(buffer+144+l, 0xA0, 16-l);
-          buffer[162] = '0';
-          buffer[163] = '0';
-          buffer[164] = 0xA0;
-          buffer[165] = 0x32;
-          buffer[166] = 'A';
-          buffer[167] = 0xA0;
-          buffer[168] = 0xA0;
-          buffer[169] = 0xA0;
-          buffer[170] = 0xA0;
-          res = true;
-        }
-      else if( m_dir.openCwd() )
-        {
-          // fake directory block
-          SdFile f;
-          memset(buffer, 0, 256);
-
-          // each directory sector stores 8 entries, skip to first entry in this sector
-          // note that this is very inefficient for large directories
-          int n = (sector-1) * 8;
-          while( n>0 && f.openNext(&m_dir, O_RDONLY) ) { f.close(); n--; }
-
-          // create up to 8 fake directory entries
-          for(n=0; n<8 && f.openNext(&m_dir, O_RDONLY); n++)
-            {
-              uint16_t size = f.fileSize()==0 ? 0 : min(f.fileSize()/254+1, 9999);
-              char *b = (char *) buffer + (32*n) + 2;
-              int l = f.getName(b+3, 16);
-              if( l>4 && strcasecmp_P(b+3+l-4, PSTR(".prg"))==0 )
-                { l -= 4; b[0] = 0x82; }
-              else if( n>4 && strcasecmp(b+3+l-4, PSTR(".seq"))==0 )
-                { l -= 4; b[0] = 0x81; }
-              else
-                b[0] = 0x82; // program file
-
-              toPETSCII((uint8_t *) m_dirBuffer+m_dirBufferLen);
-              memset(b+3+l, 0xA0, 16-l);
-              b[28] = size&255;
-              b[29] = size/256;
-              f.close();
-            }
-
-          if( f.openNext(&m_dir, O_RDONLY) )
-            {
-              // we have more entries => link to next sector
-              buffer[0] = track;
-              buffer[1] = sector+1;
-            }
-
-          m_dir.close();
-          res = true;
-        }
-      else
-        m_errorCode = E_NOTREADY;
-    }
-  else
-    {
-      // fake sector data
-      for(int i=0; i<256; i++) buffer[i] = i<2 ? 0 : ((i&1) ? sector : track);
-      res = true;
-    }
+  if( m_drive->isOk() )
+    res = m_drive->readSector(track, sector, buffer);
 
   // for debug log
   if( res ) IECFileDevice::epyxReadSector(track, sector, buffer);
+
   return res;
 }
 
+
 bool IECSD::epyxWriteSector(uint8_t track, uint8_t sector, uint8_t *buffer)
 {
+  bool res = false;
+
   // for debug log
   IECFileDevice::epyxWriteSector(track, sector, buffer);
 
-  // just return success
-  return true;
-}
+  if( m_drive->isOk() )
+    res = m_drive->writeSector(track, sector, buffer);
 
+  return res;
+}
 #endif
 
 
