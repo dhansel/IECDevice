@@ -2326,10 +2326,14 @@ bool IECBusHandler::receiveIECByteATN(uint8_t &data)
   writePinDATA(HIGH);
 
 #if defined(SUPPORT_EPYX) && defined(SUPPORT_EPYX_SECTOROPS)
+  // other devices on the bus may be holding DATA low, the bus master
+  // starts its 200us timeout (see below) once DATA goes high.
+  if( !waitPinDATA(HIGH, 0) ) return false;
+
   // wait for sender to set CLK=0 ("ready-to-send")
   if( !waitPinCLK(LOW, 200) )
     {
-      // sender did not set CLK=0 within 200us after we set DATA=1, it is signaling EOI
+      // sender did not set CLK=0 within 200us after DATA went high, it is signaling EOI
       // => acknowledge we received it by setting DATA=0 for 80us
       // note that EOI is not really used under ATN but may still be signaled, for example
       // the EPYX FastLoad cartridge's sector read/write function may signal EOI under ATN
