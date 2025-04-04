@@ -51,7 +51,7 @@ Both cores can be installed in the Arduino IDE via "Tools->Boards Manager".
 ## Wiring
 
 Generally, devices connected to the IEC bus use line driver ICs (74LS06 or 74LS07) to drive the Clock 
-and Data signals. While it is better to do so, it adds some hardware and complication that 
+and Data signals. While it is better to do so, it adds some hardware and complexity that 
 is not entirely necessary, at least as long as at most one other device (e.g. 1541 disk drive)
 is connected to the bus.
 
@@ -62,12 +62,13 @@ is the number of other devices on the bus (including the computer).
 Different controllers can sink varying amounts of current:
   - The ATMega328p controller (Arduino UNO) can sink about 40mA per pin and a total of 200mA for all pins.
 That should be enough for up to 7 other devices.
-  - A RP2040 (Raspberry Pi Pico) can sink up to 12mA, enough for the computer and one other device (e.g. a 1541).
-  - The ESP32 can sink 28mA per pin which should be enough for a computer and up to 4 other devices.
+  - A RP2040 (Raspberry Pi Pico) can sink up to 12mA per pin with a total of 50mA for all pins,
+    enough for the computer and one other device (e.g. a 1541).
+  - The ESP32 can sink 28mA per pin (total max 250 mA) which should be enough for a computer and up to 4 other devices.
 
-If you want to make your your microcontroller's I/O pins cannot be overwhelmed by the sink current, you 
-can use a 74LS07 buffer/line driver. It is certainly the safer way to go, however it adds the complication
-of having to acquire those ICs and wiring them up.
+If you want to make sure your microcontroller's I/O pins cannot be overdriven by the sink current, you 
+can use a 74LS07 or 74LS06 buffer/line driver. It is certainly the safer way to go, however it adds the 
+complication of having to acquire those ICs and wiring them up.
 
 Personally, in all my testing I always connected Clock and Data directly to my IECDevice,
 with a C64 and C1541 drive on the bus and never had any problems. This setup is certainly fine 
@@ -119,20 +120,20 @@ to simplifiy the level converter wiring:
 
 If want to use line drivers, first follow the wiring instructions above. I recommend experimenting with
 the simplified wiring first to make sure everything is working. Then
-  1. Un-comment the line ```#define USE_LINE_DRIVERS``` in IECConfig.h and re-upload the sketch.
-  2. If you are using an inverted line drive (74LS06) then also un-comment ```#define USE_INVERTED_DRIVERS```
+  1. Un-comment the line ```#define USE_LINE_DRIVERS``` in IECConfig.h and re-upload the sketch. If you are using an
+     interting line drive (74LS06) then also un-comment ```#define USE_INVERTED_DRIVERS```.
   2. In your code, where you instantiate the IECBusHandler class add two pins for controlling
      the line drivers for the CLK and DATA line to the IECBusHandler constructor call, i.e. change
      ```IECBusHandler myBus(pinATN, pinCLK, pinDATA, pinRESET);``` to
      ```IECBusHandler myBus(pinATN, pinCLK, pinCLKout, pinDATA, pinDATAout, pinRESET);```
   3. Add a 74LS06 or 74LS07 IC to your project and wire it up as follows:
-     - Connect ```pinCLKout``` as defined in the constuctor above to an input pin (1, 3, 5, 8, 10 or 12), of the 74LS07 
-     - Connect the corresponding output pin (2, 4, 6, 9, 11, 13) directly to the Clock signal of the IEC bus
+     - Connect the ```pinCLKout``` pin from the constuctor above to an input pin (1, 3, 5, 8, 10 or 12), of the 74LS07 
+     - Connect the corresponding output pin (2, 4, 6, 9, 11 or 13) directly to the Clock signal of the IEC bus
      - Put a 1k resistor between the IEC bus Clock signal and +5V.
      - Do **not** remove the connection from the Clock signal to the microcontroller. This connection is still
-       used for reading the Clock signal.
+       needed for reading the Clock signal.
   4. Do the same as in the step 3 for the Data signal.
-  5. If you are using the SRQ line, also wire it through the 74LS07 like Clock and Data. Note that there is no
+  5. If you are using the SRQ line, also wire it through the driver just like Clock and Data. Note that there is no
      "SRQout" pin defined in the constructor because SRQ is a write-only signal from the perspective of the device.
      Instead connect the SRQ pin to the 74LS07 and make sure to remove the direct connection from the SRQ pin to the IES bus.
 
