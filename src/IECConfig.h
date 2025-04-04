@@ -19,6 +19,15 @@
 #ifndef IECCONFIG_H
 #define IECCONFIG_H
 
+// un-comment this if you are using open-collector drivers for the CLK/DATA
+// lines (e.g. a 74LS07). If so, the IECBusHandler constructor requires
+// two extra pins for the CLK/DATA output signals
+//#define USE_LINE_DRIVERS
+
+// un-comment this IN ADDITION to USE_LINE_DRIVERS if you are using inverted
+// line drivers (such as 74LS06)
+//#define USE_INVERTED_LINE_DRIVERS
+
 // comment or un-comment these #defines to completely enable/disable support
 // for the corresponding fast-load protocols
 #define SUPPORT_JIFFY

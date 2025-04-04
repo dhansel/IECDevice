@@ -45,7 +45,11 @@ class IECBusHandler
   // (e.g. 2 or 3 on the Arduino UNO), if not then make sure the task() function
   // gets called at least once evey millisecond, otherwise "device not present" 
   // errors may result
+#ifdef USE_LINE_DRIVERS
+  IECBusHandler(uint8_t pinATN, uint8_t pinCLKin, uint8_t pinCLKout, uint8_t pinDATAin, uint8_t pinDATAout, uint8_t pinRESET = 0xFF, uint8_t pinCTRL = 0xFF, uint8_t pinSRQ = 0xFF);
+#else
   IECBusHandler(uint8_t pinATN, uint8_t pinCLK, uint8_t pinDATA, uint8_t pinRESET = 0xFF, uint8_t pinCTRL = 0xFF, uint8_t pinSRQ = 0xFF);
+#endif
 
   // must be called once at startup before the first call to "task", devnr
   // is the IEC bus device number that this device should react to
@@ -101,6 +105,9 @@ class IECBusHandler
   uint8_t m_numDevices;
   int  m_atnInterrupt;
   uint8_t m_pinATN, m_pinCLK, m_pinDATA, m_pinRESET, m_pinSRQ, m_pinCTRL;
+#ifdef USE_LINE_DRIVERS
+  uint8_t m_pinCLKout, m_pinDATAout;
+#endif
 
  private:
   inline bool readPinATN();
@@ -129,6 +136,9 @@ class IECBusHandler
   volatile IOREG_TYPE *m_regCLKwrite, *m_regCLKmode, *m_regDATAwrite, *m_regDATAmode;
   volatile const IOREG_TYPE *m_regATNread, *m_regCLKread, *m_regDATAread, *m_regRESETread;
   IOREG_TYPE m_bitATN, m_bitCLK, m_bitDATA, m_bitRESET;
+#ifdef USE_LINE_DRIVERS
+  IOREG_TYPE m_bitCLKout, m_bitDATAout;
+#endif
 #endif
 
 #ifdef SUPPORT_JIFFY 
