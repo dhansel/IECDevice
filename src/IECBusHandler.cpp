@@ -251,6 +251,12 @@ static unsigned long timer_start_us;
 
 // delayMicroseconds on some platforms does not work if called when interrupts are disabled
 // => define a version that does work on all supported platforms
+#if defined(ARDUINO_ARCH_RP2040)
+static void __no_inline_not_in_flash_func(delayMicrosecondsISafe)(uint16_t t)
+{
+  busy_wait_at_least_cycles((clock_get_hz(clk_sys)/1000000) * t);
+}
+#else
 static IRAM_ATTR void delayMicrosecondsISafe(uint16_t t)
 {
   timer_init();
@@ -259,6 +265,7 @@ static IRAM_ATTR void delayMicrosecondsISafe(uint16_t t)
   timer_wait_until(t);
   timer_stop();
 }
+#endif
 
 
 // -----------------------------------------------------------------------------------------
