@@ -526,15 +526,19 @@ void IECBusHandler::sendSRQ()
 {
   if( m_pinSRQ!=0xFF )
     {
-#ifdef USE_LINE_DRIVERS
-      digitalWrite(m_pinSRQ, LOW);
-      delayMicrosecondsISafe(1);
-      digitalWrite(m_pinSRQ, HIGH);
-#else
+#if !defined(USE_LINE_DRIVERS)
       digitalWrite(m_pinSRQ, LOW);
       pinMode(m_pinSRQ, OUTPUT);
       delayMicrosecondsISafe(1);
       pinMode(m_pinSRQ, INPUT);
+#elif defined(USE_INVERTED_LINE_DRIVERS)
+      digitalWrite(m_pinSRQ, HIGH);
+      delayMicrosecondsISafe(1);
+      digitalWrite(m_pinSRQ, LOW);
+#else
+      digitalWrite(m_pinSRQ, LOW);
+      delayMicrosecondsISafe(1);
+      digitalWrite(m_pinSRQ, HIGH);
 #endif
     }
 }
@@ -660,8 +664,8 @@ void IECBusHandler::begin()
 #if defined(USE_LINE_DRIVERS)
   pinMode(m_pinCLKout,  OUTPUT);
   pinMode(m_pinDATAout, OUTPUT);
-  digitalWrite(m_pinCLKout, HIGH);
-  digitalWrite(m_pinDATAout, HIGH);
+  writePinCLK(HIGH);
+  writePinDATA(HIGH);
   if( m_pinSRQ<0xFF )
     {
       pinMode(m_pinSRQ, OUTPUT);
