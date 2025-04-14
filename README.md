@@ -135,9 +135,9 @@ the simplified wiring first to make sure everything is working. Then
   4. Do the same as in the step 3 for the Data signal.
   5. If you are using the SRQ line, also wire it through the driver just like Clock and Data. Note that there is no
      "SRQout" pin defined in the constructor because SRQ is a write-only signal from the perspective of the device.
-     Instead connect the SRQ pin to the 74LS07 and make sure to remove the direct connection from the SRQ pin to the IES bus.
+     Instead connect the SRQ pin to the 74LS07 and make sure to remove the direct connection from the SRQ pin to the IEC bus.
 
-After doing this your device should work the same as before but with the added protection of the 74LS07 line driver.
+After doing this your device should work the same as before but with the added protection of the line driver.
 
 
 ## Implementing a simple low-level device
