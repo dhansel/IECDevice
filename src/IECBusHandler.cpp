@@ -136,9 +136,9 @@ static unsigned long timer_start_us;
 #define timer_wait_until(us) while( timer_less_than(us) )
 
 #ifdef JDEBUG
-#define JDEBUGI() pinMode(20, OUTPUT)
-#define JDEBUG0() gpio_put(20, 0)
-#define JDEBUG1() gpio_put(20, 1)
+#define JDEBUGI() pinMode(28, OUTPUT)
+#define JDEBUG0() gpio_put(28, 0)
+#define JDEBUG1() gpio_put(28, 1)
 #endif
 
 // ---------------- ESP32
@@ -220,6 +220,7 @@ static unsigned long timer_start_us;
 #define pinModeFastExt(pin, reg, bit, dir)    gpio_set_dir(pin, (dir)==OUTPUT)
 #define digitalReadFastExt(pin, reg, bit)     gpio_get(pin)
 #define digitalWriteFastExt(pin, reg, bit, v) gpio_put(pin, v)
+#define RAMFUNC(name) __not_in_flash_func(name)
 #elif defined(__AVR__) || defined(ARDUINO_UNOR4)
 // Arduino 8-bit (Uno R3/Mega/...)
 #define pinModeFastExt(pin, reg, bit, dir)    { if( (dir)==OUTPUT ) *(reg)|=(bit); else *(reg)&=~(bit); }
@@ -230,6 +231,7 @@ static unsigned long timer_start_us;
 #define pinModeFastExt(pin, reg, bit, dir)    { if( (dir)==OUTPUT ) *(reg)|=(bit); else *(reg)&=~(bit); }
 #define digitalReadFastExt(pin, reg, bit)     (*(reg) & (bit))
 #define digitalWriteFastExt(pin, reg, bit, v) { if( v ) *(reg)|=(bit); else (*reg)&=~(bit); }
+#define RAMFUNC(name) IRAM_ATTR name
 #else
 #warning "No fast digital I/O macros defined for this platform - code will likely run too slow"
 #define pinModeFastExt(pin, reg, bit, dir)    pinMode(pin, dir)
@@ -237,27 +239,16 @@ static unsigned long timer_start_us;
 #define digitalWriteFastExt(pin, reg, bit, v) digitalWrite(pin, v)
 #endif
 
-// on ESP32 we need very timing-critical code (i.e. transmitting/receiving data
-// under fast-load protocols) to reside in IRAM in order to avoid short delays
-// due to flash ROM access conflicts with the other core
-#ifndef IRAM_ATTR
-#ifdef ESP_PLATFORM
-#error "Expected IRAM_ATTR to be defined"
-#else
-#define IRAM_ATTR
+// For some platforms (ESP32, PiPico) we need the code to reside in SRAM rather than flash
+// because flash access can be slow in some cases, disrupting protocol timing. If so, the
+// RAMFUNC() macro gets defined above, for other platforms we define it (empty) here
+#ifndef RAMFUNC
+#define RAMFUNC(name) name
 #endif
-#endif
-
 
 // delayMicroseconds on some platforms does not work if called when interrupts are disabled
 // => define a version that does work on all supported platforms
-#if defined(ARDUINO_ARCH_RP2040)
-static void __no_inline_not_in_flash_func(delayMicrosecondsISafe)(uint16_t t)
-{
-  busy_wait_at_least_cycles((clock_get_hz(clk_sys)/1000000) * t);
-}
-#else
-static IRAM_ATTR void delayMicrosecondsISafe(uint16_t t)
+static void RAMFUNC(delayMicrosecondsISafe)(uint16_t t)
 {
   timer_init();
   timer_start();
@@ -265,7 +256,6 @@ static IRAM_ATTR void delayMicrosecondsISafe(uint16_t t)
   timer_wait_until(t);
   timer_stop();
 }
-#endif
 
 
 // -----------------------------------------------------------------------------------------
@@ -300,7 +290,7 @@ IECBusHandler *IECBusHandler::s_bushandler = NULL;
 
 #ifdef USE_LINE_DRIVERS
 
-void IRAM_ATTR IECBusHandler::writePinCLK(bool v)
+void RAMFUNC(IECBusHandler::writePinCLK)(bool v)
 {
 #ifdef USE_INVERTED_LINE_DRIVERS
   digitalWriteFastExt(m_pinCLKout, m_regCLKwrite, m_bitCLKout, !v);
@@ -309,7 +299,7 @@ void IRAM_ATTR IECBusHandler::writePinCLK(bool v)
 #endif
 }
 
-void IRAM_ATTR IECBusHandler::writePinDATA(bool v)
+void RAMFUNC(IECBusHandler::writePinDATA)(bool v)
 {
 #ifdef USE_INVERTED_LINE_DRIVERS
   digitalWriteFastExt(m_pinDATAout, m_regDATAwrite, m_bitDATAout, !v);
@@ -320,7 +310,7 @@ void IRAM_ATTR IECBusHandler::writePinDATA(bool v)
 
 #else
 
-void IRAM_ATTR IECBusHandler::writePinCLK(bool v)
+void RAMFUNC(IECBusHandler::writePinCLK)(bool v)
 {
   // Emulate open collector behavior: 
   // - switch pin to INPUT  mode (high-Z output) for true
@@ -329,7 +319,7 @@ void IRAM_ATTR IECBusHandler::writePinCLK(bool v)
 }
 
 
-void IRAM_ATTR IECBusHandler::writePinDATA(bool v)
+void RAMFUNC(IECBusHandler::writePinDATA)(bool v)
 {
   // Emulate open collector behavior: 
   // - switch pin to INPUT  mode (high-Z output) for true
@@ -338,31 +328,31 @@ void IRAM_ATTR IECBusHandler::writePinDATA(bool v)
 }
 #endif
 
-void IRAM_ATTR IECBusHandler::writePinCTRL(bool v)
+void RAMFUNC(IECBusHandler::writePinCTRL)(bool v)
 {
   if( m_pinCTRL!=0xFF )
     digitalWrite(m_pinCTRL, v);
 }
 
-bool IRAM_ATTR IECBusHandler::readPinATN()
+bool RAMFUNC(IECBusHandler::readPinATN)()
 {
   return digitalReadFastExt(m_pinATN, m_regATNread, m_bitATN)!=0;
 }
 
 
-bool IRAM_ATTR IECBusHandler::readPinCLK()
+bool RAMFUNC(IECBusHandler::readPinCLK)()
 {
   return digitalReadFastExt(m_pinCLK, m_regCLKread, m_bitCLK)!=0;
 }
 
 
-bool IRAM_ATTR IECBusHandler::readPinDATA()
+bool RAMFUNC(IECBusHandler::readPinDATA)()
 {
   return digitalReadFastExt(m_pinDATA, m_regDATAread, m_bitDATA)!=0;
 }
 
 
-bool IRAM_ATTR IECBusHandler::readPinRESET()
+bool RAMFUNC(IECBusHandler::readPinRESET)()
 {
   if( m_pinRESET==0xFF ) return true;
   return digitalReadFastExt(m_pinRESET, m_regRESETread, m_bitRESET)!=0;
@@ -772,7 +762,7 @@ IECDevice *IECBusHandler::findDevice(uint8_t devnr, bool includeInactive)
 }
 
 
-void IRAM_ATTR IECBusHandler::atnInterruptFcn(INTERRUPT_FCN_ARG)
+void RAMFUNC(IECBusHandler::atnInterruptFcn)(INTERRUPT_FCN_ARG)
 { 
   if( s_bushandler!=NULL && !s_bushandler->m_inTask & ((s_bushandler->m_flags & P_ATN)==0) )
     s_bushandler->atnRequest();
@@ -806,7 +796,7 @@ bool IECBusHandler::enableJiffyDosSupport(IECDevice *dev, bool enable)
 }
 
 
-bool IRAM_ATTR IECBusHandler::receiveJiffyByte(bool canWriteOk)
+bool RAMFUNC(IECBusHandler::receiveJiffyByte)(bool canWriteOk)
 {
   uint8_t data = 0;
   JDEBUG1();
@@ -912,7 +902,7 @@ bool IRAM_ATTR IECBusHandler::receiveJiffyByte(bool canWriteOk)
 }
 
 
-bool IRAM_ATTR IECBusHandler::transmitJiffyByte(uint8_t numData)
+bool RAMFUNC(IECBusHandler::transmitJiffyByte)(uint8_t numData)
 {
   uint8_t data = numData>0 ? m_currentDevice->peek() : 0;
 
@@ -1025,7 +1015,7 @@ bool IRAM_ATTR IECBusHandler::transmitJiffyByte(uint8_t numData)
 }
 
 
-bool IRAM_ATTR IECBusHandler::transmitJiffyBlock(uint8_t *buffer, uint8_t numBytes)
+bool RAMFUNC(IECBusHandler::transmitJiffyBlock)(uint8_t *buffer, uint8_t numBytes)
 {
   JDEBUG1();
   timer_init();
@@ -1182,7 +1172,7 @@ bool IRAM_ATTR IECBusHandler::transmitJiffyBlock(uint8_t *buffer, uint8_t numByt
 #pragma GCC push_options
 #pragma GCC optimize ("O2")
 
-uint8_t IRAM_ATTR IECBusHandler::XRA1405_ReadReg(uint8_t reg)
+uint8_t RAMFUNC(IECBusHandler::XRA1405_ReadReg)(uint8_t reg)
 {
   startParallelTransaction();
   digitalWriteFastExt(m_pinDolphinCS, m_regDolphinCS, m_bitDolphinCS, LOW);
@@ -1192,7 +1182,7 @@ uint8_t IRAM_ATTR IECBusHandler::XRA1405_ReadReg(uint8_t reg)
   return res;
 }
 
-void IRAM_ATTR IECBusHandler::XRA1405_WriteReg(uint8_t reg, uint8_t data)
+void RAMFUNC(IECBusHandler::XRA1405_WriteReg)(uint8_t reg, uint8_t data)
 {
   startParallelTransaction();
   digitalWriteFastExt(m_pinDolphinCS, m_regDolphinCS, m_bitDolphinCS, LOW);
@@ -1217,7 +1207,7 @@ static bool handshakeIRQ(pcnt_unit_handle_t unit, const pcnt_watch_event_data_t 
 #elif !defined(__AVR_ATmega328P__) && !defined(__AVR_ATmega2560__)
 
 volatile static bool _handshakeReceived = false;
-static void IRAM_ATTR handshakeIRQ(INTERRUPT_FCN_ARG) { _handshakeReceived = true; }
+static void RAMFUNC(handshakeIRQ)(INTERRUPT_FCN_ARG) { _handshakeReceived = true; }
 #define DOLPHIN_HANDSHAKE_USE_INTERRUPT
 
 #endif
@@ -1225,7 +1215,7 @@ static void IRAM_ATTR handshakeIRQ(INTERRUPT_FCN_ARG) { _handshakeReceived = tru
 
 #ifdef DOLPHIN_HANDSHAKE_USE_INTERRUPT
 
-bool IRAM_ATTR IECBusHandler::parallelCableDetect()
+bool RAMFUNC(IECBusHandler::parallelCableDetect)()
 {
   // DolphinDos cable detection happens at the end of the ATN sequence
   // during which interrupts are disabled so we can't use parallelBusHandshakeReceived()
@@ -1249,7 +1239,7 @@ bool IRAM_ATTR IECBusHandler::parallelCableDetect()
 
 #else
 
-bool IRAM_ATTR IECBusHandler::parallelCableDetect()
+bool RAMFUNC(IECBusHandler::parallelCableDetect)()
 {
   // clear any previous handshakes
   parallelBusHandshakeReceived();
@@ -1507,7 +1497,7 @@ void IECBusHandler::enableParallelPins()
 }
 
 
-bool IRAM_ATTR IECBusHandler::parallelBusHandshakeReceived()
+bool RAMFUNC(IECBusHandler::parallelBusHandshakeReceived)()
 {
 #if defined(__AVR_ATmega328P__) || defined(__AVR_ATmega2560__)
   // see comment in function enableDolphinDosSupport
@@ -1530,7 +1520,7 @@ bool IRAM_ATTR IECBusHandler::parallelBusHandshakeReceived()
 }
 
 
-void IRAM_ATTR IECBusHandler::parallelBusHandshakeTransmit()
+void RAMFUNC(IECBusHandler::parallelBusHandshakeTransmit)()
 {
   // Emulate open collector behavior: 
   // - switch pin to INPUT  mode (high-Z output) for true
@@ -1541,7 +1531,7 @@ void IRAM_ATTR IECBusHandler::parallelBusHandshakeTransmit()
 }
 
 
-void IRAM_ATTR IECBusHandler::startParallelTransaction()
+void RAMFUNC(IECBusHandler::startParallelTransaction)()
 {
 #ifdef SUPPORT_DOLPHIN_XRA1405
   if( m_inTransaction==0 )
@@ -1559,7 +1549,7 @@ void IRAM_ATTR IECBusHandler::startParallelTransaction()
 }
 
 
-void IRAM_ATTR IECBusHandler::endParallelTransaction()
+void RAMFUNC(IECBusHandler::endParallelTransaction)()
 {
 #ifdef SUPPORT_DOLPHIN_XRA1405
   if( m_inTransaction==1 ) SPI.endTransaction();
@@ -1570,7 +1560,7 @@ void IRAM_ATTR IECBusHandler::endParallelTransaction()
 
 #pragma GCC push_options
 #pragma GCC optimize ("O2")
-uint8_t IRAM_ATTR IECBusHandler::readParallelData()
+uint8_t RAMFUNC(IECBusHandler::readParallelData)()
 {
   uint8_t res = 0;
 #ifdef SUPPORT_DOLPHIN_XRA1405
@@ -1590,7 +1580,7 @@ uint8_t IRAM_ATTR IECBusHandler::readParallelData()
 }
 
 
-void IRAM_ATTR IECBusHandler::writeParallelData(uint8_t data)
+void RAMFUNC(IECBusHandler::writeParallelData)(uint8_t data)
 {
 #ifdef SUPPORT_DOLPHIN_XRA1405
   XRA1405_WriteReg(0x02, data); // OCR1, GPIO Output Control Register for P0-P7
@@ -1608,7 +1598,7 @@ void IRAM_ATTR IECBusHandler::writeParallelData(uint8_t data)
 }
 
 
-void IRAM_ATTR IECBusHandler::setParallelBusModeInput()
+void RAMFUNC(IECBusHandler::setParallelBusModeInput)()
 {
 #ifdef SUPPORT_DOLPHIN_XRA1405
   XRA1405_WriteReg(0x06, 0xFF); // GCR1, GPIO Configuration Register for P0-P7
@@ -1620,7 +1610,7 @@ void IRAM_ATTR IECBusHandler::setParallelBusModeInput()
 }
 
 
-void IRAM_ATTR IECBusHandler::setParallelBusModeOutput()
+void RAMFUNC(IECBusHandler::setParallelBusModeOutput)()
 {
 #ifdef SUPPORT_DOLPHIN_XRA1405
   XRA1405_WriteReg(0x06, 0x00); // GCR1, GPIO Configuration Register for P0-P7
@@ -1994,7 +1984,7 @@ void IECBusHandler::epyxLoadRequest(IECDevice *dev)
 }
 
 
-bool IECBusHandler::receiveEpyxByte(uint8_t &data)
+bool RAMFUNC(IECBusHandler::receiveEpyxByte)(uint8_t &data)
 {
   bool clk = HIGH;
   for(uint8_t i=0; i<8; i++)
@@ -2016,7 +2006,7 @@ bool IECBusHandler::receiveEpyxByte(uint8_t &data)
 }
 
 
-bool IRAM_ATTR IECBusHandler::transmitEpyxByte(uint8_t data)
+bool RAMFUNC(IECBusHandler::transmitEpyxByte)(uint8_t data)
 {
   // receiver expects all data bits to be inverted
   data = ~data;
@@ -2104,7 +2094,7 @@ bool IRAM_ATTR IECBusHandler::transmitEpyxByte(uint8_t data)
 // form of the call - timeouts are dealt with using the micros() function
 // which does not work properly when interrupts are disabled.
 
-bool IECBusHandler::startEpyxSectorCommand(uint8_t command)
+bool RAMFUNC(IECBusHandler::startEpyxSectorCommand)(uint8_t command)
 {
   // interrupts are assumed to be disabled when we get here
   // and will be re-enabled before we exit
@@ -2162,7 +2152,7 @@ bool IECBusHandler::startEpyxSectorCommand(uint8_t command)
 }
 
 
-bool IECBusHandler::finishEpyxSectorCommand()
+bool RAMFUNC(IECBusHandler::finishEpyxSectorCommand)()
 {
   // this was set in receiveEpyxSectorCommand
   uint8_t command = m_buffer[0];
@@ -2249,7 +2239,7 @@ bool IECBusHandler::finishEpyxSectorCommand()
 
 #endif
 
-bool IECBusHandler::receiveEpyxHeader()
+bool RAMFUNC(IECBusHandler::receiveEpyxHeader)()
 {
   // all timing is clocked by the computer so we can't afford
   // interrupts to delay execution as long as we are signaling "ready"
@@ -2340,7 +2330,7 @@ bool IECBusHandler::receiveEpyxHeader()
 }
 
 
-bool IECBusHandler::transmitEpyxBlock()
+bool RAMFUNC(IECBusHandler::transmitEpyxBlock)()
 {
   // set channel number for read() call below
   m_currentDevice->talk(0);
@@ -2381,7 +2371,7 @@ bool IECBusHandler::transmitEpyxBlock()
 // ------------------------------------  IEC protocol support routines  ------------------------------------  
 
 
-bool IECBusHandler::receiveIECByteATN(uint8_t &data)
+bool RAMFUNC(IECBusHandler::receiveIECByteATN)(uint8_t &data)
 {
   // wait for CLK=1
   if( !waitPinCLK(HIGH, 0) ) return false;
@@ -2482,7 +2472,7 @@ bool IECBusHandler::receiveIECByteATN(uint8_t &data)
 }
 
 
-bool IECBusHandler::receiveIECByte(bool canWriteOk)
+bool RAMFUNC(IECBusHandler::receiveIECByte)(bool canWriteOk)
 {
   // NOTE: we only get here if sender has already signaled ready-to-send
   // by releasing CLK
@@ -2544,7 +2534,7 @@ bool IECBusHandler::receiveIECByte(bool canWriteOk)
 }
 
 
-bool IECBusHandler::transmitIECByte(uint8_t numData)
+bool RAMFUNC(IECBusHandler::transmitIECByte)(uint8_t numData)
 {
   // check whether ready-to-receive was already signaled by the 
   // receiver before we signaled ready-to-send. The 1541 ROM 
@@ -2625,7 +2615,7 @@ bool IECBusHandler::transmitIECByte(uint8_t numData)
 
 // called when a falling edge on ATN is detected, either by the pin change
 // interrupt handler or by polling within the microTask function
-void IRAM_ATTR IECBusHandler::atnRequest()
+void RAMFUNC(IECBusHandler::atnRequest)()
 {
   // check if ATN is actually LOW, if not then just return (stray interrupt request)
   if( readPinATN() ) return;
@@ -2672,7 +2662,7 @@ void IRAM_ATTR IECBusHandler::atnRequest()
 }
 
 
-void IECBusHandler::task()
+void RAMFUNC(IECBusHandler::task)()
 {
   // don't do anything if begin() hasn't been called yet
   if( m_flags==0xFF ) return;
