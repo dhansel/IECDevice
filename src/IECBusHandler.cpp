@@ -250,11 +250,19 @@ static unsigned long timer_start_us;
 // => define a version that does work on all supported platforms
 static void RAMFUNC(delayMicrosecondsISafe)(uint16_t t)
 {
+#if defined(ARDUINO_ARCH_RP2040)
+  // For unknown reasons, using the code in the #else branch on RP2040 can sometimes cause
+  // delays to be much longer than intended. This is observed when called from parallelBusHandshakeTransmit()
+  // while saving files, causing corruption of the saved data (due to missed bytes).
+  // Using "busy_wait_at_least_cycles" avoids those cases.
+  busy_wait_at_least_cycles((clock_get_hz(clk_sys)/1000000) * t);
+#else
   timer_init();
   timer_start();
   while( t>125 ) { timer_wait_until(125); timer_reset(); t -= 125; }
   timer_wait_until(t);
   timer_stop();
+#endif
 }
 
 
