@@ -18,7 +18,8 @@ The library provides three classes:
     - [Epyx FastLoad](#epyx-fastload-support)
     - [DolphinDos](#dolphindos-support)
     - [SpeedDos](#speeddos-support)
-    For an introduction to creating a device using this class, see the
+      
+For an introduction to creating a device using this class, see the
     [Implementing a simple file-based device](#implementing-a-simple-file-based-device) section.
   - [```IECBusHandler```](#iecbushandler-class-reference) facilitates the IEC bus communication itself. After creating an instance of the
     IECDevice or IECFileDevice classes it must be attached to the handler by calling ```IECBusHandler::attachDevice()```.<br>
