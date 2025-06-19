@@ -64,7 +64,7 @@ class IECBusHandler
   // ok but bus communication will be slower if called less frequently.
   void task();
 
-#if (defined(SUPPORT_JIFFY) || defined(SUPPORT_DOLPHIN) || defined(SUPPORT_EPYX)) && !defined(IEC_DEFAULT_FASTLOAD_BUFFER_SIZE)
+#if (defined(SUPPORT_JIFFY) || defined(SUPPORT_DOLPHIN) || defined(SUPPORT_SPEEDDOS) || defined(SUPPORT_EPYX)) && !defined(IEC_DEFAULT_FASTLOAD_BUFFER_SIZE)
   // if IEC_DEFAULT_FASTLOAD_BUFFER_SIZE is set to 0 then the buffer space used
   // by fastload protocols can be set dynamically using the setBuffer function.
   void setBuffer(uint8_t *buffer, uint8_t bufferSize);
@@ -79,19 +79,26 @@ class IECBusHandler
   void epyxLoadRequest(IECDevice *dev);
 #endif
 
-#ifdef SUPPORT_DOLPHIN
-  // call this BEFORE begin() if you do not want to use the default pins for the DolphinDos cable
-#ifdef SUPPORT_DOLPHIN_XRA1405
-  void setDolphinDosPins(uint8_t pinHT, uint8_t pinHR, uint8_t pinSCK, uint8_t pinCOPI, uint8_t pinCIPO, uint8_t pinCS);
-#else
-  void setDolphinDosPins(uint8_t pinHT, uint8_t pinHR, uint8_t pinD0, uint8_t pinD1, uint8_t pinD2, uint8_t pinD3, 
-                         uint8_t pinD4, uint8_t pinD5, uint8_t pinD6, uint8_t pinD7);
+#ifdef SUPPORT_SPEEDDOS
+  bool enableSpeedDosSupport(IECDevice *dev, bool enable);
+  void speedDosLoadRequest(IECDevice *dev);
 #endif
 
+#ifdef SUPPORT_DOLPHIN
   bool enableDolphinDosSupport(IECDevice *dev, bool enable);
   void enableDolphinBurstMode(IECDevice *dev, bool enable);
   void dolphinBurstReceiveRequest(IECDevice *dev);
   void dolphinBurstTransmitRequest(IECDevice *dev);
+#endif
+
+#ifdef SUPPORT_PARALLEL
+  // call this BEFORE begin() if you do not want to use the default pins for the parallel cable
+#ifdef SUPPORT_PARALLEL_XRA1405
+  void setParallelPins(uint8_t pinHT, uint8_t pinHR, uint8_t pinSCK, uint8_t pinCOPI, uint8_t pinCIPO, uint8_t pinCS);
+#else
+  void setParallelPins(uint8_t pinHT, uint8_t pinHR, uint8_t pinD0, uint8_t pinD1, uint8_t pinD2, uint8_t pinD3, 
+                         uint8_t pinD4, uint8_t pinD5, uint8_t pinD6, uint8_t pinD7);
+#endif
 #endif
 
   IECDevice *findDevice(uint8_t devnr, bool includeInactive = false);
@@ -147,55 +154,66 @@ class IECBusHandler
   bool transmitJiffyBlock(uint8_t *buffer, uint8_t numBytes);
 #endif
 
+#ifdef SUPPORT_SPEEDDOS
+  bool transmitSpeedDosByte(uint8_t numData);
+  bool receiveSpeedDosByte(bool canWriteOk);
+  bool transmitSpeedDosFile();
+  bool transmitSpeedDosParallelByte(uint8_t data);
+#endif
+
+
 #ifdef SUPPORT_DOLPHIN
   bool transmitDolphinByte(uint8_t numData);
   bool receiveDolphinByte(bool canWriteOk);
   bool transmitDolphinBurst();
   bool receiveDolphinBurst();
+#endif
 
+#ifdef SUPPORT_PARALLEL
   void startParallelTransaction();
   void endParallelTransaction();
   bool parallelBusHandshakeReceived();
   bool waitParallelBusHandshakeReceived();
+  bool waitParallelBusHandshakeReceivedISafe(bool exitOnCLKchange = false);
   void parallelBusHandshakeTransmit();
   void setParallelBusModeInput();
   void setParallelBusModeOutput();
-  bool parallelCableDetect();
   uint8_t readParallelData();
   void writeParallelData(uint8_t data);
+  bool checkParallelPins();
   void enableParallelPins();
-  bool isDolphinPin(uint8_t pin);
+  bool isParallelPin(uint8_t pin);
 
-#ifdef SUPPORT_DOLPHIN_XRA1405
-  uint8_t m_pinDolphinSCK, m_pinDolphinCOPI, m_pinDolphinCIPO, m_pinDolphinCS, m_inTransaction;
+#ifdef SUPPORT_PARALLEL_XRA1405
+  uint8_t m_pinParallelSCK, m_pinParallelCOPI, m_pinParallelCIPO, m_pinParallelCS, m_inTransaction;
   uint8_t XRA1405_ReadReg(uint8_t reg);
   void    XRA1405_WriteReg(uint8_t reg, uint8_t data);
 
 #ifdef IOREG_TYPE
-  volatile IOREG_TYPE *m_regDolphinCS;
-  IOREG_TYPE m_bitDolphinCS;
+  volatile IOREG_TYPE *m_regParallelCS;
+  IOREG_TYPE m_bitParallelCS;
 #endif
 
 #else // !SUPPORT_DOLPHIN_XRA1405
 
-  uint8_t m_pinDolphinParallel[8];
+  uint8_t m_pinParallel[8];
 #ifdef IOREG_TYPE
-  volatile IOREG_TYPE *m_regDolphinParallelMode[8], *m_regDolphinParallelWrite[8];
-  volatile const IOREG_TYPE *m_regDolphinParallelRead[8];
-  IOREG_TYPE m_bitDolphinParallel[8];
+  volatile IOREG_TYPE *m_regParallelMode[8], *m_regParallelWrite[8];
+  volatile const IOREG_TYPE *m_regParallelRead[8];
+  IOREG_TYPE m_bitParallel[8];
 #endif
 
 #endif // SUPPORT_DOLPHIN_XRA1405
 
-  uint8_t m_pinDolphinHandshakeTransmit;
-  uint8_t m_pinDolphinHandshakeReceive;
-  uint8_t m_dolphinCtr;
+  uint8_t m_pinParallelHandshakeTransmit;
+  uint8_t m_pinParallelHandshakeReceive;
+  uint8_t m_bufferCtr;
 
 #ifdef IOREG_TYPE
-  volatile IOREG_TYPE *m_regDolphinHandshakeTransmitMode;
-  IOREG_TYPE m_bitDolphinHandshakeTransmit;
+  volatile IOREG_TYPE *m_regParallelHandshakeTransmitMode;
+  IOREG_TYPE m_bitParallelHandshakeTransmit;
 #if defined(__AVR_ATmega328P__) || defined(__AVR_ATmega2560__)
-  IOREG_TYPE m_handshakeReceivedBit = 0;
+  IOREG_TYPE m_bitParallelhandshakeReceived = 0;
 #endif
 #endif // IOREG_TYPE
 #endif // SUPPORT_DOLPHIN

@@ -17,7 +17,7 @@ The library provides three classes:
     - [JiffyDos](#jiffydos-support),
     - [Epyx FastLoad](#epyx-fastload-support)
     - [DolphinDos](#dolphindos-support)
-      
+    - [SpeedDos](#speeddos-support)
     For an introduction to creating a device using this class, see the
     [Implementing a simple file-based device](#implementing-a-simple-file-based-device) section.
   - [```IECBusHandler```](#iecbushandler-class-reference) facilitates the IEC bus communication itself. After creating an instance of the
@@ -275,8 +275,7 @@ The purpose of this section is to demonstrate basic bus communication for file-b
 IECFileDevice class. A more feature-complete implementation of a SD card reader is provided in
 the [IECSD example](examples/IECSD). 
 
-Note that any device derived from the IECFileDevice class automatically supports the [JiffyDos](#jiffydos-support),
-[Epyx FastLoad](#epyx-fastload-support) and [DolphinDos](#dolphindos-support) protocol.
+Note that any device derived from the IECFileDevice class automatically supports all supported fastload protocols.
 
 First, a new class is defined and derived from the IECFileDevice class. 
 
@@ -431,10 +430,10 @@ in its attached device(s) when necessary.
   errors when trying to communicate with your device. If ATN is on an interrupt-capable
   pin less frequent calls are ok but bus communication will be slower if called less frequently.
 
-- ```void setDolphinDosPins(...)```
+- ```void setParallelPins(...)```
   This function can be called **before** attaching any devices to specify the pins to be used
-  for the DolphinDos parallel cable. If not called, the default pins will be used. See the 
-  [DolphinDos support](#dolphindos-support) section below for more information.
+  for the parallel cable. If not called, the default pins will be used. See the 
+  [Parallel cable](#parallel-cable) section below for more information.
 
 
 ## IECDevice class reference
@@ -478,6 +477,13 @@ The IECDevice class has the following functions that may/must be called from you
   which handles DolphinDos support internally and you do not have to call enableDolphinDosSupport().
   For more information see the [DolphinDos support](#dolphindos-support) section below.
   You can also use this function to disable DolphinDos support after it has been enabled.
+
+- ```void enableSpeedDosSupport(bool enable)```  
+  This function must be called **if** your device should support the SpeedDos parallel protocol.
+  In most cases devices with SpeedDos support should be derived from the IECFileDevice class
+  which handles SpeedDos support internally and you do not have to call enableSpeedDosSupport().
+  For more information see the [SpeedDos support](#speeddos-support) section below.
+  You can also use this function to disable SpeedDos support after it has been enabled.
 
 The following functions can be overloaded in the derived device class to implement the device functions.
 None of these function are *required*. For example, if your device only receives data then only the
@@ -594,6 +600,30 @@ For more information see the [DolphinDos support](#dolphindos-support) section b
   to signal the burst request: Call dolphinBurstTransmitRequest() if "XQ" is received on the command channel.
   Call dolphinBurstReceiveRequest() if "XZ" is received on the command channel. You can also call 
   enableDolphinBurstMode() to enable/disable support of burst transfers ("XF+"/"XF-" DolphinDos command).
+
+The following functions should be overloaded if the SpeedDos parallel protocol should be supported.
+In most cases devices with SpeedDos support should be derived from the IECFileDevice class
+which handles SpeedDos support internally and you do not have to implement these functions.
+For more information see the [SpeedDos support](#speeddos-support) section below.
+
+- ```uint8_t write(uint8_t *buffer, uint8_t bufferSize, bool eoi)```
+  This function is only called when the device is receiving data using the SpeedDos block transfer (SAVE protocol).
+  write() should process all the data in the buffer and return the number of bytes processed.
+  Returning a number lower than bufferSize signals an error condition.
+  The "eoi" parameter will be "true" if sender signaled that this is the final part of the transmission
+  If write() is **not** overloaded, SpeedDos save performance will be several times slower than otherwise.
+  write() is allowed to take an indefinite amount of time.
+- ```uint8_t peek()```  
+  Called when the device is sending data using SpeedDos byte-by-byte protocol.  
+  peek() will only be called if the last call to canRead() returned >0.  
+  peek() should return the next character that will be read with read().  
+  peek() is allowed to take an indefinite amount of time.  
+- ```uint8_t read(uint8_t *buffer, uint8_t bufferSize)```  
+  This function is only called when the device is sending data using the SpeedDos block transfer (LOAD protocol).
+  read() should fill the buffer with as much data as possible (up to bufferSize).
+  read() must return the number of bytes put into the buffer
+  If read() is **not** overloaded, SpeedDos load performance will be several times slower than otherwise.
+  read() is allowed to take an indefinite amount of time.  
 
 ## IECFileDevice class reference
 
@@ -800,10 +830,40 @@ Like JiffyDos, DolphinDos needs a replacement kernal in the C64 for its fast tra
 The DolphinDos V2 C64 kernal can be downloaded [here](https://e4aws.silverdr.com/projects/dolphindos2/).
 
 DolphinDos relies on a parallel connection between the computer and device for its improved
-transmission speed. It will work without parallel cable will not provide any speed improvement.
+transmission speed. It will work without parallel cable but will not provide any speed improvement.
+See the [Parallel cable](#iecdevice-class-reference) section for information on how to wire
+a parallel cable to the C64 user port.
+
+## SpeedDos support
+
+**Note:** Since SpeedDos support requires a number of additional pins for the parallel connection 
+and SpeedDos is not a very widely used fast loader, it not enabled by default. To enable SpeedDos
+support, un-comment the ```#define SUPPORT_SPEEDDOS``` line at the top of file ```src/IECConfig.h```.
+
+The IECDevice class includes support for the [SpeedDos](https://www.c64-wiki.com/wiki/SpeedDOS)
+parallel protocol.
+
+For high-level file-based devices (derived from the IECFileDevice class), all functionality
+for SpeedDos support is already included in the IECFileDevice class. SpeedDos support is 
+automatically enabled. In case you do NOT want your device to support SpeedDos, add
+the following call in the begin() function of your derived class, **after** calling
+IECFileDevice::begin(): ```enableSpeedDosSupport(false)```.
+
+SpeedDos needs a replacement kernal in the C64 for its fast transmission routines.
+The SpeedDos C64 kernal can be downloaded [here](https://csdb.dk/release/?id=21767&show=summary).
+
+SpeedDos relies on a parallel connection between the computer and device for its improved
+transmission speed. It will work without parallel cable but will not provide any speed improvement.
+See the [Parallel cable](#iecdevice-class-reference) section for information on how to wire
+a parallel cable to the C64 user port.
+
+## Parallel cable
+
+The SpeedDos and DolphinDos fastloaders require a parallel connection between the C64 user port
+and the device. This section describes the necessary connections.
 
 IECDevice has pre-defined pins for the different hardware platforms but those can be changed
-by calling the ```setDolphinDosPins(HT,HR,D0,D1,D2,D3,D4,D5,D6,D7)``` function. The pre-defined
+by calling the ```setParallelPins(HT,HR,D0,D1,D2,D3,D4,D5,D6,D7)``` function. The pre-defined
 pin numbers are as follows (note: the "Arduino Uno" column includes the R3 and R4 versions
 as well as the Nano, Mini, Micro and Leonardo variants):
 
@@ -823,7 +883,7 @@ B (FLAG2)         | HT     | 7           | 30   | 52  | 6                 | IO4
 Instructions for making a breakout board for the C64 user port that allows for easy connection 
 to the parallel port pins are available [here](hardware/README.md#user-port-breakout-board)
 
-### DolphinDos support using XRA1405 port extender
+### Parallel cable using XRA1405 port extender
 
 Some of the supported microcontrollers (Arduino Uno/Micro/Nano, ESP32) have a limited number
 of available I/O pins which means that if the parallel cable is connected as shown above,
@@ -847,7 +907,7 @@ so it can be easily used on breadboards. The XRA1405 pin numbers given below
 refer the the QFN-24 package.
 
 The default connections for the XRA1405 to the microcontroller are as follows
-(these can be changed by calling the setDolphinDosPins() function).
+(these can be changed by calling the setParallelPins() function).
 The pin numbers in the "Arduino Uno" column apply to Arduino UNO R3 and R4
 as well as Arduino Micro and Nano.
 
@@ -868,7 +928,7 @@ B (FLAG2)         | HT     | 7           | 6                 | IO4
 
 Finally, connect User Port pins C-L (PB0-PB7) to XRA1405 pins 1-8 (P0-P7).
 
-To enable XRA1405 support in the library, un-comment the ```#define SUPPORT_DOLPHIN_XRA1405```
+To enable XRA1405 support in the library, un-comment the ```#define SUPPORT_PARALLEL_XRA1405```
 line in file ```IECConfig.h```.
 
 Note that the XRA1405 has two 8-bit I/O ports of which only the first one

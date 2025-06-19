@@ -75,6 +75,18 @@ void IECDevice::dolphinBurstTransmitRequest()
 }
 #endif
 
+#ifdef SUPPORT_SPEEDDOS
+bool IECDevice::enableSpeedDosSupport(bool enable)
+{
+  return m_handler ? m_handler->enableSpeedDosSupport(this, enable) : false;
+}
+
+void IECDevice::speedDosLoadRequest()
+{
+  if( m_handler ) m_handler->speedDosLoadRequest(this);
+}
+#endif
+
 #ifdef SUPPORT_EPYX
 bool IECDevice::enableEpyxFastLoadSupport(bool enable)
 {

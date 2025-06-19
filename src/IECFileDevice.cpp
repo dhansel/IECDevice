@@ -78,6 +78,8 @@ void dbg_data(uint8_t data)
 #define IFD_WRITE 4
 
 
+struct MWSignature { uint16_t address; uint8_t len; uint8_t checksum; };
+
 IECFileDevice::IECFileDevice(uint8_t devnr) : 
   IECDevice(devnr)
 {
@@ -107,9 +109,16 @@ void IECFileDevice::begin()
   Serial.print(F("DolphinDos support ")); Serial.println(ok ? F("enabled") : F("disabled"));
 #endif
 #endif
+#ifdef SUPPORT_SPEEDDOS
+  ok = IECDevice::enableSpeedDosSupport(true);
+  m_uploadCtr = 0;
+#if DEBUG>0
+  Serial.print(F("SpeedDos support ")); Serial.println(ok ? F("enabled") : F("disabled"));
+#endif
+#endif
 #ifdef SUPPORT_EPYX
   ok = IECDevice::enableEpyxFastLoadSupport(true);
-  m_epyxCtr = 0;
+  m_uploadCtr = 0;
 #if DEBUG>0
   Serial.print(F("Epyx FastLoad support ")); Serial.println(ok ? F("enabled") : F("disabled"));
 #endif
@@ -279,7 +288,7 @@ uint8_t IECFileDevice::read(uint8_t *buffer, uint8_t bufferSize)
 #endif
       res += n;
     }
-  
+
   return res;
 }
 
@@ -577,30 +586,45 @@ void IECFileDevice::fileTask()
           }
 #endif
 #ifdef SUPPORT_EPYX
-        if     ( m_epyxCtr== 0 && checkMWcmd(0x0180, 0x20, 0x2E) )
-          { m_epyxCtr = 11; handled = true; }
-        else if( m_epyxCtr==11 && checkMWcmd(0x01A0, 0x20, 0xA5) )
-          { m_epyxCtr = 12; handled = true; }
-        else if( m_epyxCtr==12 && strncmp_P(cmd, PSTR("M-E\xa2\x01"), 5)==0 )
-          { m_epyxCtr = 99; handled = true; } // EPYX V1
-        else if( m_epyxCtr== 0 && checkMWcmd(0x0180, 0x19, 0x53) )
-          { m_epyxCtr = 21; handled = true; }
-        else if( m_epyxCtr==21 && checkMWcmd(0x0199, 0x19, 0xA6) )
-          { m_epyxCtr = 22; handled = true; }
-        else if( m_epyxCtr==22 && checkMWcmd(0x01B2, 0x19, 0x8F) )
-          { m_epyxCtr = 23; handled = true; }
-        else if( m_epyxCtr==23 && strncmp_P(cmd, PSTR("M-E\xa9\x01"), 5)==0 )
-          { m_epyxCtr = 99; handled = true; } // EPYX V2 or V3
-        else
-          m_epyxCtr = 0;
+        static const struct MWSignature epyxV1sig[2]   = { {0x0180, 0x20, 0x2E}, {0x01A0, 0x20, 0xA5} };
+        static const struct MWSignature epyxV2V3sig[3] = { {0x0180, 0x19, 0x53}, {0x0199, 0x19, 0xA6}, {0x01B2, 0x19, 0x8F} };
 
-        if( m_epyxCtr==99 )
+        if( checkMWcmds(epyxV1sig, 2, 10) || checkMWcmds(epyxV2V3sig, 3, 20) )
+          handled = true;
+        else if( m_uploadCtr==12 && strncmp_P(cmd, PSTR("M-E\xa2\x01"), 5)==0 )
+          m_uploadCtr = 99;
+        else if( m_uploadCtr==23 && strncmp_P(cmd, PSTR("M-E\xa9\x01"), 5)==0 )
+          m_uploadCtr = 99;
+
+        if( m_uploadCtr==99 )
           {
 #if DEBUG>0
             Serial.println(F("EPYX FASTLOAD DETECTED"));
 #endif
             epyxLoadRequest();
-            m_epyxCtr = 0;
+            m_uploadCtr = 0;
+          }
+#endif
+#ifdef SUPPORT_SPEEDDOS
+        static const struct MWSignature speedDosLoadSig[18] =
+          { {0x300,0x1e,0xc9}, {0x31e,0x1e,0xe9}, {0x33c,0x1e,0xb9}, {0x35a,0x1e,0x4d},
+            {0x378,0x1e,0x5c}, {0x396,0x1e,0x96}, {0x3b4,0x1e,0x39}, {0x3d2,0x1e,0xde},
+            {0x3f0,0x1e,0x0d}, {0x40e,0x1e,0xaf}, {0x42c,0x1e,0x1e}, {0x44a,0x1e,0xf6},
+            {0x468,0x1e,0xd2}, {0x486,0x1e,0x1b}, {0x4a4,0x1e,0x5f}, {0x4c2,0x1e,0x96},
+            {0x4e0,0x1e,0x53}, {0x4fe,0x1e,0x16} };
+
+        if( checkMWcmds(speedDosLoadSig, 18, 100) )
+          handled = true;
+        else if( m_uploadCtr==118 && strncmp_P(cmd, PSTR("M-E\x03\x03"), 5)==0 )
+          {
+#if DEBUG>0
+            Serial.println(F("SPEEDDOS FASTLOAD DETECTED"));
+#endif
+            speedDosLoadRequest();
+            m_uploadCtr = 0;
+            handled = true;
+            m_eoi = false;
+            m_channel = 0;
           }
 #endif
 #ifdef SUPPORT_DOLPHIN
@@ -613,13 +637,36 @@ void IECFileDevice::fileTask()
         else if( strcmp_P(cmd, PSTR("XF-"))==0 )
           { enableDolphinBurstMode(false); setStatus(NULL, 0); handled = true; }
 #endif
-        if( !handled ) execute(cmd, m_writeBufferLen);
+        if( !handled )
+          {
+            execute(cmd, m_writeBufferLen);
+            m_uploadCtr = 0;
+          }
+
         m_writeBufferLen = 0;
         break;
       }
     }
 
   m_cmd = IFD_NONE;
+}
+
+
+bool IECFileDevice::checkMWcmds(const struct MWSignature *sig, uint8_t sigLen, uint8_t offset)
+{
+  if( m_uploadCtr==0 && checkMWcmd(sig[0].address, sig[0].len, sig[0].checksum) )
+    {
+      m_uploadCtr = offset+1;
+      return true;
+    }
+  else if( m_uploadCtr >= offset && m_uploadCtr < offset+sigLen &&
+           checkMWcmd(sig[m_uploadCtr-offset].address, sig[m_uploadCtr-offset].len, sig[m_uploadCtr-offset].checksum) )
+    {
+      m_uploadCtr++;
+      return true;
+    }
+  else
+    return false;
 }
 
 
@@ -636,6 +683,7 @@ bool IECFileDevice::checkMWcmd(uint16_t addr, uint8_t len, uint8_t checksum) con
   // check checksum
   uint8_t c = 0;
   for(uint8_t i=0; i<len; i++) c += m_writeBuffer[6+i];
+
   return c==checksum;
 }
 
@@ -679,8 +727,8 @@ void IECFileDevice::reset()
   m_cmd = IFD_NONE;
   m_opening = false;
 
-#ifdef SUPPORT_EPYX
-  m_epyxCtr = 0;
+#if defined(SUPPORT_EPYX) || defined(SUPPORT_SPEEDDOS)
+  m_uploadCtr = 0;
 #endif
 
   IECDevice::reset();

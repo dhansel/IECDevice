@@ -50,6 +50,13 @@ class IECDevice
   bool enableDolphinDosSupport(bool enable);
 #endif
 
+#ifdef SUPPORT_SPEEDDOS
+  // call this to enable or disable SpeedDOS support for your device.
+  // this function will fail if any of the pins used for ATN/CLK/DATA/RESET
+  // are the same as the pins used for the parallel cable
+  bool enableSpeedDosSupport(bool enable);
+#endif
+
 #ifdef SUPPORT_EPYX
   // call this to enable or disable Expyx FastLoad support for your device. 
   bool enableEpyxFastLoadSupport(bool enable);
@@ -169,6 +176,12 @@ class IECDevice
   // call this when a DolphinDOS burst transmit request ("XQ") is received
   // on the command channel (the IECFileDevice class handles this automatically)
   void dolphinBurstTransmitRequest();
+#endif
+
+#ifdef SUPPORT_SPEEDDOS
+  // call this after receiving the SpeedDos fast-load routine upload (via M-W and M-E)
+  // (the IECFileDevice class handles this automatically)
+  void speedDosLoadRequest();
 #endif
 
 #ifdef SUPPORT_EPYX

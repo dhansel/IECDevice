@@ -70,7 +70,7 @@
 #define timer_wait_until(us) while( timer_less_than(us) )
 #endif
 
-//NOTE: Must disable SUPPORT_DOLPHIN, otherwise no pins left for debugging (except Mega)
+//NOTE: Must disable SUPPORT_DOLPHIN/SUPPORT_SPEEDDOS, otherwise no pins left for debugging (except Mega)
 #ifdef JDEBUG
 #define JDEBUGI() DDRD |= 0x80; PORTD &= ~0x80 // PD7 = pin digital 7
 #define JDEBUG0() PORTD&=~0x80
@@ -286,6 +286,9 @@ static void RAMFUNC(delayMicrosecondsISafe)(uint16_t t)
 #define S_EPYX_HEADER            0x0200  // Read EPYX FastLoad header (drive code transmission)
 #define S_EPYX_LOAD              0x0400  // Detected Epyx "load" request
 #define S_EPYX_SECTOROP          0x0800  // Detected Epyx "sector operation" request
+#define S_SPEEDDOS_ENABLED       0x1000  // SpeedDos support is enabled
+#define S_SPEEDDOS_DETECTED      0x2000  // Detected SpeedDos request from host
+#define S_SPEEDDOS_LOAD          0x4000  // Detected SpeedDos LOAD request from host
 
 #define TC_NONE      0
 #define TC_DATA_LOW  1
@@ -554,66 +557,66 @@ IECBusHandler::IECBusHandler(uint8_t pinATN, uint8_t pinCLK, uint8_t pinCLKout, 
 #else
 IECBusHandler::IECBusHandler(uint8_t pinATN, uint8_t pinCLK, uint8_t pinDATA, uint8_t pinRESET, uint8_t pinCTRL, uint8_t pinSRQ)
 #endif
-#if defined(SUPPORT_DOLPHIN)
-#if defined(SUPPORT_DOLPHIN_XRA1405)
+#if defined(SUPPORT_PARALLEL)
+#if defined(SUPPORT_PARALLEL_XRA1405)
 #if defined(ESP_PLATFORM)
   // ESP32
-: m_pinDolphinSCK(18),
-  m_pinDolphinCOPI(23),
-  m_pinDolphinCIPO(19),
-  m_pinDolphinCS(22),
-  m_pinDolphinHandshakeTransmit(4),
-  m_pinDolphinHandshakeReceive(36)
+: m_pinParallelSCK(18),
+  m_pinParallelCOPI(23),
+  m_pinParallelCIPO(19),
+  m_pinParallelCS(22),
+  m_pinParallelHandshakeTransmit(4),
+  m_pinParallelHandshakeReceive(36)
 #elif defined(ARDUINO_ARCH_RP2040)
   // Raspberry Pi Pico
-: m_pinDolphinCS(20),
-  m_pinDolphinCIPO(16),
-  m_pinDolphinCOPI(19),
-  m_pinDolphinSCK(18),
-  m_pinDolphinHandshakeTransmit(6),
-  m_pinDolphinHandshakeReceive(15)
+: m_pinParallelCS(20),
+  m_pinParallelCIPO(16),
+  m_pinParallelCOPI(19),
+  m_pinParallelSCK(18),
+  m_pinParallelHandshakeTransmit(6),
+  m_pinParallelHandshakeReceive(15)
 #elif defined(__AVR_ATmega328P__) || defined(ARDUINO_UNOR4)
   // Arduino UNO, Pro Mini, Micro, Nano
-: m_pinDolphinCS(9),
-  m_pinDolphinCIPO(12),
-  m_pinDolphinCOPI(11),
-  m_pinDolphinSCK(13),
-  m_pinDolphinHandshakeTransmit(7),
-  m_pinDolphinHandshakeReceive(2)
+: m_pinParallelCS(9),
+  m_pinParallelCIPO(12),
+  m_pinParallelCOPI(11),
+  m_pinParallelSCK(13),
+  m_pinParallelHandshakeTransmit(7),
+  m_pinParallelHandshakeReceive(2)
 #else
-#error "DolphinDos using XRA1405 not supported on this platform"
+#error "Parallel cable using XRA1405 not supported on this platform"
 #endif
-#else // !SUPPORT_DOLPHIN_XRA1405
+#else // !SUPPORT_PARALLEL_XRA1405
 #if defined(ESP_PLATFORM)
   // ESP32
-: m_pinDolphinHandshakeTransmit(4),
-  m_pinDolphinHandshakeReceive(36),
-  m_pinDolphinParallel{13,14,15,16,17,25,26,27}
+: m_pinParallelHandshakeTransmit(4),
+  m_pinParallelHandshakeReceive(36),
+  m_pinParallel{13,14,15,16,17,25,26,27}
 #elif defined(ARDUINO_ARCH_RP2040)
   // Raspberry Pi Pico
-: m_pinDolphinHandshakeTransmit(6),
-  m_pinDolphinHandshakeReceive(15),
-  m_pinDolphinParallel{7,8,9,10,11,12,13,14}
+: m_pinParallelHandshakeTransmit(6),
+  m_pinParallelHandshakeReceive(15),
+  m_pinParallel{7,8,9,10,11,12,13,14}
 #elif defined(__SAM3X8E__)
   // Arduino Due
-: m_pinDolphinHandshakeTransmit(52),
-  m_pinDolphinHandshakeReceive(53),
-  m_pinDolphinParallel{51,50,49,48,47,46,45,44}
+: m_pinParallelHandshakeTransmit(52),
+  m_pinParallelHandshakeReceive(53),
+  m_pinParallel{51,50,49,48,47,46,45,44}
 #elif defined(__AVR_ATmega328P__) || defined(ARDUINO_UNOR4)
   // Arduino UNO, Pro Mini, Nano
-: m_pinDolphinHandshakeTransmit(7),
-  m_pinDolphinHandshakeReceive(2),
-  m_pinDolphinParallel{A0,A1,A2,A3,A4,A5,8,9}
+: m_pinParallelHandshakeTransmit(7),
+  m_pinParallelHandshakeReceive(2),
+  m_pinParallel{A0,A1,A2,A3,A4,A5,8,9}
 #elif defined(__AVR_ATmega2560__)
   // Arduino Mega 2560
-: m_pinDolphinHandshakeTransmit(30),
-  m_pinDolphinHandshakeReceive(2),
-  m_pinDolphinParallel{22,23,24,25,26,27,28,29}
+: m_pinParallelHandshakeTransmit(30),
+  m_pinParallelHandshakeReceive(2),
+  m_pinParallel{22,23,24,25,26,27,28,29}
 #else
-#error "DolphinDos not supported on this platform"
+#error "Parallel cable not supported on this platform"
 #endif
-#endif // SUPPORT_DOLPHIN_XRA1405
-#endif // SUPPORT_DOLPHIN
+#endif // SUPPORT_PARALLEL_XRA1405
+#endif // SUPPORT_PARALLEL
 {
   m_numDevices = 0;
   m_inTask     = false;
@@ -630,7 +633,7 @@ IECBusHandler::IECBusHandler(uint8_t pinATN, uint8_t pinCLK, uint8_t pinDATA, ui
   m_pinDATAout   = pinDATAout;
 #endif
 
-#if defined(SUPPORT_JIFFY) || defined(SUPPORT_EPYX) || defined(SUPPORT_DOLPHIN)
+#if defined(SUPPORT_JIFFY) || defined(SUPPORT_EPYX) || defined(SUPPORT_DOLPHIN) || defined(SUPPORT_SPEEDDOS)
 #if IEC_DEFAULT_FASTLOAD_BUFFER_SIZE>0
   m_bufferSize = IEC_DEFAULT_FASTLOAD_BUFFER_SIZE;
 #else
@@ -724,11 +727,11 @@ bool IECBusHandler::attachDevice(IECDevice *dev)
   if( m_numDevices<MAX_DEVICES && findDevice(dev->m_devnr, true)==NULL )
     {
       dev->m_handler = this;
-      dev->m_sflags &= ~(S_JIFFY_DETECTED|S_JIFFY_BLOCK|S_DOLPHIN_DETECTED|S_DOLPHIN_BURST_TRANSMIT|S_DOLPHIN_BURST_RECEIVE|S_EPYX_HEADER|S_EPYX_LOAD|S_EPYX_SECTOROP);
-#ifdef SUPPORT_DOLPHIN
+      dev->m_sflags &= ~(S_JIFFY_DETECTED|S_JIFFY_BLOCK|S_DOLPHIN_DETECTED|S_DOLPHIN_BURST_TRANSMIT|S_DOLPHIN_BURST_RECEIVE|
+                         S_SPEEDDOS_DETECTED|S_SPEEDDOS_LOAD|S_EPYX_HEADER|S_EPYX_LOAD|S_EPYX_SECTOROP);
+#ifdef SUPPORT_PARALLEL
       enableParallelPins();
 #endif
-
       // if IECBusHandler::begin() has been called already then call the device's
       // begin() function now, otherwise it will be called in IECBusHandler::begin() 
       if( m_flags!=0xFF ) dev->begin();
@@ -750,7 +753,7 @@ bool IECBusHandler::detachDevice(IECDevice *dev)
         dev->m_handler = NULL;
         m_devices[i] = m_devices[m_numDevices-1];
         m_numDevices--;
-#ifdef SUPPORT_DOLPHIN
+#ifdef SUPPORT_PARALLEL
         enableParallelPins();
 #endif
         return true;
@@ -777,7 +780,7 @@ void RAMFUNC(IECBusHandler::atnInterruptFcn)(INTERRUPT_FCN_ARG)
 }
 
 
-#if (defined(SUPPORT_JIFFY) || defined(SUPPORT_DOLPHIN) || defined(SUPPORT_EPYX)) && !defined(IEC_DEFAULT_FASTLOAD_BUFFER_SIZE)
+#if (defined(SUPPORT_JIFFY) || defined(SUPPORT_DOLPHIN) || defined(SUPPORT_SPEEDDOS) || defined(SUPPORT_EPYX)) && !defined(IEC_DEFAULT_FASTLOAD_BUFFER_SIZE)
 void IECBusHandler::setBuffer(uint8_t *buffer, uint8_t bufferSize)
 {
   m_buffer     = bufferSize>0 ? buffer : NULL;
@@ -785,10 +788,493 @@ void IECBusHandler::setBuffer(uint8_t *buffer, uint8_t bufferSize)
 }
 #endif
 
+#ifdef SUPPORT_PARALLEL
+
+// ------------------------------------  Parallel cable support routines  ------------------------------------  
+
+#define PARALLEL_PREBUFFER_BYTES 2
+
+#ifdef SUPPORT_PARALLEL_XRA1405
+
+#if defined(ESP_PLATFORM) && !defined(ARDUINO)
+#include "IECespidf-spi.h"
+#else
+#include "SPI.h"
+#endif
+
+#pragma GCC push_options
+#pragma GCC optimize ("O2")
+
+uint8_t RAMFUNC(IECBusHandler::XRA1405_ReadReg)(uint8_t reg)
+{
+  startParallelTransaction();
+  digitalWriteFastExt(m_pinParallelCS, m_regParallelCS, m_bitParallelCS, LOW);
+  uint8_t res = SPI.transfer16((0x40|reg) << 9) & 0xFF;
+  digitalWriteFastExt(m_pinParallelCS, m_regParallelCS, m_bitParallelCS, HIGH);
+  endParallelTransaction();
+  return res;
+}
+
+void RAMFUNC(IECBusHandler::XRA1405_WriteReg)(uint8_t reg, uint8_t data)
+{
+  startParallelTransaction();
+  digitalWriteFastExt(m_pinParallelCS, m_regParallelCS, m_bitParallelCS, LOW);
+  SPI.transfer16((reg << 9) | data);
+  digitalWriteFastExt(m_pinParallelCS, m_regParallelCS, m_bitParallelCS, HIGH);
+  endParallelTransaction();
+}
+
+#pragma GCC pop_options
+
+#endif
+
+#if defined(ESP_PLATFORM) && (ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0))
+
+#include <driver/pulse_cnt.h>
+pcnt_unit_handle_t esp32_pulse_count_unit = NULL;
+pcnt_channel_handle_t esp32_pulse_count_channel = NULL;
+volatile static bool _handshakeReceived = false;
+static bool handshakeIRQ(pcnt_unit_handle_t unit, const pcnt_watch_event_data_t *edata, void *user_ctx)  { _handshakeReceived = true; return false; }
+#define PARALLEL_HANDSHAKE_USES_INTERRUPT
+
+#elif !defined(__AVR_ATmega328P__) && !defined(__AVR_ATmega2560__)
+
+volatile static bool _handshakeReceived = false;
+static void RAMFUNC(handshakeIRQ)(INTERRUPT_FCN_ARG) { _handshakeReceived = true; }
+#define PARALLEL_HANDSHAKE_USES_INTERRUPT
+
+#endif
+
+
+#ifdef SUPPORT_PARALLEL_XRA1405
+
+void IECBusHandler::setParallelPins(uint8_t pinHT, uint8_t pinHR, uint8_t pinSCK, uint8_t pinCOPI, uint8_t pinCIPO, uint8_t pinCS)
+{
+  m_pinParallelHandshakeTransmit = pinHT;
+  m_pinParallelHandshakeReceive  = pinHR;
+  m_pinParallelCOPI = pinCOPI;
+  m_pinParallelCIPO = pinCIPO;
+  m_pinParallelSCK  = pinSCK;
+  m_pinParallelCS   = pinCS;
+}
+
+#else
+
+void IECBusHandler::setParallelPins(uint8_t pinHT, uint8_t pinHR,uint8_t pinD0, uint8_t pinD1, uint8_t pinD2, uint8_t pinD3, uint8_t pinD4, uint8_t pinD5, uint8_t pinD6, uint8_t pinD7)
+{
+  m_pinParallelHandshakeTransmit = pinHT;
+  m_pinParallelHandshakeReceive  = pinHR;
+  m_pinParallel[0] = pinD0;
+  m_pinParallel[1] = pinD1;
+  m_pinParallel[2] = pinD2;
+  m_pinParallel[3] = pinD3;
+  m_pinParallel[4] = pinD4;
+  m_pinParallel[5] = pinD5;
+  m_pinParallel[6] = pinD6;
+  m_pinParallel[7] = pinD7;
+}
+
+#endif
+
+
+bool IECBusHandler::checkParallelPins()
+{
+  return (m_bufferSize>=PARALLEL_PREBUFFER_BYTES && 
+          !isParallelPin(m_pinATN)   && !isParallelPin(m_pinCLK) && !isParallelPin(m_pinDATA) && 
+          !isParallelPin(m_pinRESET) && !isParallelPin(m_pinCTRL) && 
+#ifdef USE_LINE_DRIVERS
+          !isParallelPin(m_pinCLKout) && !isParallelPin(m_pinDATAout) &&
+#endif
+#ifdef SUPPORT_PARALLEL_XRA1405
+          m_pinParallelCS!=0xFF && m_pinParallelSCK!=0xFF && m_pinParallelCOPI!=0xFF && m_pinParallelCIPO!=0xFF &&
+#else
+          m_pinParallel[0]!=0xFF && m_pinParallel[1]!=0xFF &&
+          m_pinParallel[2]!=0xFF && m_pinParallel[3]!=0xFF &&
+          m_pinParallel[4]!=0xFF && m_pinParallel[5]!=0xFF &&
+          m_pinParallel[6]!=0xFF && m_pinParallel[6]!=0xFF &&
+#endif
+          m_pinParallelHandshakeTransmit!=0xFF && m_pinParallelHandshakeReceive!=0xFF && 
+          digitalPinToInterrupt(m_pinParallelHandshakeReceive)!=NOT_AN_INTERRUPT);
+}
+
+
+bool IECBusHandler::isParallelPin(uint8_t pin)
+{
+  if( pin==m_pinParallelHandshakeTransmit || pin==m_pinParallelHandshakeReceive )
+    return true;
+
+#ifdef SUPPORT_PARALLEL_XRA1405
+  if( pin==m_pinParallelCS || pin==m_pinParallelCOPI || pin==m_pinParallelCIPO || pin==m_pinParallelSCK )
+    return true;
+#else
+  for(int i=0; i<8; i++) 
+    if( pin==m_pinParallel[i] )
+      return true;
+#endif
+
+  return false;
+}
+
+
+void IECBusHandler::enableParallelPins()
+{
+  uint8_t i = 0;
+  for(i=0; i<m_numDevices; i++)
+    if( m_devices[i]->m_sflags & (S_DOLPHIN_ENABLED|S_SPEEDDOS_ENABLED) )
+      break;
+
+  if( i<m_numDevices )
+    {
+      // at least one device uses the parallel cable
+
+#if defined(IOREG_TYPE)
+      m_regParallelHandshakeTransmitMode = portModeRegister(digitalPinToPort(m_pinParallelHandshakeTransmit));
+      m_bitParallelHandshakeTransmit     = digitalPinToBitMask(m_pinParallelHandshakeTransmit);
+#if defined(SUPPORT_PARALLEL_XRA1405)
+      m_regParallelCS = portOutputRegister(digitalPinToPort(m_pinParallelCS));
+      m_bitParallelCS = digitalPinToBitMask(m_pinParallelCS);
+#else
+      for(uint8_t i=0; i<8; i++)
+        {
+          m_regParallelWrite[i] = portOutputRegister(digitalPinToPort(m_pinParallel[i]));
+          m_regParallelRead[i]  = portInputRegister(digitalPinToPort(m_pinParallel[i]));
+          m_regParallelMode[i]  = portModeRegister(digitalPinToPort(m_pinParallel[i]));
+          m_bitParallel[i]      = digitalPinToBitMask(m_pinParallel[i]);
+        }
+#endif
+#endif
+      // initialize handshake transmit (high-Z)
+      pinMode(m_pinParallelHandshakeTransmit, OUTPUT);
+      digitalWrite(m_pinParallelHandshakeTransmit, LOW);
+      pinModeFastExt(m_pinParallelHandshakeTransmit, m_regParallelHandshakeTransmitMode, m_bitParallelHandshakeTransmit, INPUT);
+      
+      // initialize handshake receive (using INPUT_PULLUP to avoid undefined behavior
+      // when parallel cable is not connected)
+      pinMode(m_pinParallelHandshakeReceive, INPUT_PULLUP);
+
+      // For 8-bit AVR platforms (Arduino Uno R3, Arduino Mega) the interrupt latency combined
+      // with the comparatively slow clock speed leads to reduced performance during load/save
+      // For those platforms we do not use the generic interrupt mechanism but instead directly 
+      // access the registers dealing with external interrupts.
+      // All other platforms are fast enough so we can use the interrupt mechanism without
+      // performance issues.
+#if defined(__AVR_ATmega328P__)
+      // 
+      if( m_pinParallelHandshakeReceive==2 )
+        {
+          EIMSK &= ~bit(INT0);  // disable pin change interrupt
+          EICRA &= ~bit(ISC00); EICRA |=  bit(ISC01); // enable falling edge detection
+          m_bitParallelhandshakeReceived = bit(INTF0);
+        }
+      else if( m_pinParallelHandshakeReceive==3 )
+        {
+          EIMSK &= ~bit(INT1);  // disable pin change interrupt
+          EICRA &= ~bit(ISC10); EICRA |=  bit(ISC11); // enable falling edge detection
+          m_bitParallelhandshakeReceived = bit(INTF1);
+        }
+#elif defined(__AVR_ATmega2560__)
+      if( m_pinParallelHandshakeReceive==2 )
+        {
+          EIMSK &= ~bit(INT4); // disable interrupt
+          EICRB &= ~bit(ISC40); EICRB |=  bit(ISC41);  // enable falling edge detection
+          m_bitParallelhandshakeReceived = bit(INTF4);
+        }
+      else if( m_pinParallelHandshakeReceive==3 )
+        {
+          EIMSK &= ~bit(INT5); // disable interrupt
+          EICRB &= ~bit(ISC50); EICRB |=  bit(ISC51);  // enable falling edge detection
+          m_bitParallelhandshakeReceived = bit(INTF5);
+        }
+      else if( m_pinParallelHandshakeReceive==18 )
+        {
+          EIMSK &= ~bit(INT3); // disable interrupt
+          EICRA &= ~bit(ISC30); EICRA |=  bit(ISC31);  // enable falling edge detection
+          m_bitParallelhandshakeReceived = bit(INTF3);
+        }
+      else if( m_pinParallelHandshakeReceive==19 )
+        {
+          EIMSK &= ~bit(INT2); // disable interrupt
+          EICRA &= ~bit(ISC20); EICRA |=  bit(ISC21);  // enable falling edge detection
+          m_bitParallelhandshakeReceived = bit(INTF2);
+        }
+      else if( m_pinParallelHandshakeReceive==20 )
+        {
+          EIMSK &= ~bit(INT1); // disable interrupt
+          EICRA &= ~bit(ISC10); EICRA |=  bit(ISC11);  // enable falling edge detection
+          m_bitParallelhandshakeReceived = bit(INTF1);
+        }
+      else if( m_pinParallelHandshakeReceive==21 )
+        {
+          EIMSK &= ~bit(INT0); // disable interrupt
+          EICRA &= ~bit(ISC00); EICRA |=  bit(ISC01);  // enable falling edge detection
+          m_bitParallelhandshakeReceived = bit(INTF0);
+        }
+#elif defined(ESP_PLATFORM) && (ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0))
+      // use pulse counter on handshake receive line (utilizing its glitch filter)
+      if( esp32_pulse_count_unit==NULL )
+        {
+          pcnt_unit_config_t unit_config = {.low_limit = -1, .high_limit = 1, .flags = 0};
+          ESP_ERROR_CHECK(pcnt_new_unit(&unit_config, &esp32_pulse_count_unit));
+          pcnt_glitch_filter_config_t filter_config = { .max_glitch_ns = 250 };
+          ESP_ERROR_CHECK(pcnt_unit_set_glitch_filter(esp32_pulse_count_unit, &filter_config));
+          pcnt_chan_config_t chan_config;
+          memset(&chan_config, 0, sizeof(pcnt_chan_config_t));
+          chan_config.edge_gpio_num = m_pinParallelHandshakeReceive;
+          chan_config.level_gpio_num = -1;
+          ESP_ERROR_CHECK(pcnt_new_channel(esp32_pulse_count_unit, &chan_config, &esp32_pulse_count_channel));
+          ESP_ERROR_CHECK(pcnt_channel_set_edge_action(esp32_pulse_count_channel, PCNT_CHANNEL_EDGE_ACTION_HOLD, PCNT_CHANNEL_EDGE_ACTION_INCREASE));
+          pcnt_event_callbacks_t cbs = { .on_reach = handshakeIRQ };
+          ESP_ERROR_CHECK(pcnt_unit_add_watch_point(esp32_pulse_count_unit, 1));
+          ESP_ERROR_CHECK(pcnt_unit_register_event_callbacks(esp32_pulse_count_unit, &cbs, NULL));
+          ESP_ERROR_CHECK(pcnt_unit_enable(esp32_pulse_count_unit));
+          ESP_ERROR_CHECK(pcnt_unit_clear_count(esp32_pulse_count_unit));
+          ESP_ERROR_CHECK(pcnt_unit_start(esp32_pulse_count_unit));
+        }
+#elif defined(PARALLEL_HANDSHAKE_USES_INTERRUPT)
+      attachInterrupt(digitalPinToInterrupt(m_pinParallelHandshakeReceive), handshakeIRQ, FALLING);
+#endif
+
+      // initialize parallel bus pins
+#ifdef SUPPORT_PARALLEL_XRA1405
+      digitalWrite(m_pinParallelCS, HIGH);
+      pinMode(m_pinParallelCS, OUTPUT);
+      digitalWrite(m_pinParallelCS, HIGH);
+#if defined(ESP_PLATFORM) && !defined(ARDUINO)
+      // for ESP32 ESPIDF, SPI settings are specified in "begin()" instead of "beginTransaction()"
+      // (we use 16MHz since at 26MHz we run into timing issues during receive, the frequency
+      // does not matter too much since we only send 16 bits of data at a time)
+      SPI.begin(m_pinParallelSCK, m_pinParallelCIPO, m_pinParallelCOPI, SPISettings(16000000, MSBFIRST, SPI_MODE0));
+#elif defined(ESP_PLATFORM) && defined(ARDUINO)
+      // SPI for ESP32 under Arduino requires pin assignments in "begin" call
+      SPI.begin(m_pinParallelSCK, m_pinParallelCIPO, m_pinParallelCOPI);
+#else
+      SPI.begin();
+#endif
+      setParallelBusModeInput();
+      m_inTransaction = 0;
+#else
+      for(int i=0; i<8; i++) pinMode(m_pinParallel[i], INPUT);
+#endif
+    }
+  else
+    {
+#if defined(ESP_PLATFORM) && (ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0))
+      // disable pulse counter on handshake receive line
+      if( esp32_pulse_count_unit!=NULL )
+        {
+          pcnt_unit_stop(esp32_pulse_count_unit);
+          pcnt_unit_disable(esp32_pulse_count_unit);
+          pcnt_del_channel(esp32_pulse_count_channel);
+          pcnt_del_unit(esp32_pulse_count_unit);
+          esp32_pulse_count_unit = NULL;
+          esp32_pulse_count_channel = NULL;
+        }
+#elif defined(PARALLEL_HANDSHAKE_USES_INTERRUPT)
+      detachInterrupt(digitalPinToInterrupt(m_pinParallelHandshakeReceive));
+#endif
+    }
+}
+
+
+bool RAMFUNC(IECBusHandler::parallelBusHandshakeReceived)()
+{
+#if defined(__AVR_ATmega328P__) || defined(__AVR_ATmega2560__)
+  // see comment in function enableParallelPins
+  if( EIFR & m_bitParallelhandshakeReceived )
+    {
+      EIFR |= m_bitParallelhandshakeReceived;
+      return true;
+    }
+  else
+    return false;
+#else
+  if( _handshakeReceived )
+    {
+      _handshakeReceived = false;
+      return true;
+    }
+  else
+    return false;
+#endif
+}
+
+
+void RAMFUNC(IECBusHandler::parallelBusHandshakeTransmit)()
+{
+  // Emulate open collector behavior: 
+  // - switch pin to INPUT  mode (high-Z output) for true
+  // - switch pun to OUTPUT mode (LOW output) for false
+  pinModeFastExt(m_pinParallelHandshakeTransmit, m_regParallelHandshakeTransmitMode, m_bitParallelHandshakeTransmit, OUTPUT);
+  delayMicrosecondsISafe(1);
+  pinModeFastExt(m_pinParallelHandshakeTransmit, m_regParallelHandshakeTransmitMode, m_bitParallelHandshakeTransmit, INPUT);
+}
+
+
+void RAMFUNC(IECBusHandler::startParallelTransaction)()
+{
+#ifdef SUPPORT_PARALLEL_XRA1405
+  if( m_inTransaction==0 )
+    {
+#if defined(ESP_PLATFORM) && !defined(ARDUINO)
+      // for ESPIDF, SPI settings are specified in "begin()" instead of "beginTransaction()"
+      SPI.beginTransaction();
+#else
+      SPI.beginTransaction(SPISettings(16000000, MSBFIRST, SPI_MODE0));
+#endif
+    }
+
+  m_inTransaction++;
+#endif
+}
+
+
+void RAMFUNC(IECBusHandler::endParallelTransaction)()
+{
+#ifdef SUPPORT_PARALLEL_XRA1405
+  if( m_inTransaction==1 ) SPI.endTransaction();
+  if( m_inTransaction>0  ) m_inTransaction--;
+#endif
+}
+
+
+#pragma GCC push_options
+#pragma GCC optimize ("O2")
+uint8_t RAMFUNC(IECBusHandler::readParallelData)()
+{
+  uint8_t res = 0;
+#ifdef SUPPORT_PARALLEL_XRA1405
+  res = XRA1405_ReadReg(0x00); // GSR1, GPIO State Register for P0-P7
+#else
+  // loop unrolled for performance
+  if( digitalReadFastExt(m_pinParallel[0], m_regParallelRead[0], m_bitParallel[0]) ) res |= 0x01;
+  if( digitalReadFastExt(m_pinParallel[1], m_regParallelRead[1], m_bitParallel[1]) ) res |= 0x02;
+  if( digitalReadFastExt(m_pinParallel[2], m_regParallelRead[2], m_bitParallel[2]) ) res |= 0x04;
+  if( digitalReadFastExt(m_pinParallel[3], m_regParallelRead[3], m_bitParallel[3]) ) res |= 0x08;
+  if( digitalReadFastExt(m_pinParallel[4], m_regParallelRead[4], m_bitParallel[4]) ) res |= 0x10;
+  if( digitalReadFastExt(m_pinParallel[5], m_regParallelRead[5], m_bitParallel[5]) ) res |= 0x20;
+  if( digitalReadFastExt(m_pinParallel[6], m_regParallelRead[6], m_bitParallel[6]) ) res |= 0x40;
+  if( digitalReadFastExt(m_pinParallel[7], m_regParallelRead[7], m_bitParallel[7]) ) res |= 0x80;
+#endif
+  return res;
+}
+
+
+void RAMFUNC(IECBusHandler::writeParallelData)(uint8_t data)
+{
+#ifdef SUPPORT_PARALLEL_XRA1405
+  XRA1405_WriteReg(0x02, data); // OCR1, GPIO Output Control Register for P0-P7
+#else
+  // loop unrolled for performance
+  digitalWriteFastExt(m_pinParallel[0], m_regParallelWrite[0], m_bitParallel[0], data & 0x01);
+  digitalWriteFastExt(m_pinParallel[1], m_regParallelWrite[1], m_bitParallel[1], data & 0x02);
+  digitalWriteFastExt(m_pinParallel[2], m_regParallelWrite[2], m_bitParallel[2], data & 0x04);
+  digitalWriteFastExt(m_pinParallel[3], m_regParallelWrite[3], m_bitParallel[3], data & 0x08);
+  digitalWriteFastExt(m_pinParallel[4], m_regParallelWrite[4], m_bitParallel[4], data & 0x10);
+  digitalWriteFastExt(m_pinParallel[5], m_regParallelWrite[5], m_bitParallel[5], data & 0x20);
+  digitalWriteFastExt(m_pinParallel[6], m_regParallelWrite[6], m_bitParallel[6], data & 0x40);
+  digitalWriteFastExt(m_pinParallel[7], m_regParallelWrite[7], m_bitParallel[7], data & 0x80);
+#endif
+}
+
+
+void RAMFUNC(IECBusHandler::setParallelBusModeInput)()
+{
+#ifdef SUPPORT_PARALLEL_XRA1405
+  XRA1405_WriteReg(0x06, 0xFF); // GCR1, GPIO Configuration Register for P0-P7
+#else
+  // set parallel bus data pins to input mode
+  for(int i=0; i<8; i++) 
+    pinModeFastExt(m_pinParallel[i], m_regParallelMode[i], m_bitParallel[i], INPUT);
+#endif
+}
+
+
+void RAMFUNC(IECBusHandler::setParallelBusModeOutput)()
+{
+#ifdef SUPPORT_PARALLEL_XRA1405
+  XRA1405_WriteReg(0x06, 0x00); // GCR1, GPIO Configuration Register for P0-P7
+#else
+  // set parallel bus data pins to output mode
+  for(int i=0; i<8; i++) 
+    pinModeFastExt(m_pinParallel[i], m_regParallelMode[i], m_bitParallel[i], OUTPUT);
+#endif
+}
+#pragma GCC pop_options
+
+
+bool RAMFUNC(IECBusHandler::waitParallelBusHandshakeReceived)()
+{
+  uint32_t timeout = micros()+5000;
+  while( !parallelBusHandshakeReceived() )
+    if( !readPinATN() || micros()>timeout )
+      return false;
+
+  return true;
+}
+
+
+#ifdef PARALLEL_HANDSHAKE_USES_INTERRUPT
+
+#pragma GCC push_options
+#pragma GCC optimize ("O2")
+
+bool RAMFUNC(IECBusHandler::waitParallelBusHandshakeReceivedISafe)(bool exitOnCLKchange)
+{
+  // Version of waitParallelBusHandshakeReceived() that can be called with interrupts disabled.
+  // This is for architectures where we usually would use a pin-change interrupt to detect
+  // the pulse on the incoming handshake signal (but can't if interrupts are disabled)
+
+#if defined(IOREG_TYPE)
+  volatile const IOREG_TYPE *regHandshakeReceive = portInputRegister(digitalPinToPort(m_pinParallelHandshakeReceive));
+  volatile IOREG_TYPE bitHandshakeReceive = digitalPinToBitMask(m_pinParallelHandshakeReceive);
+#endif
+
+  bool atnVal = digitalReadFastExt(m_pinATN, m_regATNread, m_bitATN);
+  bool clkVal = digitalReadFastExt(m_pinCLK, m_regCLKread, m_bitCLK);
+
+  // wait for handshake signal going LOW (until either ATN or CLK change)
+  while( true ) 
+    {
+      if( !digitalReadFastExt(m_pinParallelHandshakeReceive, regHandshakeReceive, bitHandshakeReceive) ) return true;
+      if( atnVal!=digitalReadFastExt(m_pinATN, m_regATNread, m_bitATN) ) return false;
+      if( !digitalReadFastExt(m_pinParallelHandshakeReceive, regHandshakeReceive, bitHandshakeReceive) ) return true;
+      if( exitOnCLKchange && clkVal!=digitalReadFastExt(m_pinCLK, m_regCLKread, m_bitCLK) ) return false;
+      if( !digitalReadFastExt(m_pinParallelHandshakeReceive, regHandshakeReceive, bitHandshakeReceive) ) return true;
+    }
+}
+
+#pragma GCC pop_options
+
+#else
+
+bool RAMFUNC(IECBusHandler::waitParallelBusHandshakeReceivedISafe)(bool exitOnCLKchange)
+{
+  // clear any previous handshakes
+  parallelBusHandshakeReceived();
+
+  bool atnVal = readPinATN();
+  bool clkVal = readPinCLK();
+
+  // wait for handshake
+  while( atnVal==readPinATN() && (!exitOnCLKchange || clkVal==readPinCLK()) )
+    if( parallelBusHandshakeReceived() )
+      return true;
+  
+  return false;
+}
+
+
+#endif
+
+
+
+
+
+#endif // SUPPORT_PARALLEL
+
 #ifdef SUPPORT_JIFFY
 
 // ------------------------------------  JiffyDos support routines  ------------------------------------  
-
 
 bool IECBusHandler::enableJiffyDosSupport(IECDevice *dev, bool enable)
 {
@@ -1160,160 +1646,17 @@ bool RAMFUNC(IECBusHandler::transmitJiffyBlock)(uint8_t *buffer, uint8_t numByte
 }
 
 
-#endif // !SUPPORT_JIFFY
-
+#endif // SUPPORT_JIFFY
 
 #ifdef SUPPORT_DOLPHIN
 
 // ------------------------------------  DolphinDos support routines  ------------------------------------  
 
-#define DOLPHIN_PREBUFFER_BYTES 2
-
-#ifdef SUPPORT_DOLPHIN_XRA1405
-
-#if defined(ESP_PLATFORM) && !defined(ARDUINO)
-#include "IECespidf-spi.h"
-#else
-#include "SPI.h"
-#endif
-
-#pragma GCC push_options
-#pragma GCC optimize ("O2")
-
-uint8_t RAMFUNC(IECBusHandler::XRA1405_ReadReg)(uint8_t reg)
-{
-  startParallelTransaction();
-  digitalWriteFastExt(m_pinDolphinCS, m_regDolphinCS, m_bitDolphinCS, LOW);
-  uint8_t res = SPI.transfer16((0x40|reg) << 9) & 0xFF;
-  digitalWriteFastExt(m_pinDolphinCS, m_regDolphinCS, m_bitDolphinCS, HIGH);
-  endParallelTransaction();
-  return res;
-}
-
-void RAMFUNC(IECBusHandler::XRA1405_WriteReg)(uint8_t reg, uint8_t data)
-{
-  startParallelTransaction();
-  digitalWriteFastExt(m_pinDolphinCS, m_regDolphinCS, m_bitDolphinCS, LOW);
-  SPI.transfer16((reg << 9) | data);
-  digitalWriteFastExt(m_pinDolphinCS, m_regDolphinCS, m_bitDolphinCS, HIGH);
-  endParallelTransaction();
-}
-
-#pragma GCC pop_options
-
-#endif
-
-#if defined(ESP_PLATFORM) && (ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0))
-
-#include <driver/pulse_cnt.h>
-pcnt_unit_handle_t esp32_pulse_count_unit = NULL;
-pcnt_channel_handle_t esp32_pulse_count_channel = NULL;
-volatile static bool _handshakeReceived = false;
-static bool handshakeIRQ(pcnt_unit_handle_t unit, const pcnt_watch_event_data_t *edata, void *user_ctx)  { _handshakeReceived = true; return false; }
-#define DOLPHIN_HANDSHAKE_USE_INTERRUPT
-
-#elif !defined(__AVR_ATmega328P__) && !defined(__AVR_ATmega2560__)
-
-volatile static bool _handshakeReceived = false;
-static void RAMFUNC(handshakeIRQ)(INTERRUPT_FCN_ARG) { _handshakeReceived = true; }
-#define DOLPHIN_HANDSHAKE_USE_INTERRUPT
-
-#endif
-
-
-#ifdef DOLPHIN_HANDSHAKE_USE_INTERRUPT
-
-bool RAMFUNC(IECBusHandler::parallelCableDetect)()
-{
-  // DolphinDos cable detection happens at the end of the ATN sequence
-  // during which interrupts are disabled so we can't use parallelBusHandshakeReceived()
-  // which relies on the IRQ handler above
-
-#if defined(IOREG_TYPE)
-  volatile const IOREG_TYPE *regHandshakeReceive = portInputRegister(digitalPinToPort(m_pinDolphinHandshakeReceive));
-  volatile IOREG_TYPE bitHandshakeReceive = digitalPinToBitMask(m_pinDolphinHandshakeReceive);
-#endif
-
-  // wait for handshake signal going LOW until ATN goes high
-  while( !digitalReadFastExt(m_pinATN, m_regATNread, m_bitATN) )
-    {
-      if( !digitalReadFastExt(m_pinDolphinHandshakeReceive, regHandshakeReceive, bitHandshakeReceive) ) return true;
-      if( !digitalReadFastExt(m_pinDolphinHandshakeReceive, regHandshakeReceive, bitHandshakeReceive) ) return true;
-      if( !digitalReadFastExt(m_pinDolphinHandshakeReceive, regHandshakeReceive, bitHandshakeReceive) ) return true;
-    }
-
-  return false;
-}
-
-#else
-
-bool RAMFUNC(IECBusHandler::parallelCableDetect)()
-{
-  // clear any previous handshakes
-  parallelBusHandshakeReceived();
-
-  // wait for handshake
-  while( !readPinATN() )
-    if( parallelBusHandshakeReceived() )
-      return true;
-
-  return false;
-}
-
-
-#endif
-
-#ifdef SUPPORT_DOLPHIN_XRA1405
-
-void IECBusHandler::setDolphinDosPins(uint8_t pinHT, uint8_t pinHR, uint8_t pinSCK, uint8_t pinCOPI, uint8_t pinCIPO, uint8_t pinCS)
-{
-  m_pinDolphinHandshakeTransmit = pinHT;
-  m_pinDolphinHandshakeReceive  = pinHR;
-  m_pinDolphinCOPI = pinCOPI;
-  m_pinDolphinCIPO = pinCIPO;
-  m_pinDolphinSCK  = pinSCK;
-  m_pinDolphinCS   = pinCS;
-}
-
-#else
-
-void IECBusHandler::setDolphinDosPins(uint8_t pinHT, uint8_t pinHR,uint8_t pinD0, uint8_t pinD1, uint8_t pinD2, uint8_t pinD3, uint8_t pinD4, uint8_t pinD5, uint8_t pinD6, uint8_t pinD7)
-{
-  m_pinDolphinHandshakeTransmit = pinHT;
-  m_pinDolphinHandshakeReceive  = pinHR;
-  m_pinDolphinParallel[0] = pinD0;
-  m_pinDolphinParallel[1] = pinD1;
-  m_pinDolphinParallel[2] = pinD2;
-  m_pinDolphinParallel[3] = pinD3;
-  m_pinDolphinParallel[4] = pinD4;
-  m_pinDolphinParallel[5] = pinD5;
-  m_pinDolphinParallel[6] = pinD6;
-  m_pinDolphinParallel[7] = pinD7;
-}
-
-#endif
 
 bool IECBusHandler::enableDolphinDosSupport(IECDevice *dev, bool enable)
 {
-  if( enable && m_bufferSize>=DOLPHIN_PREBUFFER_BYTES && 
-      !isDolphinPin(m_pinATN)   && !isDolphinPin(m_pinCLK) && !isDolphinPin(m_pinDATA) && 
-      !isDolphinPin(m_pinRESET) && !isDolphinPin(m_pinCTRL) && 
-#ifdef USE_LINE_DRIVERS
-      !isDolphinPin(m_pinCLKout) && !isDolphinPin(m_pinDATAout) &&
-#endif
-#ifdef SUPPORT_DOLPHIN_XRA1405
-      m_pinDolphinCS!=0xFF && m_pinDolphinSCK!=0xFF && m_pinDolphinCOPI!=0xFF && m_pinDolphinCIPO!=0xFF &&
-#else
-      m_pinDolphinParallel[0]!=0xFF && m_pinDolphinParallel[1]!=0xFF &&
-      m_pinDolphinParallel[2]!=0xFF && m_pinDolphinParallel[3]!=0xFF &&
-      m_pinDolphinParallel[4]!=0xFF && m_pinDolphinParallel[5]!=0xFF &&
-      m_pinDolphinParallel[6]!=0xFF && m_pinDolphinParallel[6]!=0xFF &&
-#endif
-      m_pinDolphinHandshakeTransmit!=0xFF && m_pinDolphinHandshakeReceive!=0xFF && 
-      digitalPinToInterrupt(m_pinDolphinHandshakeReceive)!=NOT_AN_INTERRUPT )
-    {
-      dev->m_sflags |= S_DOLPHIN_ENABLED|S_DOLPHIN_BURST_ENABLED;
-    }
+  if( enable && checkParallelPins() )
+    dev->m_sflags |= S_DOLPHIN_ENABLED|S_DOLPHIN_BURST_ENABLED;
   else
     dev->m_sflags &= ~(S_DOLPHIN_ENABLED|S_DOLPHIN_BURST_ENABLED);
 
@@ -1324,320 +1667,6 @@ bool IECBusHandler::enableDolphinDosSupport(IECDevice *dev, bool enable)
   enableParallelPins();
 
   return (dev->m_sflags & S_DOLPHIN_ENABLED)!=0;
-}
-
-
-bool IECBusHandler::isDolphinPin(uint8_t pin)
-{
-  if( pin==m_pinDolphinHandshakeTransmit || pin==m_pinDolphinHandshakeReceive )
-    return true;
-
-#ifdef SUPPORT_DOLPHIN_XRA1405
-  if( pin==m_pinDolphinCS || pin==m_pinDolphinCOPI || pin==m_pinDolphinCIPO || pin==m_pinDolphinSCK )
-    return true;
-#else
-  for(int i=0; i<8; i++) 
-    if( pin==m_pinDolphinParallel[i] )
-      return true;
-#endif
-
-  return false;
-}
-
-
-void IECBusHandler::enableParallelPins()
-{
-  uint8_t i = 0;
-  for(i=0; i<m_numDevices; i++)
-    if( m_devices[i]->m_sflags & S_DOLPHIN_ENABLED )
-      break;
-
-  if( i<m_numDevices )
-    {
-      // at least one device has DolphinDos support enabled
-
-#if defined(IOREG_TYPE)
-      m_regDolphinHandshakeTransmitMode = portModeRegister(digitalPinToPort(m_pinDolphinHandshakeTransmit));
-      m_bitDolphinHandshakeTransmit     = digitalPinToBitMask(m_pinDolphinHandshakeTransmit);
-#if defined(SUPPORT_DOLPHIN_XRA1405)
-      m_regDolphinCS = portOutputRegister(digitalPinToPort(m_pinDolphinCS));
-      m_bitDolphinCS = digitalPinToBitMask(m_pinDolphinCS);
-#else
-      for(uint8_t i=0; i<8; i++)
-        {
-          m_regDolphinParallelWrite[i] = portOutputRegister(digitalPinToPort(m_pinDolphinParallel[i]));
-          m_regDolphinParallelRead[i]  = portInputRegister(digitalPinToPort(m_pinDolphinParallel[i]));
-          m_regDolphinParallelMode[i]  = portModeRegister(digitalPinToPort(m_pinDolphinParallel[i]));
-          m_bitDolphinParallel[i]      = digitalPinToBitMask(m_pinDolphinParallel[i]);
-        }
-#endif
-#endif
-      // initialize handshake transmit (high-Z)
-      pinMode(m_pinDolphinHandshakeTransmit, OUTPUT);
-      digitalWrite(m_pinDolphinHandshakeTransmit, LOW);
-      pinModeFastExt(m_pinDolphinHandshakeTransmit, m_regDolphinHandshakeTransmitMode, m_bitDolphinHandshakeTransmit, INPUT);
-      
-      // initialize handshake receive (using INPUT_PULLUP to avoid undefined behavior
-      // when parallel cable is not connected)
-      pinMode(m_pinDolphinHandshakeReceive, INPUT_PULLUP);
-
-      // For 8-bit AVR platforms (Arduino Uno R3, Arduino Mega) the interrupt latency combined
-      // with the comparatively slow clock speed leads to reduced performance during load/save
-      // For those platforms we do not use the generic interrupt mechanism but instead directly 
-      // access the registers dealing with external interrupts.
-      // All other platforms are fast enough so we can use the interrupt mechanism without
-      // performance issues.
-#if defined(__AVR_ATmega328P__)
-      // 
-      if( m_pinDolphinHandshakeReceive==2 )
-        {
-          EIMSK &= ~bit(INT0);  // disable pin change interrupt
-          EICRA &= ~bit(ISC00); EICRA |=  bit(ISC01); // enable falling edge detection
-          m_handshakeReceivedBit = bit(INTF0);
-        }
-      else if( m_pinDolphinHandshakeReceive==3 )
-        {
-          EIMSK &= ~bit(INT1);  // disable pin change interrupt
-          EICRA &= ~bit(ISC10); EICRA |=  bit(ISC11); // enable falling edge detection
-          m_handshakeReceivedBit = bit(INTF1);
-        }
-#elif defined(__AVR_ATmega2560__)
-      if( m_pinDolphinHandshakeReceive==2 )
-        {
-          EIMSK &= ~bit(INT4); // disable interrupt
-          EICRB &= ~bit(ISC40); EICRB |=  bit(ISC41);  // enable falling edge detection
-          m_handshakeReceivedBit = bit(INTF4);
-        }
-      else if( m_pinDolphinHandshakeReceive==3 )
-        {
-          EIMSK &= ~bit(INT5); // disable interrupt
-          EICRB &= ~bit(ISC50); EICRB |=  bit(ISC51);  // enable falling edge detection
-          m_handshakeReceivedBit = bit(INTF5);
-        }
-      else if( m_pinDolphinHandshakeReceive==18 )
-        {
-          EIMSK &= ~bit(INT3); // disable interrupt
-          EICRA &= ~bit(ISC30); EICRA |=  bit(ISC31);  // enable falling edge detection
-          m_handshakeReceivedBit = bit(INTF3);
-        }
-      else if( m_pinDolphinHandshakeReceive==19 )
-        {
-          EIMSK &= ~bit(INT2); // disable interrupt
-          EICRA &= ~bit(ISC20); EICRA |=  bit(ISC21);  // enable falling edge detection
-          m_handshakeReceivedBit = bit(INTF2);
-        }
-      else if( m_pinDolphinHandshakeReceive==20 )
-        {
-          EIMSK &= ~bit(INT1); // disable interrupt
-          EICRA &= ~bit(ISC10); EICRA |=  bit(ISC11);  // enable falling edge detection
-          m_handshakeReceivedBit = bit(INTF1);
-        }
-      else if( m_pinDolphinHandshakeReceive==21 )
-        {
-          EIMSK &= ~bit(INT0); // disable interrupt
-          EICRA &= ~bit(ISC00); EICRA |=  bit(ISC01);  // enable falling edge detection
-          m_handshakeReceivedBit = bit(INTF0);
-        }
-#elif defined(ESP_PLATFORM) && (ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0))
-      // use pulse counter on handshake receive line (utilizing its glitch filter)
-      if( esp32_pulse_count_unit==NULL )
-        {
-          pcnt_unit_config_t unit_config = {.low_limit = -1, .high_limit = 1, .flags = 0};
-          ESP_ERROR_CHECK(pcnt_new_unit(&unit_config, &esp32_pulse_count_unit));
-          pcnt_glitch_filter_config_t filter_config = { .max_glitch_ns = 250 };
-          ESP_ERROR_CHECK(pcnt_unit_set_glitch_filter(esp32_pulse_count_unit, &filter_config));
-          pcnt_chan_config_t chan_config;
-          memset(&chan_config, 0, sizeof(pcnt_chan_config_t));
-          chan_config.edge_gpio_num = m_pinDolphinHandshakeReceive;
-          chan_config.level_gpio_num = -1;
-          ESP_ERROR_CHECK(pcnt_new_channel(esp32_pulse_count_unit, &chan_config, &esp32_pulse_count_channel));
-          ESP_ERROR_CHECK(pcnt_channel_set_edge_action(esp32_pulse_count_channel, PCNT_CHANNEL_EDGE_ACTION_HOLD, PCNT_CHANNEL_EDGE_ACTION_INCREASE));
-          pcnt_event_callbacks_t cbs = { .on_reach = handshakeIRQ };
-          ESP_ERROR_CHECK(pcnt_unit_add_watch_point(esp32_pulse_count_unit, 1));
-          ESP_ERROR_CHECK(pcnt_unit_register_event_callbacks(esp32_pulse_count_unit, &cbs, NULL));
-          ESP_ERROR_CHECK(pcnt_unit_enable(esp32_pulse_count_unit));
-          ESP_ERROR_CHECK(pcnt_unit_clear_count(esp32_pulse_count_unit));
-          ESP_ERROR_CHECK(pcnt_unit_start(esp32_pulse_count_unit));
-        }
-#elif defined(DOLPHIN_HANDSHAKE_USE_INTERRUPT)
-      attachInterrupt(digitalPinToInterrupt(m_pinDolphinHandshakeReceive), handshakeIRQ, FALLING);
-#endif
-
-      // initialize parallel bus pins
-#ifdef SUPPORT_DOLPHIN_XRA1405
-      digitalWrite(m_pinDolphinCS, HIGH);
-      pinMode(m_pinDolphinCS, OUTPUT);
-      digitalWrite(m_pinDolphinCS, HIGH);
-#if defined(ESP_PLATFORM) && !defined(ARDUINO)
-      // for ESP32 ESPIDF, SPI settings are specified in "begin()" instead of "beginTransaction()"
-      // (we use 16MHz since at 26MHz we run into timing issues during receive, the frequency
-      // does not matter too much since we only send 16 bits of data at a time)
-      SPI.begin(m_pinDolphinSCK, m_pinDolphinCIPO, m_pinDolphinCOPI, SPISettings(16000000, MSBFIRST, SPI_MODE0));
-#elif defined(ESP_PLATFORM) && defined(ARDUINO)
-      // SPI for ESP32 under Arduino requires pin assignments in "begin" call
-      SPI.begin(m_pinDolphinSCK, m_pinDolphinCIPO, m_pinDolphinCOPI);
-#else
-      SPI.begin();
-#endif
-      setParallelBusModeInput();
-      m_inTransaction = 0;
-#else
-      for(int i=0; i<8; i++) pinMode(m_pinDolphinParallel[i], INPUT);
-#endif
-    }
-  else
-    {
-#if defined(ESP_PLATFORM) && (ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0))
-      // disable pulse counter on handshake receive line
-      if( esp32_pulse_count_unit!=NULL )
-        {
-          pcnt_unit_stop(esp32_pulse_count_unit);
-          pcnt_unit_disable(esp32_pulse_count_unit);
-          pcnt_del_channel(esp32_pulse_count_channel);
-          pcnt_del_unit(esp32_pulse_count_unit);
-          esp32_pulse_count_unit = NULL;
-          esp32_pulse_count_channel = NULL;
-        }
-#elif defined(DOLPHIN_HANDSHAKE_USE_INTERRUPT)
-      detachInterrupt(digitalPinToInterrupt(m_pinDolphinHandshakeReceive));
-#endif
-    }
-}
-
-
-bool RAMFUNC(IECBusHandler::parallelBusHandshakeReceived)()
-{
-#if defined(__AVR_ATmega328P__) || defined(__AVR_ATmega2560__)
-  // see comment in function enableDolphinDosSupport
-  if( EIFR & m_handshakeReceivedBit )
-    {
-      EIFR |= m_handshakeReceivedBit;
-      return true;
-    }
-  else
-    return false;
-#else
-  if( _handshakeReceived )
-    {
-      _handshakeReceived = false;
-      return true;
-    }
-  else
-    return false;
-#endif
-}
-
-
-void RAMFUNC(IECBusHandler::parallelBusHandshakeTransmit)()
-{
-  // Emulate open collector behavior: 
-  // - switch pin to INPUT  mode (high-Z output) for true
-  // - switch pun to OUTPUT mode (LOW output) for false
-  pinModeFastExt(m_pinDolphinHandshakeTransmit, m_regDolphinHandshakeTransmitMode, m_bitDolphinHandshakeTransmit, OUTPUT);
-  delayMicrosecondsISafe(1);
-  pinModeFastExt(m_pinDolphinHandshakeTransmit, m_regDolphinHandshakeTransmitMode, m_bitDolphinHandshakeTransmit, INPUT);
-}
-
-
-void RAMFUNC(IECBusHandler::startParallelTransaction)()
-{
-#ifdef SUPPORT_DOLPHIN_XRA1405
-  if( m_inTransaction==0 )
-    {
-#if defined(ESP_PLATFORM) && !defined(ARDUINO)
-      // for ESPIDF, SPI settings are specified in "begin()" instead of "beginTransaction()"
-      SPI.beginTransaction();
-#else
-      SPI.beginTransaction(SPISettings(16000000, MSBFIRST, SPI_MODE0));
-#endif
-    }
-
-  m_inTransaction++;
-#endif
-}
-
-
-void RAMFUNC(IECBusHandler::endParallelTransaction)()
-{
-#ifdef SUPPORT_DOLPHIN_XRA1405
-  if( m_inTransaction==1 ) SPI.endTransaction();
-  if( m_inTransaction>0  ) m_inTransaction--;
-#endif
-}
-
-
-#pragma GCC push_options
-#pragma GCC optimize ("O2")
-uint8_t RAMFUNC(IECBusHandler::readParallelData)()
-{
-  uint8_t res = 0;
-#ifdef SUPPORT_DOLPHIN_XRA1405
-  res = XRA1405_ReadReg(0x00); // GSR1, GPIO State Register for P0-P7
-#else
-  // loop unrolled for performance
-  if( digitalReadFastExt(m_pinDolphinParallel[0], m_regDolphinParallelRead[0], m_bitDolphinParallel[0]) ) res |= 0x01;
-  if( digitalReadFastExt(m_pinDolphinParallel[1], m_regDolphinParallelRead[1], m_bitDolphinParallel[1]) ) res |= 0x02;
-  if( digitalReadFastExt(m_pinDolphinParallel[2], m_regDolphinParallelRead[2], m_bitDolphinParallel[2]) ) res |= 0x04;
-  if( digitalReadFastExt(m_pinDolphinParallel[3], m_regDolphinParallelRead[3], m_bitDolphinParallel[3]) ) res |= 0x08;
-  if( digitalReadFastExt(m_pinDolphinParallel[4], m_regDolphinParallelRead[4], m_bitDolphinParallel[4]) ) res |= 0x10;
-  if( digitalReadFastExt(m_pinDolphinParallel[5], m_regDolphinParallelRead[5], m_bitDolphinParallel[5]) ) res |= 0x20;
-  if( digitalReadFastExt(m_pinDolphinParallel[6], m_regDolphinParallelRead[6], m_bitDolphinParallel[6]) ) res |= 0x40;
-  if( digitalReadFastExt(m_pinDolphinParallel[7], m_regDolphinParallelRead[7], m_bitDolphinParallel[7]) ) res |= 0x80;
-#endif
-  return res;
-}
-
-
-void RAMFUNC(IECBusHandler::writeParallelData)(uint8_t data)
-{
-#ifdef SUPPORT_DOLPHIN_XRA1405
-  XRA1405_WriteReg(0x02, data); // OCR1, GPIO Output Control Register for P0-P7
-#else
-  // loop unrolled for performance
-  digitalWriteFastExt(m_pinDolphinParallel[0], m_regDolphinParallelWrite[0], m_bitDolphinParallel[0], data & 0x01);
-  digitalWriteFastExt(m_pinDolphinParallel[1], m_regDolphinParallelWrite[1], m_bitDolphinParallel[1], data & 0x02);
-  digitalWriteFastExt(m_pinDolphinParallel[2], m_regDolphinParallelWrite[2], m_bitDolphinParallel[2], data & 0x04);
-  digitalWriteFastExt(m_pinDolphinParallel[3], m_regDolphinParallelWrite[3], m_bitDolphinParallel[3], data & 0x08);
-  digitalWriteFastExt(m_pinDolphinParallel[4], m_regDolphinParallelWrite[4], m_bitDolphinParallel[4], data & 0x10);
-  digitalWriteFastExt(m_pinDolphinParallel[5], m_regDolphinParallelWrite[5], m_bitDolphinParallel[5], data & 0x20);
-  digitalWriteFastExt(m_pinDolphinParallel[6], m_regDolphinParallelWrite[6], m_bitDolphinParallel[6], data & 0x40);
-  digitalWriteFastExt(m_pinDolphinParallel[7], m_regDolphinParallelWrite[7], m_bitDolphinParallel[7], data & 0x80);
-#endif
-}
-
-
-void RAMFUNC(IECBusHandler::setParallelBusModeInput)()
-{
-#ifdef SUPPORT_DOLPHIN_XRA1405
-  XRA1405_WriteReg(0x06, 0xFF); // GCR1, GPIO Configuration Register for P0-P7
-#else
-  // set parallel bus data pins to input mode
-  for(int i=0; i<8; i++) 
-    pinModeFastExt(m_pinDolphinParallel[i], m_regDolphinParallelMode[i], m_bitDolphinParallel[i], INPUT);
-#endif
-}
-
-
-void RAMFUNC(IECBusHandler::setParallelBusModeOutput)()
-{
-#ifdef SUPPORT_DOLPHIN_XRA1405
-  XRA1405_WriteReg(0x06, 0x00); // GCR1, GPIO Configuration Register for P0-P7
-#else
-  // set parallel bus data pins to output mode
-  for(int i=0; i<8; i++) 
-    pinModeFastExt(m_pinDolphinParallel[i], m_regDolphinParallelMode[i], m_bitDolphinParallel[i], OUTPUT);
-#endif
-}
-#pragma GCC pop_options
-
-
-bool IECBusHandler::waitParallelBusHandshakeReceived()
-{
-  while( !parallelBusHandshakeReceived() )
-    if( !readPinATN() )
-      return false;
-
-  return true;
 }
 
 
@@ -1671,17 +1700,17 @@ bool IECBusHandler::receiveDolphinByte(bool canWriteOk)
 
   // we have buffered bytes (see comment below) that need to be
   // sent on to the higher level handler before we can receive more.
-  // There are two ways to get to m_dolphinCtr==DOLPHIN_PREBUFFER_BYTES:
+  // There are two ways to get to m_bufferCtr==PARALLEL_PREBUFFER_BYTES:
   // 1) the host never sends a XZ burst request and just keeps sending data
   // 2) the host sends a burst request but we reject it
   // note that we must wait for the host to be ready to send the next data 
   // byte before we can empty our buffer, otherwise we will already empty
   // it before the host sends the burst (XZ) request
-  if( m_secondary==0x61 && m_dolphinCtr > 0 && m_dolphinCtr <= DOLPHIN_PREBUFFER_BYTES )
+  if( m_secondary==0x61 && m_bufferCtr > 0 && m_bufferCtr <= PARALLEL_PREBUFFER_BYTES )
     {
       // send next buffered byte on to higher level
-      m_currentDevice->write(m_buffer[m_dolphinCtr-1], false);
-      m_dolphinCtr--;
+      m_currentDevice->write(m_buffer[m_bufferCtr-1], false);
+      m_bufferCtr--;
       return true;
     }
 
@@ -1728,10 +1757,10 @@ bool IECBusHandler::receiveDolphinByte(bool canWriteOk)
       // later (see beginning of this function). If it is a burst then we discard them.
       // Note that the SAVE command always operates on channel 1 (secondary address 0x61)
       // so we only do the buffering in that case. 
-      if( m_secondary==0x61 && m_dolphinCtr > DOLPHIN_PREBUFFER_BYTES )
+      if( m_secondary==0x61 && m_bufferCtr > PARALLEL_PREBUFFER_BYTES )
         {
-          m_buffer[m_dolphinCtr-DOLPHIN_PREBUFFER_BYTES-1] = data;
-          m_dolphinCtr--;
+          m_buffer[m_bufferCtr-PARALLEL_PREBUFFER_BYTES-1] = data;
+          m_bufferCtr--;
         }
       else
         {
@@ -1764,7 +1793,7 @@ bool IECBusHandler::transmitDolphinByte(uint8_t numData)
   startParallelTransaction();
 
   // prepare data (bus is still in INPUT mode so the data will not be visible yet)
-  // (doing it now saves time to meed the 50us timeout after DATA low)
+  // (doing it now saves time to meet the 50us timeout after DATA high)
   writeParallelData(data);
 
   noInterrupts();
@@ -1772,7 +1801,7 @@ bool IECBusHandler::transmitDolphinByte(uint8_t numData)
   // signal "ready-to-send" (CLK=1)
   writePinCLK(HIGH);
 
-  // wait for "ready-for-data" (DATA=0)
+  // wait for "ready-for-data" (DATA=1)
   JDEBUG1();
   if( !waitPinDATA(HIGH, 0) ) { atnRequest(); interrupts(); endParallelTransaction(); return false; }
   JDEBUG0();
@@ -1808,8 +1837,8 @@ bool IECBusHandler::transmitDolphinByte(uint8_t numData)
   m_currentDevice->read();
 
   // remember initial bytes of data sent (see comment in transmitDolphinBurst)
-  if( m_secondary==0x60 && m_dolphinCtr<DOLPHIN_PREBUFFER_BYTES ) 
-    m_buffer[m_dolphinCtr++] = data;
+  if( m_secondary==0x60 && m_bufferCtr<PARALLEL_PREBUFFER_BYTES ) 
+    m_buffer[m_bufferCtr++] = data;
 
   // wait for receiver to confirm receipt (must confirm within 1ms)
   bool res = waitPinDATA(LOW, 1000);
@@ -1893,7 +1922,7 @@ bool IECBusHandler::transmitDolphinBurst()
   // the transmission has started. The kernal does so after the first two bytes
   // were sent, MultiDubTwo after one byte. After swtiching to burst mode, the 1541
   // then re-transmits the bytes that were already sent.
-  for(uint8_t i=0; i<m_dolphinCtr; i++)
+  for(uint8_t i=0; i<m_bufferCtr; i++)
     {
       // put data on bus
       writeParallelData(m_buffer[i]);
@@ -1964,7 +1993,228 @@ bool IECBusHandler::transmitDolphinBurst()
   return true;
 }
 
+#endif //SUPPORT_DOLPHIN
+
+#ifdef SUPPORT_SPEEDDOS
+
+// ------------------------------------  SpeedDos support routines  ------------------------------------  
+
+
+bool IECBusHandler::enableSpeedDosSupport(IECDevice *dev, bool enable)
+{
+  if( enable && checkParallelPins() )
+    dev->m_sflags |= S_SPEEDDOS_ENABLED;
+  else
+    dev->m_sflags &= ~S_SPEEDDOS_ENABLED;
+
+  // cancel any current SpeedDos activities
+  dev->m_sflags &= ~(S_SPEEDDOS_DETECTED|S_SPEEDDOS_LOAD);
+  
+  // make sure pins for parallel cable are enabled/disabled as needed
+  enableParallelPins();
+  
+  return (dev->m_sflags & S_SPEEDDOS_ENABLED)!=0;
+}
+
+
+void IECBusHandler::speedDosLoadRequest(IECDevice *dev)
+{
+  dev->m_sflags |= S_SPEEDDOS_LOAD;
+}
+
+
+bool IECBusHandler::receiveSpeedDosByte(bool canWriteOk)
+{
+  // Note: SpeedDos starts a 350us timeout after setting CLK high
+  // (ready-to-send) waiting for the parallel handshake signal. If we take
+  // longer than those 350us the receiver will abort.
+  // To be safe we need interrupts between setting DATA high 
+  // and sending the handshake.
+
+  // wait for CLK high
+  JDEBUG0();
+  if( !waitPinCLK(HIGH, 0) ) return false;
+  
+  noInterrupts();
+
+  // release DATA ("ready-for-data")
+  JDEBUG1();
+  writePinDATA(HIGH);
+  
+  // wait until data is ready
+  if( !waitParallelBusHandshakeReceivedISafe() ) { JDEBUG0(); interrupts(); return false; }
+  JDEBUG0();
+  
+  if( canWriteOk )
+    {
+      // get the parallel data
+      uint8_t data = readParallelData();
+      
+      // if CLK=1 at this point then sender is signaling EOI
+      bool eoi = readPinCLK();
+      
+      // confirm receipt
+      parallelBusHandshakeTransmit();
+      writePinDATA(LOW);
+
+      interrupts();
+
+      // pass received data on to the device
+      m_currentDevice->write(data, eoi);
+
+      // must return false if this was the last byte so we don't attempt to receive another byte 
+      // after this, otherwise we will misinterpret a PC2 pulse as another transmitted byte
+      return !eoi;
+    }
+  else
+    {
+      // canWrite reported an error
+      interrupts();
+      return false;
+    }
+}
+
+
+bool IECBusHandler::transmitSpeedDosByte(uint8_t numData)
+{
+  // Note: SpeedDos starts a 350us timeout after setting DATA high
+  // (ready-to-receive) waiting for the parallel handshake signal. If we take
+  // longer than those 350us the receiver will abort.
+  // To be safe we disable interrupts between setting DATA high 
+  // and sending the handshake.
+  uint8_t data = numData>0 ? m_currentDevice->peek() : 0xFF;
+
+  startParallelTransaction();
+
+  // prepare data (bus is still in INPUT mode so the data will not be visible yet)
+  // (doing it now saves time to meet the 350us timeout after DATA high)
+  writeParallelData(data);
+
+  noInterrupts();
+
+  // signal "ready-to-send" (CLK=1)
+  writePinCLK(HIGH);
+
+  // wait for "ready-for-data" (DATA=1)
+  JDEBUG1();
+  if( !waitPinDATA(HIGH, 0) ) { atnRequest(); interrupts(); endParallelTransaction(); return false; }
+  JDEBUG0();
+
+  if( numData==0 ) 
+    {
+      // if we have nothing to send then there was some kind of error 
+      // aborting here will signal the error condition to the receiver
+      interrupts();
+      endParallelTransaction();
+      return false;
+    }
+
+  // set CLK state to signal EOI
+  writePinCLK(numData==1);
+
+  // put data on parallel bus and send handshake ("data ready")
+  setParallelBusModeOutput();
+  parallelBusHandshakeTransmit();
+
+  // wait until receiver has read the parallel data 
+  // (receiver also sets DATA=0 before reading the parallel data)
+  JDEBUG1();
+#ifdef ESP_PLATFORM
+  // waitParallelBusHandshakeReceivedISafe() does not work reliably on ESP32
+  // since ESP32 seems to randomly pause for ~5us (even with interrupts disabled),
+  // missing the handshake pulse
+  // => wait for DATA=0 plus 65us (15us between DATA=0 and reading the parallel data 
+  // plus 50us for a possible VIC-II "badline" delay).
+  if( !waitPinDATA(LOW) ) { atnRequest(); interrupts(); endParallelTransaction(); return false; }
+  delayMicrosecondsISafe(65);
+#else
+  // wait for handshake pulse signaling the data was read
+  // (receiver sets DATA=0 before reading the parallel data)
+  waitParallelBusHandshakeReceivedISafe();
 #endif
+  JDEBUG0();
+
+  // signal "NOT ready-to-send"
+  writePinCLK(LOW);
+
+  // release parallel bus
+  setParallelBusModeInput();
+
+  interrupts();
+  
+  // discard data byte in device (read by peek() before)
+  m_currentDevice->read();
+
+  // remember initial bytes of data sent (see comment in transmitSpeedDosFile)
+  if( m_secondary==0x60 && m_bufferCtr<PARALLEL_PREBUFFER_BYTES )
+    m_buffer[m_bufferCtr++] = data;
+
+  endParallelTransaction();
+
+  return true;
+}
+
+
+bool IECBusHandler::transmitSpeedDosParallelByte(uint8_t data)
+{
+  // NOTE: this function should NOT be called when interrupts are disabled!
+
+  // put data on bus
+  JDEBUG1(); 
+  writeParallelData(data);
+  
+  // send handshake
+  noInterrupts();
+  parallelBusHandshakeTransmit();
+  parallelBusHandshakeReceived();
+  interrupts();
+  
+  // wait for received handshake
+  bool res = waitParallelBusHandshakeReceived();
+  JDEBUG0();
+  return res;
+}
+
+
+bool IECBusHandler::transmitSpeedDosFile()
+{
+  // switch parallel bus to output
+  setParallelBusModeOutput();
+
+  // when loading a file, SpeedDos uploads fast-load code to the drive after
+  // the transmission has already started (load address has been transmitted). 
+  // The fast-load then re-transmits the bytes that were already sent.
+  uint8_t offset = m_bufferCtr;
+
+  // get remaining data from the device and transmit it
+  uint8_t n;
+  while( (n=m_currentDevice->read(m_buffer+offset, m_bufferSize-offset)+offset)>0 )
+    {
+      startParallelTransaction();
+      if( !transmitSpeedDosParallelByte(n+1) )
+        { setParallelBusModeInput(); return false; }
+
+      for(uint8_t i=0; i<n; i++) 
+        if( !transmitSpeedDosParallelByte(m_buffer[i]) )
+          { setParallelBusModeInput(); return false; }
+
+      endParallelTransaction();
+      offset = 0;
+    }
+
+  // block length of 0 signifies end-of-data
+  transmitSpeedDosParallelByte(0);
+
+  // confirm successful transmission (0=LOAD ERROR)
+  transmitSpeedDosParallelByte(1);
+
+  // switch parallel bus back to input
+  setParallelBusModeInput();
+
+  return true;
+}
+
+#endif // SUPPORT_SPEEDDOS
 
 #ifdef SUPPORT_EPYX
 
@@ -2107,7 +2357,7 @@ bool RAMFUNC(IECBusHandler::startEpyxSectorCommand)(uint8_t command)
   // interrupts are assumed to be disabled when we get here
   // and will be re-enabled before we exit
   // both CLK and DATA must be released (HIGH) before entering
-  uint8_t track, sector, data;
+  uint8_t track, sector;
 
   if( command==0x81 )
     {
@@ -2381,6 +2631,55 @@ bool RAMFUNC(IECBusHandler::transmitEpyxBlock)()
 
 bool RAMFUNC(IECBusHandler::receiveIECByteATN)(uint8_t &data)
 {
+#if defined(SUPPORT_SPEEDDOS)
+  // SpeedDos protocol detection
+  // BEFORE receiving secondary address, wait for either:
+  //  HIGH->LOW edge (1us pulse) on incoming parallel handshake signal, 
+  //      if received pull outgoing parallel handshake signal LOW to confirm
+  //  LOW->HIGH edge on ATN or CLK, 
+  //      if so then timeout, host does not support SpeedDos
+  if( &data==&m_secondary )
+    {
+      JDEBUG1();
+      IECDevice *dev = findDevice(m_primary & 0x1F);
+      if( dev!=NULL && (dev->m_sflags & S_SPEEDDOS_ENABLED) )
+        if( waitParallelBusHandshakeReceivedISafe(true) )
+          {
+            dev->m_sflags |= S_SPEEDDOS_DETECTED;
+            parallelBusHandshakeTransmit();
+          }
+
+      // SpeedDos uses parallel protocol to transmit the secondary address
+      if( dev!=NULL && (dev->m_sflags & S_SPEEDDOS_DETECTED) )
+        {
+          // wait for CLK=1
+          JDEBUG0();
+          if( !waitPinCLK(HIGH, 0) ) return false;
+
+          // release DATA ("ready-for-data")
+          JDEBUG1();
+          writePinDATA(HIGH);
+
+          // wait for CLK=0
+          if( !waitPinCLK(LOW, 0) ) return false;
+
+          // wait for parallel data to be ready
+          if( !waitParallelBusHandshakeReceivedISafe() ) return false;
+          JDEBUG1();
+      
+          // get the parallel data
+          data = readParallelData();
+
+          // let the sender know we got the data
+          parallelBusHandshakeTransmit();
+          writePinDATA(LOW);
+          JDEBUG0();
+
+          return true;
+        }
+    }
+#endif
+
   // wait for CLK=1
   if( !waitPinCLK(HIGH, 0) ) return false;
 
@@ -2467,13 +2766,16 @@ bool RAMFUNC(IECBusHandler::receiveIECByteATN)(uint8_t &data)
   //  LOW->HIGH edge on ATN, 
   //      if so then timeout, host does not support DolphinDos
 
-  IECDevice *dev = findDevice(m_primary & 0x1F);
-  if( dev!=NULL && (dev->m_sflags & S_DOLPHIN_ENABLED) && (&data==&m_secondary) )
-    if( parallelCableDetect() )
-      {
-        dev->m_sflags |= S_DOLPHIN_DETECTED;
-        parallelBusHandshakeTransmit();
-      }
+  if( &data==&m_secondary )
+    {
+      IECDevice *dev = findDevice(m_primary & 0x1F);
+      if( dev!=NULL && (dev->m_sflags & S_DOLPHIN_ENABLED) )
+        if( waitParallelBusHandshakeReceivedISafe() )
+          {
+            dev->m_sflags |= S_DOLPHIN_DETECTED;
+            parallelBusHandshakeTransmit();
+          }
+    }
 #endif
 
   return true;
@@ -2655,18 +2957,21 @@ void RAMFUNC(IECBusHandler::atnRequest)()
   // disable the hardware that allows ATN to pull DATA low
   writePinCTRL(HIGH);
 
-#ifdef SUPPORT_JIFFY
   for(uint8_t i=0; i<m_numDevices; i++)
-    m_devices[i]->m_sflags &= ~(S_JIFFY_DETECTED|S_JIFFY_BLOCK);
+    {
+#ifdef SUPPORT_JIFFY
+      m_devices[i]->m_sflags &= ~(S_JIFFY_DETECTED|S_JIFFY_BLOCK);
 #endif
 #ifdef SUPPORT_DOLPHIN
-  for(uint8_t i=0; i<m_numDevices; i++) 
-    m_devices[i]->m_sflags &= ~(S_DOLPHIN_BURST_TRANSMIT|S_DOLPHIN_BURST_RECEIVE|S_DOLPHIN_DETECTED);
+      m_devices[i]->m_sflags &= ~(S_DOLPHIN_BURST_TRANSMIT|S_DOLPHIN_BURST_RECEIVE|S_DOLPHIN_DETECTED);
+#endif
+#ifdef SUPPORT_SPEEDDOS
+      m_devices[i]->m_sflags &= ~(S_SPEEDDOS_DETECTED|S_SPEEDDOS_LOAD);
 #endif
 #ifdef SUPPORT_EPYX
-  for(uint8_t i=0; i<m_numDevices; i++) 
-    m_devices[i]->m_sflags &= ~(S_EPYX_HEADER|S_EPYX_LOAD|S_EPYX_SECTOROP);
+      m_devices[i]->m_sflags &= ~(S_EPYX_HEADER|S_EPYX_LOAD|S_EPYX_SECTOROP);
 #endif
+    }
 }
 
 
@@ -2746,7 +3051,7 @@ void RAMFUNC(IECBusHandler::task)()
               m_flags |= P_LISTENING;
 #ifdef SUPPORT_DOLPHIN
               // see comments in function receiveDolphinByte
-              if( m_secondary==0x61 ) m_dolphinCtr = 2*DOLPHIN_PREBUFFER_BYTES;
+              if( m_secondary==0x61 ) m_bufferCtr = 2*PARALLEL_PREBUFFER_BYTES;
 #endif
               // set DATA=0 ("I am here")
               writePinDATA(LOW);
@@ -2765,9 +3070,9 @@ void RAMFUNC(IECBusHandler::task)()
               m_currentDevice->talk(m_secondary);
               m_flags &= ~P_LISTENING;
               m_flags |= P_TALKING;
-#ifdef SUPPORT_DOLPHIN
-              // see comments in function transmitDolphinByte
-              if( m_secondary==0x60 ) m_dolphinCtr = 0;
+#if defined(SUPPORT_DOLPHIN) || defined(SUPPORT_SPEEDDOS)
+              // see comments in function transmitDolphinByte/transmitSpeedDosByte
+              if( m_secondary==0x60 ) m_bufferCtr = 0;
 #endif
               // wait for bus master to set CLK=1 (and DATA=0) for role reversal
               if( waitPinCLK(HIGH) )
@@ -2903,7 +3208,7 @@ void RAMFUNC(IECBusHandler::task)()
           m_secondary = 0x61;
 
           // see comment in function receiveDolphinByte
-          m_dolphinCtr = (2*DOLPHIN_PREBUFFER_BYTES)-m_dolphinCtr;
+          m_bufferCtr = (2*PARALLEL_PREBUFFER_BYTES)-m_bufferCtr;
 
           // signal NOT ready to receive
           writePinDATA(LOW);
@@ -2911,6 +3216,30 @@ void RAMFUNC(IECBusHandler::task)()
 
       if( m_currentDevice!=NULL ) m_currentDevice->m_sflags &= ~S_DOLPHIN_BURST_RECEIVE;
     }
+#endif
+
+#ifdef SUPPORT_SPEEDDOS
+  // ------------------ SpeedDos burstload transfer handling -------------------
+
+  for(uint8_t devidx=0; devidx<m_numDevices; devidx++)
+    if( m_devices[devidx]->m_sflags & S_SPEEDDOS_LOAD )
+      {
+        m_currentDevice = m_devices[devidx];
+        transmitSpeedDosFile();
+
+        // either end-of-data or transmission error => we are done
+        writePinCLK(HIGH);
+        writePinDATA(HIGH);
+        
+        // close the file (usually the host sends these but not in burst mode)
+        m_currentDevice->listen(0xE0);
+        m_currentDevice->unlisten();
+            
+        // check whether ATN has been asserted and handle if necessary
+        if( !readPinATN() ) atnRequest();
+
+        if( m_currentDevice!=NULL ) m_currentDevice->m_sflags &= ~S_SPEEDDOS_LOAD;
+      }
 #endif
 
 #ifdef SUPPORT_EPYX
@@ -2978,8 +3307,8 @@ void RAMFUNC(IECBusHandler::task)()
       if( m_currentDevice==NULL )
         { /* m_currentDevice was reset while we were stuck in "canRead" */ }
       else if( !readPinATN() )
-        {
-          // a falling edge on ATN happened while we were stuck in "canWrite"
+        { 
+         // a falling edge on ATN happened while we were stuck in "canWrite"
           atnRequest();
         }
 #ifdef SUPPORT_JIFFY
@@ -3003,6 +3332,22 @@ void RAMFUNC(IECBusHandler::task)()
           if( !readPinCLK() )
             { /* CLK is still low => sender is not ready yet */ }
           else if( !receiveDolphinByte(numData>0) )
+            {
+              // receive failed => release DATA 
+              // and stop listening.  This will signal
+              // an error condition to the sender
+              writePinDATA(HIGH);
+              m_flags |= P_DONE;
+            }
+        }
+#endif
+#ifdef SUPPORT_SPEEDDOS
+      else if( (m_currentDevice->m_sflags & S_SPEEDDOS_DETECTED)!=0 && numData>=0 )
+        {
+          // receiving under SpeedDos protocol
+          if( !readPinCLK() )
+            { /* CLK is still low => sender is not ready yet */ }
+          else if( !receiveSpeedDosByte(numData>0) )
             {
               // receive failed => release DATA 
               // and stop listening.  This will signal
@@ -3102,6 +3447,18 @@ void RAMFUNC(IECBusHandler::task)()
               }
           }
 #endif
+#ifdef SUPPORT_SPEEDDOS
+        else if( (m_currentDevice->m_sflags & S_SPEEDDOS_DETECTED)!=0 )
+          {
+            // SpeedDOS byte-by-byte transfer mode
+            if( !transmitSpeedDosByte(numData) )
+              {
+                // either a transmission error, no more data to send or falling edge on ATN
+                writePinCLK(HIGH);
+                m_flags |= P_DONE;
+              }
+          }
+#endif
         else
           {
             // regular IEC transfer
@@ -3130,4 +3487,5 @@ void RAMFUNC(IECBusHandler::task)()
   // call "task" function for attached devices
   for(uint8_t i=0; i<m_numDevices; i++)
     m_devices[i]->task(); 
+
 }

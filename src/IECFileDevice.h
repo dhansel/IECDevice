@@ -113,6 +113,7 @@ class IECFileDevice : public IECDevice
   void emptyWriteBuffer();
   void fileTask();
   bool checkMWcmd(uint16_t addr, uint8_t len, uint8_t checksum) const;
+  bool checkMWcmds(const struct MWSignature *sig, uint8_t sigLen, uint8_t offset);
 
   bool    m_opening, m_eoi, m_canServeATN;
   uint8_t m_channel, m_cmd;
@@ -122,8 +123,8 @@ class IECFileDevice : public IECDevice
   int8_t  m_statusBufferLen, m_statusBufferPtr, m_writeBufferLen, m_readBufferLen[15];
   char    m_statusBuffer[IECFILEDEVICE_STATUS_BUFFER_SIZE];
 
-#ifdef SUPPORT_EPYX
-  uint8_t m_epyxCtr;
+#if defined(SUPPORT_EPYX) || defined(SUPPORT_SPEEDDOS)
+  uint8_t m_uploadCtr;
 #endif
 };
 
