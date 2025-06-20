@@ -58,7 +58,7 @@
 #endif
 
 // buffer size for IECFileDevice when receiving data. On channel 15, any command
-// longer than this (received in a single transaction) will be discarded.
+// longer than this (received in a single transaction) will be cut off.
 // For other channels, the device's write() function will be called once the
 // buffer is full. Every instance of IECFileDevice will allocate this buffer
 // so it should be kept small on platforms with little RAM (e.g. Arduino UNO)
