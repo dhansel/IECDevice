@@ -16,8 +16,8 @@ The library provides three classes:
     Any device created using this class automatically supports the following fast load protocols:
     - [JiffyDos](#jiffydos-support),
     - [Epyx FastLoad](#epyx-fastload-support)
-    - [Final Cartridge 3](final-cartridge-3-support)
-    - [Action Replay 6](action-replay-6-support)
+    - [Final Cartridge 3](#final-cartridge-3-support)
+    - [Action Replay 6](#action-replay-6-support)
     - [DolphinDos](#dolphindos-support)
     - [SpeedDos](#speeddos-support)
       
