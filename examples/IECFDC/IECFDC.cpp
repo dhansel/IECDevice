@@ -579,12 +579,11 @@ void IECFDC::getStatus(char *buffer, uint8_t bufferSize)
     case FR_NO_FILE:             { code = 62; message = PSTR("FILE NOT FOUND"); m_errorTrack = m_ferror; break; }
     case FR_EXIST:               { code = 63; message = PSTR("FILE EXISTS"); break; }
     case FR_WRITE_PROTECTED:     { code = 26; message = PSTR("WRITE PROTECT ON"); break; }
-    case FR_DENIED:              { code = 81; message = PSTR("PERMISSION DENIED"); break; }
-    case FR_INVALID_PARAMETER:   { code = 33; message = PSTR("SYNTAX ERROR"); break; }
+    case FR_INVALID_NAME:
+    case FR_INVALID_DRIVE:
+    case FR_INVALID_PARAMETER:   { code = 33; message = PSTR("SYNTAX ERROR"); m_errorTrack = m_ferror; break; }
     case FR_NOT_ENOUGH_CORE:     { code = 95; message = PSTR("OUT OF MEMORY"); break; }
     case FR_TOO_MANY_OPEN_FILES: { code = 96; message = PSTR("TOO MANY OPEN FILES"); break; }
-    case FR_INVALID_NAME:        { code = 97; message = PSTR("INVALID NAME"); break; }
-    case FR_INVALID_DRIVE:       { code = 98; message = PSTR("INVALID DRIVE"); break; }
     case FR_SPLASH:              { code = 73; message = PSTR("IECFDC V0.1"); break; }
     default:                     { code = 99; message = PSTR("INTERNAL ERROR"); m_errorTrack = m_ferror; break; }
     }

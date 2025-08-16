@@ -16,6 +16,8 @@ The library provides three classes:
     Any device created using this class automatically supports the following fast load protocols:
     - [JiffyDos](#jiffydos-support),
     - [Epyx FastLoad](#epyx-fastload-support)
+    - [Final Cartridge 3](final-cartridge-3-support)
+    - [Action Replay 6](action-replay-6-support)
     - [DolphinDos](#dolphindos-support)
     - [SpeedDos](#speeddos-support)
       
@@ -458,33 +460,14 @@ The IECDevice class has the following functions that may/must be called from you
   Allows the device to generate an SRQ interrupt in the bus controller (computer). 
   See the [Wiring](#wiring) section above.
 
-- ```void enableJiffyDosSupport(bool enable)```  
-  This function must be called **if** your device should support the JiffyDos protocol.
-  In most cases devices with JiffyDos support should be derived from the IECFileDevice class
-  which handles JiffyDos support internally and you do not have to call enableJiffyDosSupport().
-  For more information see the [JiffyDos support](jiffydos-support) section below.
-  You can also use this function to disable JiffyDos support after it has been enabled.
-
-- ```void enableEpyxFastLoadSupport(bool enable)```  
-  This function must be called **if** your device should support the Epyx FastLoad protocol.
-  In most cases devices with Epyx FastLoad support should be derived from the IECFileDevice class
-  which handles Epyx FastLoad support internally and you do not have to call enableEpyxFastLoadSupport().
-  For more information see the [Epyx FastLoad support](epyx-fastload-support) section below.
-  You can also use this function to disable Epyx FastLoad support after it has been enabled.
-
-- ```void enableDolphinDosSupport(bool enable)```  
-  This function must be called **if** your device should support the DolphinDos parallel protocol.
-  In most cases devices with DolphinDos support should be derived from the IECFileDevice class
-  which handles DolphinDos support internally and you do not have to call enableDolphinDosSupport().
-  For more information see the [DolphinDos support](#dolphindos-support) section below.
-  You can also use this function to disable DolphinDos support after it has been enabled.
-
-- ```void enableSpeedDosSupport(bool enable)```  
-  This function must be called **if** your device should support the SpeedDos parallel protocol.
-  In most cases devices with SpeedDos support should be derived from the IECFileDevice class
-  which handles SpeedDos support internally and you do not have to call enableSpeedDosSupport().
-  For more information see the [SpeedDos support](#speeddos-support) section below.
-  You can also use this function to disable SpeedDos support after it has been enabled.
+- ```void enableFastLoader(uint8_t loader, bool enable)```
+  This function must be called to enable support for any of the fast-loader protocols that
+  your devide should support. The ```loader``` parameter can be any of the ```IEC_FP_xxxx```
+  defined in the ```IECConfig.h``` file. By default, all fast-load protocols are disabled
+  for a device so this must be called for each protocol you want your device to support.
+  In most cases devices with fast-load support should be derived from the IECFileDevice class
+  which calls this function internally so you do not have to.
+  You can also use this function to disable any fast-load protocol after it has been enabled.
 
 The following functions can be overloaded in the derived device class to implement the device functions.
 None of these function are *required*. For example, if your device only receives data then only the
@@ -540,91 +523,31 @@ canWrite() and write() functions need to be overloaded.
   If you overload this function, make sure to call IECDevice::reset() from within your overloaded function.
 
 
-The following functions should be overloaded if the JiffyDos protocol should be supported.
-In most cases devices with JiffyDos support should be derived from the IECFileDevice class
-which handles JiffyDos support internally and you do not have to implement these functions.
-For more information see the [JiffyDos support](jiffydos-support) section below.
+The following functions should be overloaded if you want to enable fast-load protocol support for your device.
+In most cases devices with fast-load support should be derived from the IECFileDevice class
+which handles fast-load support internally and you do not have to implement these functions.
 
 - ```uint8_t peek()```  
-  Called when the device is sending data using JiffyDos byte-by-byte protocol.  
+  Called when the device is sending data using via some of the fast-load protocols.
   peek() will only be called if the last call to canRead() returned >0.  
   peek() should return the next character that will be read with read().  
   peek() is allowed to take an indefinite amount of time.  
-- ```uint8_t read(uint8_t *buffer, uint8_t bufferSize)```  
-  This function is called when the device is sending data using the JiffyDos block transfer (LOAD protocol).
-  read() should fill the buffer with as much data as possible (up to bufferSize).
-  read() must return the number of bytes put into the buffer
-  If read() is **not** overloaded, JiffyDos load performance will be several times slower than otherwise.
-  read() is allowed to take an indefinite amount of time.  
-
-The following function should be overloaded if the Epyx FastLoad protocol should be supported.
-In most cases devices with Epyx FastLoad support should be derived from the IECFileDevice class
-which handles Epyx FastLoad support internally and you do not have to implement these functions.
-For more information see the [Epyx FastLoad support](epyx-fastload-support) section below.
 
 - ```uint8_t read(uint8_t *buffer, uint8_t bufferSize)```  
-  This function is called when the device is sending data using the Epyx FastLoad block transfer (LOAD protocol).
+  This function is called when the device is sending data using a block transfer protocol typically used by fast-loaders.
   read() should fill the buffer with as much data as possible (up to bufferSize).
   read() must return the number of bytes put into the buffer
-  If read() is **not** overloaded, Epyx FastLoad load performance will be several times slower than otherwise.
+  If read() is **not** overloaded, fast-load performance will be several times slower than otherwise.
   read() is allowed to take an indefinite amount of time.  
-
-
-The following functions should be overloaded if the DolphinDos parallel protocol should be supported.
-In most cases devices with DolphinDos support should be derived from the IECFileDevice class
-which handles DolphinDos support internally and you do not have to implement these functions.
-For more information see the [DolphinDos support](#dolphindos-support) section below.
 
 - ```uint8_t write(uint8_t *buffer, uint8_t bufferSize, bool eoi)```
-  This function is only called when the device is receiving data using the DolphinDos block transfer (SAVE protocol).
+  This function is only called when the device is receiving data using a block transfer protocol typically used by fast-loaders.
   write() should process all the data in the buffer and return the number of bytes processed.
   Returning a number lower than bufferSize signals an error condition.
   The "eoi" parameter will be "true" if sender signaled that this is the final part of the transmission
-  If write() is **not** overloaded, DolphinDos save performance will be several times slower than otherwise.
+  If write() is **not** overloaded, fast-save performance will be several times slower than otherwise.
   write() is allowed to take an indefinite amount of time.
-- ```uint8_t peek()```  
-  Called when the device is sending data using DolphinDos byte-by-byte protocol.  
-  peek() will only be called if the last call to canRead() returned >0.  
-  peek() should return the next character that will be read with read().  
-  peek() is allowed to take an indefinite amount of time.  
-- ```uint8_t read(uint8_t *buffer, uint8_t bufferSize)```  
-  This function is only called when the device is sending data using the DolphinDos block transfer (LOAD protocol).
-  read() should fill the buffer with as much data as possible (up to bufferSize).
-  read() must return the number of bytes put into the buffer
-  If read() is **not** overloaded, DolphinDos load performance will be several times slower than otherwise.
-  read() is allowed to take an indefinite amount of time.  
-- ```void enableDolphinBurstMode(bool enable)```, ```void dolphinBurstReceiveRequest()```, ```void dolphinBurstTransmitRequest()```
-  In DolphinDos, the burst (fast) transfer mode is controlled by commands sent via the command
-  channel (channel 15). During a LOAD/SAVE operation, the host will send "XQ"/"XZ" on the command channel
-  which then should cause the device to confirm the burst transmission. Since the low-level IECDevice
-  class itself does not handle the command channel, it provides functions for a higher-level class
-  to signal the burst request: Call dolphinBurstTransmitRequest() if "XQ" is received on the command channel.
-  Call dolphinBurstReceiveRequest() if "XZ" is received on the command channel. You can also call 
-  enableDolphinBurstMode() to enable/disable support of burst transfers ("XF+"/"XF-" DolphinDos command).
 
-The following functions should be overloaded if the SpeedDos parallel protocol should be supported.
-In most cases devices with SpeedDos support should be derived from the IECFileDevice class
-which handles SpeedDos support internally and you do not have to implement these functions.
-For more information see the [SpeedDos support](#speeddos-support) section below.
-
-- ```uint8_t write(uint8_t *buffer, uint8_t bufferSize, bool eoi)```
-  This function is only called when the device is receiving data using the SpeedDos block transfer (SAVE protocol).
-  write() should process all the data in the buffer and return the number of bytes processed.
-  Returning a number lower than bufferSize signals an error condition.
-  The "eoi" parameter will be "true" if sender signaled that this is the final part of the transmission
-  If write() is **not** overloaded, SpeedDos save performance will be several times slower than otherwise.
-  write() is allowed to take an indefinite amount of time.
-- ```uint8_t peek()```  
-  Called when the device is sending data using SpeedDos byte-by-byte protocol.  
-  peek() will only be called if the last call to canRead() returned >0.  
-  peek() should return the next character that will be read with read().  
-  peek() is allowed to take an indefinite amount of time.  
-- ```uint8_t read(uint8_t *buffer, uint8_t bufferSize)```  
-  This function is only called when the device is sending data using the SpeedDos block transfer (LOAD protocol).
-  read() should fill the buffer with as much data as possible (up to bufferSize).
-  read() must return the number of bytes put into the buffer
-  If read() is **not** overloaded, SpeedDos load performance will be several times slower than otherwise.
-  read() is allowed to take an indefinite amount of time.  
 
 ## IECFileDevice class reference
 
@@ -642,6 +565,11 @@ The IECFileDevice class has the following functions that may/must be called from
 - ```void setActive(bool active)```
   Allows to deactivate a device without detaching it from the bus entirely. An inactive
   device will not respond to any bus requests.
+
+- ```void enableFastLoader(uint8_t loader, bool enable)```
+  By default, deviced derived from IECFileDevice have all supported fast-load protocols enabled.
+  You can use this function to disable any fast-load protocol if you wish. The ```loader``` parameter 
+  can be any of the ```IEC_FP_xxxx``` defined in the ```IECConfig.h``` file. 
 
 - ```void sendSRQ()```
   Allows the device to generate an SRQ interrupt in the bus controller (computer). 
@@ -743,119 +671,98 @@ Apart from the ATN signal timing requirements there are a few functions in the
 IECDevice class that have limitations on how long they may take before returning.
 Those are described in the [IECDevice Class Reference](#iecdevice-class-reference) section.
 
-Devices derived from the IECFileDevice class have no other timing requirements apart from the ATN timing
-as the IECFileDevice class handles all of them internally.
+Devices derived from the IECFileDevice class have no other timing requirements apart from 
+the ATN timing as the IECFileDevice class handles all of them internally.
 
-Finally, JiffyDos and Epyx FastLoad transfers require very precise timing which requires the IECDevice
-library to disable all interrupts during such transfers. So be aware that if JiffyDos or Epyx FastLoad
-support is enabled, the IECDevice::task() function may take up to to 20ms before returning and
-with interrupts disabled during JiffyDos transfers. Devices derived from the IECFileDevice
-class will automatically have JiffyDos and Epyx FastLoad support enabled. See the 
-[JiffyDos support](jiffydos-support) and [Epyx FastLoad support](expyx-fastload-support) sections 
-below for how to disable fastloader support if desired.
+Finally, fast-load transfers require very precise timing which requires the IECDevice
+library to disable all interrupts during such transfers. So be aware that if support for any fast-loader
+is enabled, the IECDevice::task() function may take up to to 20ms with interrupts disabled before returning. 
+Devices derived from the IECFileDevice class will automatically have fast-load enabled.
+
+## Fast-load protocol support
+
+The IECDevice class includes support for a number of fast-load bus protocols to speed up transfers.
+The library automatically detects when the computer requests a fast-load transfer and responds correspondingly.
+
+The ```IECConfig.h``` file defines which fast-load protocols are compiled into the code. By default,
+only JiffyDos and EPYX FastLoad are enabled here since otherwise example sketches would not fit into
+smaller microcontrollers like the Arduino UNO. You can enable or disable support for any protocol by 
+commenting or un-commenting the corresponding ```#define``` statements in ```IECConfig.h```
+
+For high-level file-based devices (derived from the IECFileDevice class), all functionality
+for fast-loader support is already included in the IECFileDevice class and fast-load support is 
+automatically enabled. In case you do NOT want your device to support a certain fast-load protocol, add
+the following call in the begin() function of your derived class, **after** calling
+IECFileDevice::begin(): ```enableFastLoader(IEC_FP_xxx, false)``` where ```IEC_FP_xxx``` is one of the
+fast-loader ids defined in ```IECConfig.h```.
+
+As mentioned in the timing consideration section, interrupts will be disabled during fast-load transfers 
+which may cause your program to not be able to respond to interrupts for up to 20ms at a time.
 
 ## JiffyDos support
 
-The IECDevice class includes support for the [JiffyDos](https://www.go4retro.com/products/jiffydos/) 
-bus protocol which significantly speeds up bus transfers, especially LOAD commands. 
-The library automatically detects when the computer requests a JiffyDos transfer and responds correspondingly.
+[JiffyDos](https://www.go4retro.com/products/jiffydos/) support is enabled by default in ```IECConfig.h```. 
+Any device derived from ```IECFileDevice``` will automatically support JiffyDos.
 
-For high-level file-based devices (derived from the IECFileDevice class), all functionality
-for JiffyDos support is already included in the IECFileDevice class. JiffyDos support is 
-automatically enabled. In case you do NOT want your device to support JiffyDos, add
-the following call in the begin() function of your derived class, **after** calling
-IECFileDevice::begin(): ```enableJiffyDosSupport(false)```
-
-To completely disable JiffyDos support (for example to save memory space on small controllers
-like the Arduino UNO), comment out the "#define SUPPORT_JIFFY" line at the top of file ```src/IECConfig.h```.
-
-For low-level devices (derived from the IECDevice class), two additional functions need to 
-be overloaded: ```peek()``` must return the next data byte that will be retuned by a call
-to ```read()``` and ```read(buffer, bufferSize)``` which when called should return 
-a chunk of data to be transferred. See the [IECDevice class reference](#iecdevice-class-reference) section
-for the full function definitions.
-JiffyDos support is initially disabled for low-level devices and must be enabled by calling 
-```enableJiffyDosSupport(true)``` in the begin() function of the derived class.
-
-As mentioned in the timing consideration section, interrupts will be disabled during JiffyDos transfers 
-which may cause your program to not be able to respond to interrupts for up to 20ms at a time.
-
-Note that in order to use the fast JiffyDos routins you need a C64 replacement kernal that includes 
+Note that in order to use the JiffyDos transfers you need a C64 replacement kernal that includes 
 the JiffyDos transfer routines which can be purchased [here](https://store.go4retro.com/categories/Commodore/Firmware/JiffyDOS).
 
 ## Epyx FastLoad support
 
-The IECDevice class includes support for the [Epyx FastLoad](https://en.wikipedia.org/wiki/Epyx_Fast_Load)
-bus protocol which significantly speeds up LOAD commands. 
-The library automatically detects when the computer requests an Epyx FastLoad transfer and responds correspondingly.
+[Epyx FastLoad](https://en.wikipedia.org/wiki/Epyx_Fast_Load) support is enabled by default in ```IECConfig.h```. 
+Any device derived from ```IECFileDevice``` will automatically support Epyx FastLoad.
 
-For high-level file-based devices (derived from the IECFileDevice class), all functionality
-for Epyx FastLoad support is already included in the IECFileDevice class. Epyx FastLoad support is 
-automatically enabled. In case you do NOT want your device to support FastLoad, add
-the following call in the begin() function of your derived class, **after** calling
-IECFileDevice::begin(): ```enableEpyxFastLoadSupport(false)```.
+Note that in order to use the fast-load routines you need the Epyx FastLoad cartridge for your C64. 
+A modern replica of the cartridge can be purchased at [TFW8B](https://www.tfw8b.com/product/epyx-fastload-reloaded-disk-sd2iec-turbo-loader-cartridge-c64).
 
-To completely disable FastLoad support (for example to save memory space on small controllers
-like the Arduino UNO), comment out the "#define SUPPORT_EPYX" line at the top of file ```src/IECConfig.h```.
+## Final Cartridge 3 support
 
-For low-level devices (derived from the IECDevice class), an additional functions need to 
-be overloaded: ```read(buffer, bufferSize)``` should return a chunk of data to be transferred.
-See the [IECDevice class reference](#iecdevice-class-reference) section for the full function definition.
-Epyx FastLoad support is initially disabled for low-level devices and must be enabled by calling 
-```enableEpyxFastLoadSupport(true)``` in the begin() function of the derived class.
+To save program space on smaller microcontrollers, support for the fast-load protocol provided by 
+[Final Cartridge 3](https://www.c64-wiki.com/wiki/Final_Cartridge_3) is **NOT** enabled by default in ```IECConfig.h```. 
+You need to un-comment the ```#define IEC_FP_FC3``` line at the top of file ```IECConfig.h``` to enable it. 
+After doing so, any  device derived from ```IECFileDevice``` will automatically support the Final Cartridge 3
+fast-load protocol.
 
-As mentioned in the timing consideration section, interrupts will be disabled during FastLoad transfers 
-which may cause your program to not be able to respond to interrupts for up to 20ms at a time.
+Of course, in order to use these fast-load routines you must plug a "Final Cartridge 3" into your
+C64's expansion port.
 
-Note that in order to use the FastLoad routins you need the Epyx FastLoad cartridge for your C64
-(https://en.wikipedia.org/wiki/Epyx_Fast_Load). A modern replica of the cartridge can be purchased
-at [TFW8B](https://www.tfw8b.com/product/epyx-fastload-reloaded-disk-sd2iec-turbo-loader-cartridge-c64).
+## Action Replay 6 support
+
+To save program space on smaller microcontrollers, support for the fast-load protocol provided by 
+[Action Replay 6](https://rr.pokefinder.org/wiki/Action_Replay) is **NOT** enabled by default in ```IECConfig.h```. 
+You need to un-comment the ```#define IEC_FP_AR6``` line at the top of file ```IECConfig.h``` to enable it. 
+After doing so, any  device derived from ```IECFileDevice``` will automatically support the Action Replay 6
+fast-load protocol.
+
+Of course, in order to use these fast-load routines you must plug a "Action Replay 6" cartridge into your
+C64's expansion port.
 
 ## DolphinDos support
 
-**Note:** Since DolphinDos support requires a number of additional pins for the parallel connection 
-and DolphinDos is not a very widely used fast loader, it not enabled by default. To enable DolphinDos
-support, un-comment the ```#define SUPPORT_DOLPHIN``` line at the top of file ```src/IECConfig.h```.
+Since [DolphinDos](https://rr.pokefinder.org/wiki/Dolphin_DOS) support requires a number of additional 
+pins for the parallel connection and DolphinDos is not a very widely used fast loader, it not enabled by default. 
+To enable DolphinDos support, un-comment the ```#define IEC_FP_DOLPHIN``` line at the top of file ```IECConfig.h```.
 
-The IECDevice class includes support for the [DolphinDos](https://rr.pokefinder.org/wiki/Dolphin_DOS)
-parallel protocol.
-
-I recommend deriving any device class with DolphinDos support from the higher-level file-based
-IECFileDevice class. It is possible to use the lower-level IECDevice class (with steps similar
-to those described in the JiffyDos) section above but DolphinDos requires additional steps for
-handling burst transfer requests (XQ and XZ) on the command channel. If you really want to 
-develop your own low-level DolphinDos class, search for "dolphin" in the IECFileDevice.cpp file
-to see what additional steps are taken there.
-
-Like JiffyDos, DolphinDos needs a replacement kernal in the C64 for its fast transmission routines.
+DolphinDos needs a replacement kernal in the C64 for its fast transmission routines.
 The DolphinDos V2 C64 kernal can be downloaded [here](https://e4aws.silverdr.com/projects/dolphindos2/).
 
 DolphinDos relies on a parallel connection between the computer and device for its improved
 transmission speed. It will work without parallel cable but will not provide any speed improvement.
-See the [Parallel cable](#iecdevice-class-reference) section for information on how to wire
+See the [Parallel cable](#parallel-cable) section for information on how to wire
 a parallel cable to the C64 user port.
 
 ## SpeedDos support
 
-**Note:** Since SpeedDos support requires a number of additional pins for the parallel connection 
-and SpeedDos is not a very widely used fast loader, it not enabled by default. To enable SpeedDos
-support, un-comment the ```#define SUPPORT_SPEEDDOS``` line at the top of file ```src/IECConfig.h```.
-
-The IECDevice class includes support for the [SpeedDos](https://www.c64-wiki.com/wiki/SpeedDOS)
-parallel protocol.
-
-For high-level file-based devices (derived from the IECFileDevice class), all functionality
-for SpeedDos support is already included in the IECFileDevice class. SpeedDos support is 
-automatically enabled. In case you do NOT want your device to support SpeedDos, add
-the following call in the begin() function of your derived class, **after** calling
-IECFileDevice::begin(): ```enableSpeedDosSupport(false)```.
+Since [SpeedDos](https://www.c64-wiki.com/wiki/SpeedDOS) support requires a number of additional 
+pins for the parallel connection and SpeedDos is not a very widely used fast loader, it not enabled by default. 
+To enable SpeedDos support, un-comment the ```#define IEC_FP_SPEEDDOS``` line at the top of file ```IECConfig.h```.
 
 SpeedDos needs a replacement kernal in the C64 for its fast transmission routines.
 The SpeedDos C64 kernal can be downloaded [here](https://csdb.dk/release/?id=21767&show=summary).
 
 SpeedDos relies on a parallel connection between the computer and device for its improved
 transmission speed. It will work without parallel cable but will not provide any speed improvement.
-See the [Parallel cable](#iecdevice-class-reference) section for information on how to wire
+See the [Parallel cable](#parallel-cable) section for information on how to wire
 a parallel cable to the C64 user port.
 
 ## Parallel cable
@@ -929,7 +836,7 @@ B (FLAG2)         | HT     | 7           | 6                 | IO4
 
 Finally, connect User Port pins C-L (PB0-PB7) to XRA1405 pins 1-8 (P0-P7).
 
-To enable XRA1405 support in the library, un-comment the ```#define SUPPORT_PARALLEL_XRA1405```
+To enable XRA1405 support in the library, un-comment the ```#define IEC_SUPPORT_PARALLEL_XRA1405```
 line in file ```IECConfig.h```.
 
 Note that the XRA1405 has two 8-bit I/O ports of which only the first one

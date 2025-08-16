@@ -33,12 +33,8 @@
 #error "This sketch is meant only for use on an Arduino Uno"
 #endif
 
-#ifdef SUPPORT_DOLPHIN
-#error "Not enough program space (or pins) on Arduino UNO to support Dolphin DOS in this sketch - remove '#define SUPPORT_DOLPHIN' in file IECDevice.h"
-#endif
-
-#ifdef SUPPORT_EPYX
-#error "Not enough program space on Arduino UNO to support Epyx FastLoad in this sketch - remove '#define SUPPORT_EPYX' in file IECDevice.h"
+#if defined(IEC_FP_EPYX) || defined(IEC_FP_FC3) || defined(IEC_FP_AR6) || defined(IEC_FP_DOLPHIN) || defined(IEC_FP_SPEEDDOS)
+#error "Not enough program space on Arduino UNO to support anything but JiffyDos - comment out all '#define IEC_FP_*' except '#define_IEC_FP_JIFFY' in file IECConfig.h"
 #endif
 
 IECFDC iecFDC(DEVICE, PIN_LED);

@@ -20,7 +20,7 @@
 #include <IECBusHandler.h>
 
 // IEC bus device number
-#define DEVICE_NUMBER 9
+#define DEVICE_NUMBER 8
 
 // --- IEC bus connections
 //
@@ -61,7 +61,7 @@
 
 #if defined(__AVR_ATmega328P__) || defined(ARDUINO_UNOR4_MINIMA) || defined(ARDUINO_UNOR4_WIFI)
 #undef PIN_LED
-#if defined(SUPPORT_DOLPHIN) && !defined(SUPPORT_DOLPHIN_XRA1405)
+#if defined(IEC_SUPPORT_PARALLEL) && !defined(IEC_SUPPORT_PARALLEL_XRA1405)
 #define PIN_LED  0xFF // parallel cable directly connected => no pin left for LED
 #else
 #define PIN_LED  8

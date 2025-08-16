@@ -4,7 +4,7 @@
 #if defined(ARDUINO_ARCH_RP2040) || defined(ESP_PLATFORM) || defined(__SAM3X8E__)
 // Un-comment the line below if you have the VDrive library (https://github.com/dhansel/VDrive) 
 // installed. This will allow to "CD" into Commodore disk image files (D64/G64 etc).
-//#define HAVE_VDRIVE
+#define HAVE_VDRIVE
 #endif
 
 #include <IECFileDevice.h>
@@ -32,7 +32,7 @@ class IECSD : public IECFileDevice
   virtual void execute(const char *command, uint8_t len);
   virtual void reset();
 
-#if defined(SUPPORT_EPYX) && defined(SUPPORT_EPYX_SECTOROPS) && defined(HAVE_VDRIVE)
+#if defined(IEC_FP_EPYX) && defined(IEC_FP_EPYX_SECTOROPS) && defined(HAVE_VDRIVE)
   virtual bool epyxReadSector(uint8_t track, uint8_t sector, uint8_t *buffer);
   virtual bool epyxWriteSector(uint8_t track, uint8_t sector, uint8_t *buffer);
 #endif

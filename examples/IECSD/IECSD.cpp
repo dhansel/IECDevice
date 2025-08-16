@@ -156,7 +156,7 @@ void IECSD::fromPETSCII(uint8_t *name)
     }
 }
 
-#if defined(SUPPORT_EPYX) && defined(SUPPORT_EPYX_SECTOROPS) && defined(HAVE_VDRIVE)
+#if defined(IEC_FP_EPYX) && defined(IEC_FP_EPYX_SECTOROPS) && defined(HAVE_VDRIVE)
 bool IECSD::epyxReadSector(uint8_t track, uint8_t sector, uint8_t *buffer)
 {
   bool res = false;

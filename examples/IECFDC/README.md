@@ -61,7 +61,7 @@ Fully assembled IECFDC device:
 
 ## Supported functionality and limitations
 
-Fitting both the support for reading MFM floppy disks and the IEC protocol into the limited
+Fitting both the support for reading and writing MFM floppy disks and the IEC protocol into the limited
 flash and sdram memory of the Arduino Uno required some compromises regarding the supported 
 functionality. The [IECFDCMega](https://github.com/dhansel/IECDevice/tree/main/examples/IECFDCMega) example
 makes use of the Arduino MEGA 2560 to offer extended support.
@@ -94,3 +94,4 @@ Limitations:
   - Only one disk drive supported
   - No long filename support (file names longer than 8 characters show up as abcdef~N)
   - No code page support (file names using characer codes >127 may show up incorrecly)
+  - No support for fast-loaders other than JiffyDos
