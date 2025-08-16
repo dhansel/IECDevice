@@ -13,8 +13,8 @@ The library provides three classes:
   - [```IECFileDevice```](#iecfiledevice-class-reference) for creating higher-level devices that operate more like disk
     drives. The IECFileDevice interface is file-based, providing open/close/read/write functions.
     An example use for this class would be an [SD-card reader](examples/IECSD).
-    Any device created using this class automatically supports the following fast load protocols:
-    - [JiffyDos](#jiffydos-support),
+    Any device created using this class automatically supports the following [fast load protocols](#fast-load-protocol-support):
+    - [JiffyDos](#jiffydos-support)
     - [Epyx FastLoad](#epyx-fastload-support)
     - [Final Cartridge 3](#final-cartridge-3-support)
     - [Action Replay 6](#action-replay-6-support)
@@ -681,7 +681,7 @@ Devices derived from the IECFileDevice class will automatically have fast-load e
 
 ## Fast-load protocol support
 
-The IECDevice class includes support for a number of fast-load bus protocols to speed up transfers.
+The IECFileDevice class includes support for a number of fast-load bus protocols to speed up transfers.
 The library automatically detects when the computer requests a fast-load transfer and responds correspondingly.
 
 The ```IECConfig.h``` file defines which fast-load protocols are compiled into the code. By default,
@@ -742,6 +742,8 @@ C64's expansion port.
 Since [DolphinDos](https://rr.pokefinder.org/wiki/Dolphin_DOS) support requires a number of additional 
 pins for the parallel connection and DolphinDos is not a very widely used fast loader, it not enabled by default. 
 To enable DolphinDos support, un-comment the ```#define IEC_FP_DOLPHIN``` line at the top of file ```IECConfig.h```.
+After doing so, any  device derived from ```IECFileDevice``` will automatically support the DolphinDos
+fast-load protocol.
 
 DolphinDos needs a replacement kernal in the C64 for its fast transmission routines.
 The DolphinDos V2 C64 kernal can be downloaded [here](https://e4aws.silverdr.com/projects/dolphindos2/).
@@ -756,6 +758,8 @@ a parallel cable to the C64 user port.
 Since [SpeedDos](https://www.c64-wiki.com/wiki/SpeedDOS) support requires a number of additional 
 pins for the parallel connection and SpeedDos is not a very widely used fast loader, it not enabled by default. 
 To enable SpeedDos support, un-comment the ```#define IEC_FP_SPEEDDOS``` line at the top of file ```IECConfig.h```.
+After doing so, any  device derived from ```IECFileDevice``` will automatically support the SpeedDos
+fast-load protocol.
 
 SpeedDos needs a replacement kernal in the C64 for its fast transmission routines.
 The SpeedDos C64 kernal can be downloaded [here](https://csdb.dk/release/?id=21767&show=summary).
