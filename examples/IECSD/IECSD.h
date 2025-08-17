@@ -4,7 +4,7 @@
 #if defined(ARDUINO_ARCH_RP2040) || defined(ESP_PLATFORM) || defined(__SAM3X8E__)
 // Un-comment the line below if you have the VDrive library (https://github.com/dhansel/VDrive) 
 // installed. This will allow to "CD" into Commodore disk image files (D64/G64 etc).
-#define HAVE_VDRIVE
+//#define HAVE_VDRIVE
 #endif
 
 #include <IECFileDevice.h>
