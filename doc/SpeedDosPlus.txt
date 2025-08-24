@@ -1,0 +1,547 @@
+; ----------- entry point for "read byte from IEC bus"
+
+ee13  78          SEI
+ee14  4C 9D EF    JMP $EF9D     ; jump to test for parallel transmission
+ee17  A9 00       LDA #$00      ; (returns to here if not parallel)
+ee19  85 A5       STA $A5       ; clear EOI/error flag
+ee1b  20 A9 EE    JSR $EEA9     ; from here on same as original kernal
+...
+
+ef9d  2C 0F DC    BIT $DC0F     ; check bits of CIA1 timer B control register
+efa0  30 03       BMI $EFA5     ; if bit 7 is set then skip next instruction
+efa2  4C 17 EE    JMP $EE17     ; return to do serial transmission
+efa5  86 A5       STX $A5       ; save X register
+efa7  A2 20       LDX #$20      ; timeout counter (~350us)
+efa9  2C 00 DD    BIT $DD00     ; check IEC status 
+efac  50 FB       BVC $EFA9     ; wait if CLK (bit 6) is LOW
+efae  AD 0D DD    LDA $DD0D     ; CLK is HIGH now, read CIA2 interrupt status (clear FLAG2 bit)
+efb1  20 97 EE    JSR $EE97     ; set DATA HIGH
+efb4  A9 10       LDA #$10      ; mask for FLAG2
+efb6  CA          DEX           ; (2) decrement timeout
+efb7  F0 0D       BEQ $EFC6     ; (2) jump if FLAG2 not seen within timeout period
+efb9  2C 0D DD    BIT $DD0D     ; (4) check FLAG2
+efbc  F0 F8       BEQ $EFB6     ; (3) wait if not seen yet
+efbe  2C 00 DD    BIT $DD00     ; check IEC status
+efc1  50 08       BVC $EFCB     ; jump if CLK (bit 6) is LOW
+efc3  A9 40       LDA #$40      ; CLK high signals EOI, $40 is EOI bit for ST ($90)
+efc5  2C A9 02    BIT $02A9
+efc8  20 1C FE    JSR $FE1C     ; set EOI bit in $90
+efcb  20 A0 EE    JSR $EEA0     ; set DATA low
+efce  A6 A5       LDX $A5       ; restore X register
+efd0  AD 01 DD    LDA $DD01     ; get parallel data
+efd3  85 A4       STA $A4       ; store
+efd5  18          CLC           ; no error
+efd6  58          CLI
+efd7  60          RTS
+
+; ----------- entry point for "send byte in $95 on IEC bus"
+
+ed40  78          SEI
+ed41  4C 22 EF    JMP $EF22
+ed44  20 A9 EE    JSR $EEA9     ; from here on same as original kernal
+...
+
+ef22  2C 0F DC    BIT $DC0F     ; check "parallel transmission" flag
+ef25  30 0A       BMI $EF31     ; skip next instructions if set
+ef27  2C 0C DD    BIT $DD0C     ; check ? flag
+ef2a  10 02       BPL $EF2E
+ef2c  70 63       BVS $EF91     ; transmit via CENTRONICS?
+ef2e  4C 44 ED    JMP $ED44     ; return to do serial transmission
+ef31  AD 01 DD    LDA $DD01     ; read parallel port data
+ef34  85 A5       STA $A5       ; save it
+ef36  AD 00 DD    LDA $DD00     ; read IEC lines
+ef39  30 3B       BMI $EF76     ; jump if DATA HIGH
+ef3b  20 88 EE    JSR $EE88     ; set CLK HIGH
+ef3e  AD 00 DD    LDA $DD00     ; read IEC lines
+ef41  10 FB       BPL $EF3E     ; wait while DATA LOW
+ef43  24 A3       BIT $A3       ; check EOI flag
+ef45  30 03       BMI $EF4A     ; skip next command if EOI
+ef47  20 91 EE    JSR $EE91     ; set CLK LOW (NOT EOI)
+ef4a  A5 95       LDA $95       ; get data byte
+ef4c  86 95       STX $95       ; save X
+ef4e  A2 20       LDX #$20      ; timeout counter (~350us)
+ef50  8D 01 DD    STA $DD01     ; put data on parallel bus
+ef53  A9 10       LDA #$10
+ef55  2C 0D DD    BIT $DD0D     ; (4) check FLAG2
+ef58  D0 08       BNE $EF62     ; (2) jump if FLAG2 seen
+ef5a  CA          DEX           ; (2) decrement timeout
+ef5b  D0 F8       BNE $EF55     ; (3) keep waiting until 0
+ef5d  A9 02       LDA #$02      ; set bit 1
+ef5f  20 1C FE    JSR $FE1C     ; set bits in ST ($90)
+ef62  A6 95       LDX $95       ; restore X
+ef64  24 A3       BIT $A3
+ef66  10 06       BPL $EF6E
+ef68  20 8E EE    JSR $EE8E
+ef6b  20 15 F4    JSR $F415
+ef6e  A5 A5       LDA $A5       ; restore parallel port data
+ef70  8D 01 DD    STA $DD01
+ef73  18          CLC
+ef74  58          CLI
+ef75  60          RTS
+
+; ----------- LOAD routine
+
+f4d5  20 13 EE    JSR $EE13     ; receive low byte load address
+f4d8  85 AE       STA $AE       ; store
+f4da  A5 90       LDA $90       ; check IEC status
+f4dc  4A          LSR A
+f4dd  4A          LSR A
+f4de  B0 50       BCS $F530     ; jump if error
+f4e0  20 13 EE    JSR $EE13     ; receive low byte load address
+f4e3  85 AF       STA $AF       ; store
+f4e5  8A          TXA           ; override load address?
+f4e6  D0 08       BNE $F4F0     ; jump if not
+f4e8  A5 C3       LDA $C3       ; override address
+f4ea  85 AE       STA $AE
+f4ec  A5 C4       LDA $C4
+f4ee  85 AF       STA $AF
+f4f0  4C 2C F7    JMP $F72C
+
+; upload fast-load code to drive (Why is this not in drive ROM? Not enough space there?)
+; [drive code is in C64 kernal ROM at $F800-$FA0B]
+f72c  20 23 FC    JSR $FC23
+f72f  E0 02       CPX #$02
+f731  F0 04       BEQ $F737
+f733  A6 93       LDX $93
+f735  F0 03       BEQ $F73A
+f737  4C F3 F4    JMP $F4F3
+f73a  A1 BB       LDA ($BB,X)
+f73c  C9 24       CMP #$24
+f73e  F0 F7       BEQ $F737
+f740  AD 0F DC    LDA $DC0F
+f743  10 F2       BPL $F737
+f745  86 C3       STX $C3
+f747  20 33 F5    JSR $F533
+f74a  A2 F8       LDX #$F8
+f74c  86 C4       STX $C4
+f74e  A9 57       LDA #$57      ; 'W'
+f750  20 E5 F7    JSR $F7E5     ; send 'M-W'
+f753  A0 00       LDY #$00      ; byte counter
+f755  A5 C3       LDA $C3       ; get address low byte
+f757  20 DD ED    JSR $EDDD     ; send
+f75a  A5 C4       LDA $C4       ; get address high byte
+f75c  69 0B       ADC #$0B      ; shift from $F8xx to $03xx
+f75e  20 DD ED    JSR $EDDD     ; send
+f761  A9 1E       LDA #$1E
+f763  20 DD ED    JSR $EDDD     ; send length ($1E)
+f766  B1 C3       LDA ($C3),Y   ; get data byte
+f768  20 DD ED    JSR $EDDD     ; send data byte
+f76b  C8          INY
+f76c  C0 1E       CPY #$1E
+f76e  90 F6       BCC $F766
+f770  20 FE ED    JSR $EDFE
+f773  18          CLC
+f774  A5 C3       LDA $C3       ; add $1E to address
+f776  69 1E       ADC #$1E
+f778  85 C3       STA $C3       ; low byte
+f77a  90 02       BCC $F77E
+f77c  E6 C4       INC $C4       ; high byte
+f77e  A5 C4       LDA $C4
+f780  C9 FA       CMP #$FA      ; data ends at $FA0B
+f782  D0 CA       BNE $F74E     ; if not done then send more
+
+; start fast-load code in drive
+f784  A9 45       LDA #$45      ; 'E'
+f786  20 E5 F7    JSR $F7E5     ; send 'M-E'
+f789  A9 03       LDA #$03
+f78b  20 DD ED    JSR $EDDD     ; send 0x03
+f78e  20 DD ED    JSR $EDDD     ; send 0x03
+f791  20 FB FB    JSR $FBFB
+
+; receive file
+f794  78          SEI
+f795  20 DA F7    JSR $F7DA     ; get data byte from parallel port (data block length)
+f798  AA          TAX           ; save in X
+f799  20 DA F7    JSR $F7DA     ; get data byte from parallel port (discard load address low byte)
+f79c  20 DA F7    JSR $F7DA     ; get data byte from parallel port (discard load address high byte)
+f79f  CA          DEX           ; decrement number of bytes left
+f7a0  CA          DEX           ; decrement number of bytes left
+f7a1  8A          TXA           ; number of bytes left into A
+f7a2  4C AF F7    JMP $F7AF     ; receive first block
+f7a5  AD 01 DC    LDA $DC01     ; get keyboard rows
+f7a8  C9 7F       CMP #$7F      ; STOP key pressed (column 7=0)?
+f7aa  F0 29       BEQ $F7D5     ; jump if so
+f7ac  20 DA F7    JSR $F7DA     ; get data byte from parallel port (data block length)
+f7af  AA          TAX           ; get number of bytes into X
+f7b0  F0 1A       BEQ $F7CC     ; if block length is 0 then we are done
+f7b2  CA          DEX           ; decrement number of bytes left (length includes length byte?)
+f7b3  A0 00       LDY #$00
+f7b5  A9 10       LDA #$10      ; bit mask for FLAG2
+f7b7  2C 0D DD    BIT $DD0D     ; check FLAG2
+f7ba  F0 FB       BEQ $F7B7     ; wait if not yet seen
+f7bc  AD 01 DD    LDA $DD01     ; get data byte from parallel port
+f7bf  91 AE       STA ($AE),Y   ; store data byte
+f7c1  E6 AE       INC $AE       ; increment address
+f7c3  D0 02       BNE $F7C7
+f7c5  E6 AF       INC $AF
+f7c7  CA          DEX           ; decrement number of bytes left in block
+f7c8  D0 EB       BNE $F7B5     ; if >0 then get next byte
+f7ca  F0 D9       BEQ $F7A5     ; get next block of data (jump always)
+
+; done receiving data
+f7cc  A2 40       LDX #$40
+f7ce  20 DA F7    JSR $F7DA     ; get byte from parallel port (confirmation?)
+f7d1  C9 01       CMP #$01
+f7d3  F0 02       BEQ $F7D7
+f7d5  A2 42       LDX #$42
+f7d7  4C 83 F5    JMP $F583
+
+; wait for and get data byte from parallel port
+f7da  A9 10       LDA #$10      ; mask for FLAG2
+f7dc  2C 0D DD    BIT $DD0D     ; check FLAG2
+f7df  F0 FB       BEQ $F7DC     ; wait if not seen yet
+f7e1  AD 01 DD    LDA $DD01     ; get data on parallel port
+f7e4  60          RTS
+
+----------- helper functions
+
+; send secondary address after LISTEN
+edb9  85 95       STA $95       ; buffer data
+edbb  20 F8 EE    JSR $EEF8     ; check for parallel cable and send data
+edbe  AD 00 DD    LDA $DD00     ; set ATN high
+edc1  29 F7       AND #$F7
+edc3  8D 00 DD    STA $DD00
+edc6  60          RTS
+
+; check whether to do parallel transmissions
+eef8  78          SEI
+eef9  2C 0C DD    BIT $DD0C
+eefc  30 7F       BMI $EF7D
+eefe  20 8E EE    JSR $EE8E     ; set CLK LOW
+ef01  20 9A EE    JSR $EE9A     ; set DATA HIGH
+ef04  86 A5       STX $A5       ; save X
+ef06  A2 58       LDX #$58      ; timeout counter
+ef08  AD 0D DD    LDA $DD0D     ; clear FLAG2 flag
+ef0b  A9 10       LDA #$10
+ef0d  2C 01 DD    BIT $DD01     ; transmit pulse on PC2
+ef10  CA          DEX           ; decrement timeout
+ef11  F0 0D       BEQ $EF20     ; jump if past timeout period
+ef13  2C 0D DD    BIT $DD0D     ; check for pulse of FLAG2
+ef16  F0 F5       BEQ $EF0D     ; repeat if not yet seen
+ef18  A9 88       LDA #$88
+ef1a  8D 0F DC    STA $DC0F     ; set "parallel transmission" flag
+ef1d  20 09 F4    JSR $F409
+ef20  A6 A5       LDX $A5       ; restore X
+; [fall into "transmit byte" routine at EF22]
+
+; switch parallel port to input
+efd8  2C 0F DC    BIT $DC0F
+efdb  10 05       BPL $EFE2
+efdd  A9 00       LDA #$00
+efdf  8D 03 DD    STA $DD03
+efe2  4C BE ED    JMP $EDBE
+
+; switch parallel port to OUTPUT
+f409  AD 03 DD    LDA $DD03     ; save parallel port DDR setting
+f40c  8D A1 02    STA $02A1
+f40f  A9 FF       LDA #$FF      ; switch all to OUTPUT
+f411  8D 03 DD    STA $DD03
+f414  60          RTS
+
+; restore previous parallel port direction setting
+f415  2C 0F DC    BIT $DC0F     ; are we in parallel transmission mode?
+f418  10 18       BPL $F432     ; skip if not
+f41a  A9 08       LDA #$08
+f41c  8D 0F DC    STA $DC0F
+f41f  AD A1 02    LDA $02A1     ; get saved parallel port DDR setting (from f409)
+f422  8D 03 DD    STA $DD03     ; restore
+f425  A9 00       LDA #$00
+f427  8D A1 02    STA $02A1
+f42a  AD 0C DD    LDA $DD0C     ; clear bit 7 in DD0C
+f42d  29 7F       AND #$7F
+f42f  8D 0C DD    STA $DD0C
+f432  2C 0C DD    BIT $DD0C
+f435  30 E8       BMI $F41F     ; make sure bit is clear?
+f437  60          RTS
+
+---------------------------------------------
+
+Disk code for LOAD (uploaded via M-W commands)
+
+0300  4c 61 03 a2  ff 8e 03 18  e8 86 0f a9  0b 8d 0c 18  20 9e 04 a5  18 85 06 a9   La.............. .......
+0318  e0 85 00 a5  00 30 fc c9  01 f0 10 c9  10 f0 e9 a6  0f e6 0f bd  99 fb 8d fe   .....0..................
+0330  02 d0 e0 20  9e 04 a9 00  20 05 04 a5  00 48 20 05  04 ee 03 18  a5 18 48 a5   ... .... ....H .......H.
+0348  19 48 20 05  d0 68 85 80  68 85 81 68  c9 01 d0 03  4c 13 d3 18  69 1e 4c 45   .H ..h..h..h....L...i.LE
+0360  e6 20 58 04  a4 0d 84 0e  a2 07 bd 78  fb a8 20 9a  03 a9 07 20  1b 04 20 58   . X........x.. .... .. X
+0378  04 a2 05 8a  a0 07 20 9a  03 a9 05 20  1b 04 c5 0e  d0 05 a9 06  20 1b 04 c5   ...... .... ........ ...
+0390  0d d0 ce a9  07 20 1b 04  10 c7 48 98  48 8a 20 d8  03 68 85 31  ad 8d 01 85   ..... ....H.H. ..h.1....
+03a8  25 ad 8e 01  85 26 ad 8f  01 85 27 20  36 f5 20 dd  03 68 85 31  20 e0 f8 20   %....&....' 6. ..h.1 ..
+03c0  d1 03 a0 46  84 4f e6 34  e6 36 a9 07  85 31 20 f2  f8 a5 3a a6  31 95 03 60   ...F.O.4.6...1 ...:.1..`
+03d8  85 31 20 27  f5 20 56 f5  50 fe b8 ad  01 1c 91 30  c8 d0 f5 a9  ba aa a8 a5   .1 '. V.P......0........
+03f0  31 c9 07 d0  02 a0 46 50  fe b8 ad 01  1c 99 00 01  c8 e8 d0 f3  60 2c 00 18   1.....FP............`,..
+0408  8d 01 18 a0  e0 ad 0d 18  29 10 d0 06  c8 d0 f6 4c  a0 ea 60 85  31 aa b5 03   ........)......L..`.1...
+0420  a0 00 51 30  c8 d0 fb aa  f0 03 4c 02  f5 a8 b1 30  d0 09 c8 b1  30 20 82 04   ..Q0......L....0....0 ..
+0438  4c 05 f5 aa  c8 b1 30 85  19 a9 ff 20  82 04 e4 18  f0 07 86 18  a9 10 4c 69   L.....0.... ..........Li
+0450  f9 a9 00 85  0f a5 19 60  a4 19 c8 c4  43 d0 02 a0  00 84 54 84  0d a9 01 85   .......`....C.....T.....
+0468  31 a9 00 45  16 45 17 45  18 45 0d 85  53 a9 8c 85  34 a5 39 85  52 a5 18 4c   1..E.E.E.E..S...4.9.R..L
+0480  5f f9 85 0c  20 05 04 a0  01 c8 b1 30  2c 00 18 8d  01 18 a9 10  2c 0d 18 f0   _... ......0,.......,...
+0498  fb c4 0c d0  ec 60 a6 0f  f0 07 bd 99  fb d0 03 85  0f 60 8d fe  02 ad fe 02   .....`...........`......
+04b0  d0 fb e8 d0  ed ad 7f fb  20 44 e5 ca  86 fe a9 08  85 ff 85 ba  20 6c fa 84   ........ D.......... l..
+04c8  bb 84 9d 84  c6 a5 c5 c9  40 f0 f1 c9  28 d0 02 e6  ff c9 2b d0  02 c6 ff a0   ........@...(.....+.....
+04e0  02 84 bc d9  97 fb f0 31  d9 9a fb f0  3f 88 10 f3  c8 d9 e3 fb  f0 06 c0 08   .......1....?...........
+04f8  d0 f6 f0 c8  98 0a 48 20  c5 fb 68 a8  b9 eb fb 85  fc b9 ec fb  85 fd e6 c6   ......H ..h.............
+0510  20 e4 ff 20  d2 ff 6c fc  00 b9 e0 fb
+
+0300  4C 61 03    JMP $0361
+0303  A2 FF       LDX #$FF
+0305  8E 03 18    STX $1803
+0308  E8          INX
+0309  86 0F       STX $0F
+030b  A9 0B       LDA #$0B
+030d  8D 0C 18    STA $180C
+0310  20 9E 04    JSR $049E
+0313  A5 18       LDA $18
+0315  85 06       STA $06
+0317  A9 E0       LDA #$E0
+0319  85 00       STA $00
+031b  A5 00       LDA $00
+031d  30 FC       BMI $031B
+031f  C9 01       CMP #$01
+0321  F0 10       BEQ $0333
+0323  C9 10       CMP #$10
+0325  F0 E9       BEQ $0310
+0327  A6 0F       LDX $0F
+0329  E6 0F       INC $0F
+032b  BD 99 FB    LDA $FB99,X
+032e  8D FE 02    STA $02FE
+0331  D0 E0       BNE $0313
+0333  20 9E 04    JSR $049E
+0336  A9 00       LDA #$00
+0338  20 05 04    JSR $0405
+033b  A5 00       LDA $00
+033d  48          PHA
+033e  20 05 04    JSR $0405
+0341  EE 03 18    INC $1803
+0344  A5 18       LDA $18
+0346  48          PHA
+0347  A5 19       LDA $19
+0349  48          PHA
+034a  20 05 D0    JSR $D005
+034d  68          PLA
+034e  85 80       STA $80
+0350  68          PLA
+0351  85 81       STA $81
+0353  68          PLA
+0354  C9 01       CMP #$01
+0356  D0 03       BNE $035B
+0358  4C 13 D3    JMP $D313
+035b  18          CLC
+035c  69 1E       ADC #$1E
+035e  4C 45 E6    JMP $E645
+0361  20 58 04    JSR $0458
+0364  A4 0D       LDY $0D
+0366  84 0E       STY $0E
+0368  A2 07       LDX #$07
+036a  BD 78 FB    LDA $FB78,X
+036d  A8          TAY
+036e  20 9A 03    JSR $039A
+0371  A9 07       LDA #$07
+0373  20 1B 04    JSR $041B
+0376  20 58 04    JSR $0458
+0379  A2 05       LDX #$05
+037b  8A          TXA
+037c  A0 07       LDY #$07
+037e  20 9A 03    JSR $039A
+0381  A9 05       LDA #$05
+0383  20 1B 04    JSR $041B
+0386  C5 0E       CMP $0E
+0388  D0 05       BNE $038F
+038a  A9 06       LDA #$06
+038c  20 1B 04    JSR $041B
+038f  C5 0D       CMP $0D
+0391  D0 CE       BNE $0361
+0393  A9 07       LDA #$07
+0395  20 1B 04    JSR $041B
+0398  10 C7       BPL $0361
+039a  48          PHA
+039b  98          TYA
+039c  48          PHA
+039d  8A          TXA
+039e  20 D8 03    JSR $03D8
+03a1  68          PLA
+03a2  85 31       STA $31
+03a4  AD 8D 01    LDA $018D
+03a7  85 25       STA $25
+03a9  AD 8E 01    LDA $018E
+03ac  85 26       STA $26
+03ae  AD 8F 01    LDA $018F
+03b1  85 27       STA $27
+03b3  20 36 F5    JSR $F536
+03b6  20 DD 03    JSR $03DD
+03b9  68          PLA
+03ba  85 31       STA $31
+03bc  20 E0 F8    JSR $F8E0
+03bf  20 D1 03    JSR $03D1
+03c2  A0 46       LDY #$46
+03c4  84 4F       STY $4F
+03c6  E6 34       INC $34
+03c8  E6 36       INC $36
+03ca  A9 07       LDA #$07
+03cc  85 31       STA $31
+03ce  20 F2 F8    JSR $F8F2
+03d1  A5 3A       LDA $3A
+03d3  A6 31       LDX $31
+03d5  95 03       STA $03,X
+03d7  60          RTS
+03d8  85 31       STA $31
+03da  20 27 F5    JSR $F527
+03dd  20 56 F5    JSR $F556
+03e0  50 FE       BVC $03E0
+03e2  B8          CLV
+03e3  AD 01 1C    LDA $1C01
+03e6  91 30       STA ($30),Y
+03e8  C8          INY
+03e9  D0 F5       BNE $03E0
+03eb  A9 BA       LDA #$BA
+03ed  AA          TAX
+03ee  A8          TAY
+03ef  A5 31       LDA $31
+03f1  C9 07       CMP #$07
+03f3  D0 02       BNE $03F7
+03f5  A0 46       LDY #$46
+03f7  50 FE       BVC $03F7
+03f9  B8          CLV
+03fa  AD 01 1C    LDA $1C01
+03fd  99 00 01    STA $0100,Y
+0400  C8          INY
+0401  E8          INX
+0402  D0 F3       BNE $03F7
+0404  60          RTS
+0405  2C 00 18    BIT $1800
+0408  8D 01 18    STA $1801
+040b  A0 E0       LDY #$E0
+040d  AD 0D 18    LDA $180D
+0410  29 10       AND #$10
+0412  D0 06       BNE $041A
+0414  C8          INY
+0415  D0 F6       BNE $040D
+0417  4C A0 EA    JMP $EAA0
+041a  60          RTS
+041b  85 31       STA $31
+041d  AA          TAX
+041e  B5 03       LDA $03,X
+0420  A0 00       LDY #$00
+0422  51 30       EOR ($30),Y
+0424  C8          INY
+0425  D0 FB       BNE $0422
+0427  AA          TAX
+0428  F0 03       BEQ $042D
+042a  4C 02 F5    JMP $F502
+042d  A8          TAY
+042e  B1 30       LDA ($30),Y
+0430  D0 09       BNE $043B
+0432  C8          INY
+0433  B1 30       LDA ($30),Y
+0435  20 82 04    JSR $0482
+0438  4C 05 F5    JMP $F505
+043b  AA          TAX
+043c  C8          INY
+043d  B1 30       LDA ($30),Y
+043f  85 19       STA $19
+0441  A9 FF       LDA #$FF
+0443  20 82 04    JSR $0482
+0446  E4 18       CPX $18
+0448  F0 07       BEQ $0451
+044a  86 18       STX $18
+044c  A9 10       LDA #$10
+044e  4C 69 F9    JMP $F969
+0451  A9 00       LDA #$00
+0453  85 0F       STA $0F
+0455  A5 19       LDA $19
+0457  60          RTS
+0458  A4 19       LDY $19
+045a  C8          INY
+045b  C4 43       CPY $43
+045d  D0 02       BNE $0461
+045f  A0 00       LDY #$00
+0461  84 54       STY $54
+0463  84 0D       STY $0D
+0465  A9 01       LDA #$01
+0467  85 31       STA $31
+0469  A9 00       LDA #$00
+046b  45 16       EOR $16
+046d  45 17       EOR $17
+046f  45 18       EOR $18
+0471  45 0D       EOR $0D
+0473  85 53       STA $53
+0475  A9 8C       LDA #$8C
+0477  85 34       STA $34
+0479  A5 39       LDA $39
+047b  85 52       STA $52
+047d  A5 18       LDA $18
+047f  4C 5F F9    JMP $F95F
+0482  85 0C       STA $0C
+0484  20 05 04    JSR $0405
+0487  A0 01       LDY #$01
+0489  C8          INY
+048a  B1 30       LDA ($30),Y
+048c  2C 00 18    BIT $1800
+048f  8D 01 18    STA $1801
+0492  A9 10       LDA #$10
+0494  2C 0D 18    BIT $180D
+0497  F0 FB       BEQ $0494
+0499  C4 0C       CPY $0C
+049b  D0 EC       BNE $0489
+049d  60          RTS
+
+049e  A6 0F       LDX $0F
+04a0  F0 07       BEQ $04A9
+04a2  BD 99 FB    LDA $FB99,X
+04a5  D0 03       BNE $04AA
+04a7  85 0F       STA $0F
+04a9  60          RTS
+
+04aa  8D FE 02    STA $02FE
+04ad  AD FE 02    LDA $02FE
+04b0  D0 FB       BNE $04AD
+04b2  E8          INX
+04b3  D0 ED       BNE $04A2
+04b5  AD 7F FB    LDA $FB7F
+04b8  20 44 E5    JSR $E544
+04bb  CA          DEX
+04bc  86 FE       STX $FE
+04be  A9 08       LDA #$08
+04c0  85 FF       STA $FF
+04c2  85 BA       STA $BA
+04c4  20 6C FA    JSR $FA6C
+04c7  84 BB       STY $BB
+04c9  84 9D       STY $9D
+04cb  84 C6       STY $C6
+04cd  A5 C5       LDA $C5
+04cf  C9 40       CMP #$40
+04d1  F0 F1       BEQ $04C4
+04d3  C9 28       CMP #$28
+04d5  D0 02       BNE $04D9
+04d7  E6 FF       INC $FF
+04d9  C9 2B       CMP #$2B
+04db  D0 02       BNE $04DF
+04dd  C6 FF       DEC $FF
+04df  A0 02       LDY #$02
+04e1  84 BC       STY $BC
+04e3  D9 97 FB    CMP $FB97,Y
+04e6  F0 31       BEQ $0519
+04e8  D9 9A FB    CMP $FB9A,Y
+04eb  F0 3F       BEQ $052C
+04ed  88          DEY
+04ee  10 F3       BPL $04E3
+04f0  C8          INY
+04f1  D9 E3 FB    CMP $FBE3,Y
+04f4  F0 06       BEQ $04FC
+04f6  C0 08       CPY #$08
+04f8  D0 F6       BNE $04F0
+04fa  F0 C8       BEQ $04C4
+04fc  98          TYA
+04fd  0A          ASL A
+04fe  48          PHA
+04ff  20 C5 FB    JSR $FBC5
+0502  68          PLA
+0503  A8          TAY
+0504  B9 EB FB    LDA $FBEB,Y
+0507  85 FC       STA $FC
+0509  B9 EC FB    LDA $FBEC,Y
+050c  85 FD       STA $FD
+050e  E6 C6       INC $C6
+0510  20 E4 FF    JSR $FFE4
+0513  20 D2 FF    JSR $FFD2
+0516  6C FC 00    JMP ($00FC)
+0519  B9 E0 FB    LDA $FBE0,Y1

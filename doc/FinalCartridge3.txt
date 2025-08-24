@@ -1,0 +1,614 @@
+; ===== transmit one byte (in A) for fast save ======
+
+9906  48          PHA
+9907  2C 00 DD    BIT $DD00             ; wait for DATA high
+990a  10 FB       BPL $9907
+990c  4A          LSR A
+990d  4A          LSR A
+990e  4A          LSR A
+990f  4A          LSR A
+9910  AA          TAX
+9911  AD 12 D0    LDA $D012             ; wait until not in VIC BADLINE?
+9914  C9 31       CMP #$31
+9916  90 06       BCC $991E
+9918  29 06       AND #$06
+991a  C9 02       CMP #$02
+991c  F0 F3       BEQ $9911
+991e  A9 07       LDA #$07
+9920  8D 00 DD    STA $DD00             ; (4) release CLK
+9923  BD 4B 99    LDA $994B,X           ; (4) get CLK/DATA values for bits 4-7
+9926  EA          NOP                   ; (2)
+9927  EA          NOP                   ; (2)
+9928  8D 00 DD    STA $DD00             ; (4) transmit bits 7(CLK)+5(DATA) (inverted, at CLK+12)
+992b  4A          LSR A                 ; (2)
+992c  4A          LSR A                 ; (2)
+992d  29 F7       AND #$F7              ; (2)
+992f  8D 00 DD    STA $DD00             ; (4) transmit bits 6(CLK)+4(DATA) (inverted, at CLK+22)
+9932  68          PLA                   ; (4)
+9933  29 0F       AND #$0F              ; (2)
+9935  AA          TAX                   ; (2)
+9936  BD 4B 99    LDA $994B,X           ; (4) get CLK/DATA values for bits 0-3
+9939  8D 00 DD    STA $DD00             ; (4) transmit bits 3(CLK)+1(DATA) (inverted, at CLK+38)
+993c  4A          LSR A                 ; (2)
+993d  4A          LSR A                 ; (2)
+993e  29 F7       AND #$F7              ; (2)
+9940  8D 00 DD    STA $DD00             ; (4) transmit bits 2(CLK)+0(DATA) (inverted, at CLK+48)
+9943  A9 17       LDA #$17              ; (2)
+9945  EA          NOP                   ; (2)
+9946  EA          NOP                   ; (2)
+9947  8D 00 DD    STA $DD00             ; (4) release DATA and pull CLK low (at CLK+58)
+994a  60          RTS
+
+994b  07 87 27 a7  47 c7 67 e7  17 97 37 b7  57 d7 77 f7
+
+; ===== receive 4 bytes for fast load, store in $C4...$C1 ======
+
+995b  AD 30 03    LDA $0330
+995e  C9 20       CMP #$20
+9960  F0 29       BEQ $998B             ; jump if NTSC
+; PAL
+9962  2C 00 DD    BIT $DD00             ; (4) wait for CLK low
+9965  70 FB       BVS $9962             ; (2/3)
+9967  A0 03       LDY #$03              ; (2) receivig 4 bytes
+9969  EA          NOP                   ; (2) delay 2 cycles
+996a  A6 01       LDX $01               ; (3) delay 3 cycles
+996c  AD 00 DD    LDA $DD00             ; (4) read bits 1 (DATA) and 0 (CLK)
+996f  4A          LSR A                 ; (2)
+9970  4A          LSR A                 ; (2)
+9971  EA          NOP                   ; (2)
+9972  EA          NOP                   ; (2)
+9973  0D 00 DD    ORA $DD00             ; (4) read bits 3 (DATA) and 2 (CLK)
+9976  4A          LSR A                 ; (2)
+9977  4A          LSR A                 ; (2)
+9978  EA          NOP                   ; (2)
+9979  EA          NOP                   ; (2)
+997a  0D 00 DD    ORA $DD00             ; (4) read bits 5 (DATA) and 4 (CLK)
+997d  4A          LSR A                 ; (2)
+997e  4A          LSR A                 ; (2)
+997f  EA          NOP                   ; (2)
+9980  EA          NOP                   ; (2)
+9981  0D 00 DD    ORA $DD00             ; (4) read bits 7 (DATA) and 6 (CLK)
+9984  99 C1 00    STA $00C1,Y           ; (5) store data
+9987  88          DEY                   ; (2) next byte
+9988  10 E2       BPL $996C             ; (3) repeat until 0 (50 cycles per loop)
+998a  60          RTSD
+; NTSC
+998b  2C 00 DD    BIT $DD00             ; (4) wait for CLK low
+998e  70 FB       BVS $998B             ; (2/3)
+9990  A0 03       LDY #$03              ; (2) receiving 4 bytes
+9992  EA          NOP                   ; (2) delay 2 cycles
+9993  A6 01       LDX $01               ; (3) delay 3 cycles
+9995  AD 00 DD    LDA $DD00             ; (4)
+9998  4A          LSR A                 ; (2)
+9999  4A          LSR A                 ; (2)
+999a  EA          NOP                   ; (2)
+999b  EA          NOP                   ; (2)
+999c  EA          NOP                   ; (2)
+999d  0D 00 DD    ORA $DD00             ; (4)
+99a0  4A          LSR A                 ; (2)
+99a1  4A          LSR A                 ; (2)
+99a2  EA          NOP                   ; (2)
+99a3  EA          NOP                   ; (2)
+99a4  0D 00 DD    ORA $DD00             ; (4)
+99a7  4A          LSR A                 ; (2)
+99a8  4A          LSR A                 ; (2)
+99a9  EA          NOP                   ; (2)
+99aa  EA          NOP                   ; (2)
+99ab  0D 00 DD    ORA $DD00             ; (4)
+99ae  99 C1 00    STA $00C1,Y           ; (5)
+99b1  88          DEY                   ; (2)
+99b2  10 E1       BPL $9995             ; (3) repeat until 0 (52 cycles per loop)
+99b4  60          RTS
+
+; ===== LOAD entry point =====
+
+9a00  A6 B9       LDX $B9               ; get secondary address into X
+9a02  E0 02       CPX #$02              ; if secondary address is 2 then
+9a04  F0 C3       BEQ $99C9             ; do regular load
+9a06  20 84 A7    JSR $A784
+9a09  A9 60       LDA #$60
+9a0b  85 B9       STA $B9
+9a0d  20 1B A7    JSR $A71B
+9a10  A5 BA       LDA $BA
+9a12  20 09 ED    JSR $ED09
+9a15  A5 B9       LDA $B9
+9a17  20 C7 ED    JSR $EDC7
+9a1a  20 13 EE    JSR $EE13             ; read byte from serial bus (low byte of load address)
+9a1d  85 AE       STA $AE               ; store
+9a1f  A5 90       LDA $90
+9a21  4A          LSR A
+9a22  4A          LSR A
+9a23  B0 A1       BCS $99C6             ; exit if error
+9a25  20 13 EE    JSR $EE13             ; read byte from serial bus (high byte of load address)
+9a28  85 AF       STA $AF               ; store
+9a2a  8A          TXA
+9a2b  D0 08       BNE $9A35             ; jump if secondary address is non-zero
+9a2d  A5 C3       LDA $C3               ; override load address with start of BASIC RAM (usually 0801)
+9a2f  85 AE       STA $AE
+9a31  A5 C4       LDA $C4
+9a33  85 AF       STA $AF
+9a35  20 A8 A7    JSR $A7A8
+9a38  A5 AF       LDA $AF
+9a3a  C9 04       CMP #$04              ; if load address is < 0400 then
+9a3c  90 98       BCC $99D6             ; do regular load
+9a3e  4C F0 9A    JMP $9AF0             ; continue at $9AF0
+...
+9af0  20 AB FF    JSR $FFAB             ; send "UNTALK"
+9af3  20 91 A6    JSR $A691             ; print " FROM $xxxx" (xxxx=start address in $AE/$AF)
+9af6  A9 06       LDA #$06
+9af8  85 93       STA $93
+9afa  A9 FA       LDA #$FA              ; 9BFA is start of disk load routine code
+9afc  A0 9B       LDY #$9B
+9afe  A2 04       LDX #$04
+9b00  20 D5 A6    JSR $A6D5             ; send "M-W" commands for disk load routine plus "M-E"
+9b03  A9 9A       LDA #$9A              ; low byte of address for M-E
+9b05  20 A8 FF    JSR $FFA8             ; send to disk
+9b08  A9 05       LDA #$05              ; high byte of address for M-E
+9b0a  20 A8 FF    JSR $FFA8             ; send to disk
+9b0d  20 AE FF    JSR $FFAE             ; send "UNLISTEN"
+9b10  78          SEI                   ; no interrupts during load
+9b11  AD 11 D0    LDA $D011             ; get current screen state
+9b14  AA          TAX
+9b15  29 10       AND #$10
+9b17  85 95       STA $95
+9b19  8A          TXA
+9b1a  29 EF       AND #$EF
+9b1c  8D 11 D0    STA $D011             ; turn off screen
+9b1f  AD 00 DD    LDA $DD00             ; get current state of PA0-2
+9b22  29 07       AND #$07
+9b24  05 95       ORA $95
+9b26  85 95       STA $95               ; save PA0-2 and screen state
+9b28  A5 C1       LDA $C1
+9b2a  85 A4       STA $A4
+9b2c  A5 C2       LDA $C2
+9b2e  85 B9       STA $B9
+9b30  38          SEC
+9b31  A5 AE       LDA $AE               ; get low byte of load address
+9b33  E9 02       SBC #$02              ; subtract 2
+9b35  85 90       STA $90               ; store
+9b37  A5 AF       LDA $AF               ; get high byte of load address
+9b39  E9 00       SBC #$00              ; subtract overflow
+9b3b  85 A3       STA $A3               ; store
+
+9b3d  2C 00 DD    BIT $DD00             ; read serial bus
+9b40  30 40       BMI $9B82             ; jump if DATA high
+9b42  58          CLI                   ; DATA low signals "end of data" => done, allow interrupts
+9b43  08          PHP                   ; save carry flag
+9b44  A5 95       LDA $95
+9b46  29 07       AND #$07              ; restore original state of PA0-2, release CLK/DATA
+9b48  8D 00 DD    STA $DD00
+9b4b  A5 95       LDA $95
+9b4d  29 10       AND #$10              ; restore original screen state (on/off)
+9b4f  0D 11 D0    ORA $D011
+9b52  8D 11 D0    STA $D011
+9b55  A5 A4       LDA $A4
+9b57  85 C1       STA $C1
+9b59  A5 B9       LDA $B9
+9b5b  85 C2       STA $C2
+9b5d  A9 00       LDA #$00              ; reset temporary storage locations
+9b5f  85 A3       STA $A3
+9b61  85 94       STA $94
+9b63  85 90       STA $90               ; serial status OK
+9b65  A9 60       LDA #$60
+9b67  85 B9       STA $B9
+9b69  A9 E0       LDA #$E0
+9b6b  20 12 A6    JSR $A612
+9b6e  20 AE FF    JSR $FFAE             ; send UNLISTEN
+9b71  28          PLP                   ; restore carry flag
+9b72  B0 04       BCS $9B78             ; jump if carry is set
+9b74  A9 1D       LDA #$1D
+9b76  38          SEC
+9b77  60          RTS
+
+9b78  A9 40       LDA #$40              ; set serial status to END-OF-FILE
+9b7a  85 90       STA $90
+9b7c  20 94 A6    JSR $A694             ; print "TO $xxxx" (xxxx=end address in $AE/$AF)
+9b7f  4C A9 F5    JMP $F5A9             ; good exit, program end address is in $AE/$AF
+
+9b82  70 B9       BVS $9B3D             ; jump if CLK high
+
+; receive data block
+9b84  A9 20       LDA #$20              ; pull DATA low
+9b86  8D 00 DD    STA $DD00
+9b89  2C 00 DD    BIT $DD00
+9b8c  50 FB       BVC $9B89             ; wait for CLK high (jump if CLK low)
+9b8e  A9 00       LDA #$00
+9b90  8D 00 DD    STA $DD00             ; release DATA
+9b93  20 5B 99    JSR $995B             ; receive 4 bytes (C4=unused?, C3=block number, C2=#bytes, C1=low byte load address or program data)
+9b96  A9 FE       LDA #$FE
+9b98  85 A5       STA $A5               ; set number of bytes (254)
+9b9a  A5 C3       LDA $C3               ; get block number
+9b9c  18          CLC
+9b9d  65 A3       ADC $A3               ; add (load address)-2 high byte
+9b9f  AA          TAX                   ; into X
+9ba0  06 C3       ASL $C3               ; block number = block number * 2
+9ba2  08          PHP
+9ba3  38          SEC
+9ba4  A5 90       LDA $90               ; (load address)-2 low byte
+9ba6  E5 C3       SBC $C3               ; subtract 2*blocknumber (each full block has 254 bytes, i.e. 256-2)
+9ba8  85 93       STA $93               ; set low byte of data address 
+9baa  B0 01       BCS $9BAD             ; skip if NO overflow during subtraction
+9bac  CA          DEX                   ; subtract one from data address high byte
+9bad  28          PLP
+9bae  90 01       BCC $9BB1             ; skip if NO overflow during earlier shift
+9bb0  CA          DEX                   ; subtract one from data address high byte
+9bb1  86 94       STX $94               ; set high byte of data address 
+9bb3  66 C3       ROR $C3               ; block number = block numer / 2
+9bb5  A6 C2       LDX $C2               ; get number of bytes in sector (0=full sector of 254 bytes)
+9bb7  F0 0F       BEQ $9BC8             ; jump if full sector
+9bb9  CA          DEX
+9bba  86 A5       STX $A5               ; set number of bytes to receive
+9bbc  8A          TXA
+9bbd  18          CLC
+9bbe  65 93       ADC $93               ; add data address low byte
+9bc0  85 AE       STA $AE               ; set as end-address low
+9bc2  A5 94       LDA $94               ; get data address high byte
+9bc4  69 00       ADC #$00              ; add overflow
+9bc6  85 AF       STA $AF               ; set as end-address high
+9bc8  A0 00       LDY #$00
+9bca  A5 C3       LDA $C3               ; get block number
+9bcc  D0 09       BNE $9BD7             ; jump if this is NOT the first block
+9bce  20 5B 99    JSR $995B             ; receive 4 bytes (C4=high byte load address, C3-C1=first 3 bytes of program data)
+9bd1  A0 02       LDY #$02              ; 
+9bd3  A2 02       LDX #$02              ; copy 3 bytes (skipping load address high byte)
+9bd5  D0 0E       BNE $9BE5             ; jump always
+
+9bd7  A5 C1       LDA $C1               ; get last byte of 4-byte block
+9bd9  91 93       STA ($93),Y           ; write to memory
+9bdb  C8          INY
+
+9bdc  98          TYA                   ; save Y
+9bdd  48          PHA
+9bde  20 5B 99    JSR $995B             ; receive 4 bytes (all data)
+9be1  68          PLA                   ; restore Y
+9be2  A8          TAY
+9be3  A2 03       LDX #$03              ; copy 4 bytes 
+9be5  C4 A5       CPY $A5               ; reached end-of-data?
+9be7  B0 04       BCS $9BED             ; if so then don't actually copy
+9be9  B5 C1       LDA $C1,X             ; get next data byte
+9beb  91 93       STA ($93),Y           ; write to memory
+9bed  C8          INY
+9bee  C0 FE       CPY #$FE              ; received 254 bytes of block data?
+9bf0  B0 05       BCS $9BF7             ; jump if so
+9bf2  CA          DEX
+9bf3  10 F0       BPL $9BE5             ; jump if more bytes to copy
+9bf5  30 E5       BMI $9BDC             ; jump always (receive next 4-byte sequence)
+9bf7  4C 3D 9B    JMP $9B3D             ; next data block
+
+
+; ===== SAVE entry point =====
+
+9a41  A9 0C       LDA #$0C
+9a43  85 01       STA $01
+9a45  B1 AC       LDA ($AC),Y
+9a47  A0 0F       LDY #$0F
+9a49  84 01       STY $01
+9a4b  A0 00       LDY #$00
+9a4d  4C BB A9    JMP $A9BB
+9a50  A9 0C       LDA #$0C
+9a52  85 01       STA $01
+9a54  B1 C3       LDA ($C3),Y
+9a56  C5 BD       CMP $BD
+9a58  F0 02       BEQ $9A5C
+9a5a  86 90       STX $90
+9a5c  45 D7       EOR $D7
+9a5e  85 D7       STA $D7
+9a60  A9 0F       LDA #$0F
+9a62  85 01       STA $01
+9a64  4C FF A8    JMP $A8FF
+9a67  4C 36 F6    JMP $F636
+9a6a  4C ED F5    JMP $F5ED
+9a6d  4C C6 A7    JMP $A7C6
+9a70  A5 BA       LDA $BA
+9a72  C9 07       CMP #$07
+9a74  F0 F7       BEQ $9A6D
+9a76  C9 08       CMP #$08
+9a78  90 F0       BCC $9A6A
+9a7a  C9 0A       CMP #$0A
+9a7c  B0 EC       BCS $9A6A
+9a7e  A4 B7       LDY $B7
+9a80  F0 E8       BEQ $9A6A
+9a82  A9 61       LDA #$61
+9a84  85 B9       STA $B9
+9a86  20 1B A7    JSR $A71B
+9a89  20 7E A7    JSR $A77E
+9a8c  20 48 A6    JSR $A648
+9a8f  D0 D6       BNE $9A67
+9a91  86 90       STX $90
+9a93  86 A4       STX $A4
+9a95  20 8E FB    JSR $FB8E                  ; get start address into $AC/$AC
+9a98  38          SEC                        ; subtract 2 from $AC/$AD
+9a99  A5 AC       LDA $AC
+9a9b  E9 02       SBC #$02
+9a9d  85 AC       STA $AC
+9a9f  B0 02       BCS $9AA3
+9aa1  C6 AD       DEC $AD
+9aa3  20 D0 9A    JSR $9AD0                  ; start first block
+9aa6  A5 C1       LDA $C1
+9aa8  20 C7 9A    JSR $9AC7                  ; transmit load address low byte
+9aab  A5 C2       LDA $C2
+9aad  20 C7 9A    JSR $9AC7                  ; transmit load address high byte
+
+9ab0  A9 35       LDA #$35
+9ab2  20 63 DE    JSR $DE63                  ; get byte from $AC/$AD
+9ab5  20 C7 9A    JSR $9AC7                  ; transmit data byte
+9ab8  D0 F6       BNE $9AB0                  ; repeat until block done ($93=0)
+9aba  A5 A4       LDA $A4                    ; all blocks transmitted?
+9abc  30 06       BMI $9AC4                  ; done if so
+9abe  20 D0 9A    JSR $9AD0                  ; start new block
+9ac1  4C B0 9A    JMP $9AB0                  ; transmit
+9ac4  58          CLI
+9ac5  18          CLC
+9ac6  60          RTS
+
+9ac7  20 06 99    JSR $9906                  ; transmit byte
+9aca  20 DB FC    JSR $FCDB                  ; increment $AC/$AD
+9acd  C6 93       DEC $93                    ; decrement number of bytes to transmit
+9acf  60          RTS
+
+9ad0  38          SEC
+9ad1  A5 AE       LDA $AE                    ; end address low byte
+9ad3  E5 AC       SBC $AC                    ; subtract current address low byte
+9ad5  AA          TAX
+9ad6  85 93       STA $93                    ; set number of bytes to transmit
+9ad8  A5 AF       LDA $AF                    ; end address high byte
+9ada  E5 AD       SBC $AD                    ; subtract current address high byte
+9adc  D0 0A       BNE $9AE8                  ; if non-zero then full block of 254 bytes
+9ade  E0 FF       CPX #$FF                   ; if number of bytes to transmit is 255
+9ae0  F0 06       BEQ $9AE8                  ; then also full block to transmit
+9ae2  E8          INX                        ; add one
+9ae3  8A          TXA
+9ae4  C6 A4       DEC $A4                    ; decrement block counter
+9ae6  D0 05       BNE $9AED                  ; 
+9ae8  A9 FE       LDA #$FE                   ; full block of 254 bytes
+9aea  85 93       STA $93                    ; set number of bytes to transmit
+9aec  98          TYA                        ; Y=0 at this point?
+9aed  4C 06 99    JMP $9906                  ; transmit number of bytes in block +1 (0=full block)
+
+
+
+; ===== Load freezer image =====
+
+0893  A2 00       LDX #$00
+0895  BD 43 0E    LDA $0E43,X
+0898  20 07 09    JSR $0907
+089b  9D 00 D8    STA $D800,X
+089e  98          TYA
+089f  9D 00 DA    STA $DA00,X
+08a2  BD 43 0F    LDA $0F43,X
+08a5  20 07 09    JSR $0907
+08a8  9D 00 D9    STA $D900,X
+08ab  98          TYA
+08ac  9D 00 DB    STA $DB00,X
+08af  BD C8 0B    LDA $0BC8,X
+08b2  9D 00 03    STA $0300,X           ; copy comms routines to $0300
+08b5  E8          INX
+08b6  D0 DD       BNE $0895
+08b8  20 44 03    JSR $0344             ; open -FC file (includes "TALK")
+08bb  20 AB FF    JSR $FFAB             ; send UNTALK
+08be  20 11 09    JSR $0911             ; send comms routine to disk via M-W (includes M-E)
+08c1  A9 03       LDA #$03              ; send $0403 address for M-E
+08c3  20 A8 FF    JSR $FFA8             ; output byte to serial
+08c6  A9 04       LDA #$04
+08c8  20 A8 FF    JSR $FFA8             ; output byte to serial
+08cb  20 AE FF    JSR $FFAE             ; sent UNLISTEN
+08ce  78          SEI
+08cf  B9 C8 0A    LDA $0AC8,Y           ; copy comms routine to $0200
+08d2  99 00 02    STA $0200,Y
+08d5  C8          INY
+08d6  D0 F7       BNE $08CF
+08d8  84 96       STY $96               ; Y=0 -> $96
+08da  20 00 02    JSR $0200             ; receive byte (and discard)
+08dd  20 00 02    JSR $0200             ; receive byte (and discard)
+08e0  C8          INY
+08e1  D0 F7       BNE $08DA             ; receive and discard first 512 bytes
+08e3  20 00 02    JSR $0200             ; receive byte
+08e6  99 7B 03    STA $037B,Y           ; write to memory
+08e9  C8          INY
+08ea  C0 03       CPY #$03
+08ec  D0 F5       BNE $08E3             ; 3 bytes to $037B, $037C, $037D
+08ee  20 00 02    JSR $0200             
+08f1  85 91       STA $91               ; next byte (dst address low) into $91
+08f3  8D 7D 02    STA $027D
+08f6  20 00 02    JSR $0200
+08f9  85 92       STA $92               ; next byte (dst address high) into $92
+08fb  8D 81 02    STA $0281             ; and $0281
+08fe  A9 35       LDA #$35
+0900  85 01       STA $01
+0902  A0 00       LDY #$00
+0904  4C 5D 02    JMP $025D
+
+; get next data byte from disk drive
+0200  A5 96       LDA $96               ; get remaining data count
+0202  D0 09       BNE $020D             ; jump if non-zero
+0204  20 1B 02    JSR $021B             ; read new block => receive 4 data bytes into $C4-$C1
+0207  A2 00       LDX #$00              ; 
+0209  A9 FE       LDA #$FE              ; 
+020b  85 96       STA $96               ; 254 bytes in full block
+020d  8A          TXA                   ; 
+020e  10 05       BPL $0215             ; if x>=0 then we have more bytes left from previous 4-byte transfer
+0210  20 1B 02    JSR $021B             ; receive 4 data bytes into $C4-$C1
+0213  A2 03       LDX #$03              ; x=3 => get $C4 (1st byte received) into A
+0215  B5 C1       LDA $C1,X             ; get byte
+0217  C6 96       DEC $96               ; decrement number of bytes to receive
+0219  CA          DEX
+021a  60          RTS
+
+; receive 4 bytes of data into C4...C1
+021b  98          TYA
+021c  48          PHA
+021d  2C 00 DD    BIT $DD00
+0220  70 FB       BVS $021D                  ; wait for CLK low
+0222  A9 20       LDA #$20
+0224  8D 00 DD    STA $DD00                  ; pull DATA low
+0227  2C 00 DD    BIT $DD00
+022a  50 FB       BVC $0227                  ; wait for CLK high
+022c  A9 00       LDA #$00
+022e  8D 00 DD    STA $DD00                  ; release DATA
+0231  2C 00 DD    BIT $DD00                  ; (4) wait for CLK low
+0234  70 FB       BVS $0231                  ; (2/3)
+0236  A0 03       LDY #$03
+0238  EA          NOP
+0239  A5 01       LDA $01
+023b  AD 00 DD    LDA $DD00
+023e  4A          LSR A
+023f  4A          LSR A
+0240  EA          NOP
+0241  EA          NOP
+0242  0D 00 DD    ORA $DD00
+0245  4A          LSR A
+0246  4A          LSR A
+0247  EA          NOP
+0248  EA          NOP
+0249  0D 00 DD    ORA $DD00
+024c  4A          LSR A
+024d  4A          LSR A
+024e  EA          NOP
+024f  EA          NOP
+0250  0D 00 DD    ORA $DD00
+0253  99 C1 00    STA $00C1,Y
+0256  88          DEY
+0257  10 E2       BPL $023B
+0259  68          PLA
+025a  A8          TAY
+025b  60          RTS
+
+025c  EA          NOP
+
+025d  20 00 02    JSR $0200             ; get next data byte
+0260  C6 01       DEC $01
+0262  91 91       STA ($91),Y           ; write to memory
+0264  E6 01       INC $01
+0266  E6 91       INC $91               ; increment low address
+0268  D0 F3       BNE $025D             ; next byte if not 0
+026a  E6 92       INC $92               ; increment high address
+026c  D0 EF       BNE $025D             ; next byte if not 0
+026e  A5 96       LDA $96               ; get number of bytes left in block
+0270  F0 06       BEQ $0278             ; jump if 0
+0272  20 00 02    JSR $0200             ; get (and discard) next data byte
+0275  4C 6E 02    JMP $026E             ; repeat
+
+0278  A9 34       LDA #$34              ; all RAM visible
+027a  85 01       STA $01
+027c  A9 FF       LDA #$FF
+027e  85 96       STA $96
+0280  A9 FF       LDA #$FF
+0282  85 97       STA $97
+0284  A9 03       LDA #$03
+0286  85 91       STA $91
+0288  A9 04       LDA #$04
+028a  85 92       STA $92
+028c  A2 00       LDX #$00
+028e  B1 96       LDA ($96),Y
+0290  D0 1C       BNE $02AE
+0292  20 FE 02    JSR $02FE
+0295  AA          TAX
+0296  20 FE 02    JSR $02FE
+0299  20 07 03    JSR $0307
+029c  CA          DEX
+029d  D0 F7       BNE $0296
+029f  20 FE 02    JSR $02FE
+02a2  A5 91       LDA $91
+02a4  C9 FD       CMP #$FD
+02a6  A5 92       LDA $92
+02a8  E9 FF       SBC #$FF
+02aa  90 E2       BCC $028E
+02ac  B0 62       BCS $0310
+02ae  AA          TAX
+02af  CA          DEX
+02b0  D0 1B       BNE $02CD
+02b2  20 FE 02    JSR $02FE
+02b5  48          PHA
+02b6  20 FE 02    JSR $02FE
+02b9  85 90       STA $90
+02bb  20 FE 02    JSR $02FE
+02be  20 07 03    JSR $0307
+02c1  E8          INX
+02c2  D0 F7       BNE $02BB
+02c4  C6 90       DEC $90
+02c6  D0 F3       BNE $02BB
+02c8  68          PLA
+02c9  AA          TAX
+02ca  38          SEC
+02cb  B0 D0       BCS $029D
+02cd  CA          DEX
+02ce  F0 0D       BEQ $02DD
+02d0  E8          INX
+02d1  E8          INX
+02d2  20 FE 02    JSR $02FE
+02d5  20 07 03    JSR $0307
+02d8  CA          DEX
+02d9  D0 FA       BNE $02D5
+02db  F0 C2       BEQ $029F
+02dd  20 FE 02    JSR $02FE
+02e0  48          PHA
+02e1  20 FE 02    JSR $02FE
+02e4  85 90       STA $90
+02e6  20 FE 02    JSR $02FE
+02e9  20 07 03    JSR $0307
+02ec  E8          INX
+02ed  D0 FA       BNE $02E9
+02ef  C6 90       DEC $90
+02f1  D0 F6       BNE $02E9
+02f3  85 90       STA $90
+02f5  68          PLA
+02f6  AA          TAX
+02f7  A5 90       LDA $90
+02f9  E0 00       CPX #$00
+02fb  38          SEC
+02fc  B0 DB       BCS $02D9
+02fe  E6 96       INC $96
+0300  D0 02       BNE $0304
+0302  E6 97       INC $97
+0304  B1 96       LDA ($96),Y
+0306  60          RTS
+
+0307  91 91       STA ($91),Y
+0309  E6 91       INC $91
+030b  D0 02       BNE $030F
+030d  E6 92       INC $92
+030f  60          RTS
+
+0310  A9 36       LDA #$36
+0312  85 01       STA $01
+0314  A0 00       LDY #$00
+0316  8C A1 02    STY $02A1
+0319  A2 02       LDX #$02
+031b  BD 7B 03    LDA $037B,X
+031e  9D FD FF    STA $FFFD,X
+0321  CA          DEX
+0322  10 F7       BPL $031B
+0324  A9 08       LDA #$08
+0326  20 B1 FF    JSR $FFB1             ; send LISTEN
+0329  A9 E0       LDA #$E0              ; $E0 = CLOSE 0
+032b  20 93 FF    JSR $FF93             ; send CLOSE #0
+032e  20 AE FF    JSR $FFAE             ; send UNLISTEN
+0331  20 44 03    JSR $0344             ; re-open file
+0334  20 A5 FF    JSR $FFA5             ; receive byte from serial bus
+0337  99 00 02    STA $0200,Y           ; write to memory (stack page)
+033a  C8          INY
+033b  D0 F7       BNE $0334
+033d  A9 00       LDA #$00
+033f  48          PHA
+0340  A9 A5       LDA #$A5
+0342  48          PHA
+0343  60          RTS
+
+; open "-FC" file
+0344  A9 08       LDA #$08              ; send LISTEN #8
+0346  20 B1 FF    JSR $FFB1
+0349  A9 F0       LDA #$F0              ; send OPEN
+034b  20 93 FF    JSR $FF93
+034e  A0 00       LDY #$00
+0350  B9 6A 03    LDA $036A,Y           ; get filename character
+0353  F0 06       BEQ $035B             ; done if 0
+0355  20 A8 FF    JSR $FFA8             ; output to serial
+0358  C8          INY                   ; next byte
+0359  D0 F5       BNE $0350             ; repeat
+035b  20 AE FF    JSR $FFAE             ; send UNLISTEN
+035e  A9 08       LDA #$08
+0360  20 B4 FF    JSR $FFB4             ; send TALK
+0363  A0 00       LDY #$00
+0365  A9 60       LDA #$60
+0367  4C 96 FF    JMP $FF96             ; send secondary address and return
+036a  2d 46 43 00                       ; "FC-[NUL]"

@@ -1,0 +1,485 @@
+========= receive byte from drive ==========
+
+817f  A9 60       LDA #$60
+8181  2C A9 E6    BIT $E6A9
+8184  8D 7C 01    STA $017C
+8187  EA          NOP
+
+8188  A6 A9       LDX $A9
+818a  2C 00 DD    BIT $DD00
+818d  50 FB       BVC $818A             ; wait for CLK high
+818f  38          SEC
+8190  AD 12 D0    LDA $D012
+8193  E5 AA       SBC $AA
+8195  90 04       BCC $819B
+8197  29 07       AND #$07
+8199  F0 F5       BEQ $8190             ; wait for no badline
+819b  A5 A8       LDA $A8
+819d  8D 00 DD    STA $DD00             ; signal "ready"
+81a0  24 1F       BIT $1F
+81a2  30 03       BMI $81A7
+81a4  24 80       BIT $80
+81a6  EA          NOP
+81a7  AD 00 DD    LDA $DD00             ; read bits 1+0
+81aa  4A          LSR A
+81ab  4A          LSR A
+81ac  4D 00 DD    EOR $DD00             ; read bits 3+2
+81af  4A          LSR A
+81b0  4A          LSR A
+81b1  4D 00 DD    EOR $DD00             ; read bits 5+4
+81b4  4A          LSR A
+81b5  4A          LSR A
+81b6  4D 00 DD    EOR $DD00             ; read bits 7+6
+81b9  8E 00 DD    STX $DD00             ; signal "not ready"
+81bc  45 A8       EOR $A8
+81be  60          RTS
+
+======== transmit data from ($22) to drive =======
+
+823b  A0 FF       LDY #$FF              ; transmit 1 byte at ($22)+0xFF
+823d  2C 00 DD    BIT $DD00
+8240  50 FB       BVC $823D             ; wait for CLK high
+8242  70 0A       BVS $824E             ; jump always
+
+8244  A0 00       LDY #$00              ; transmit 256 bytes
+8246  2C 00 DD    BIT $DD00
+8249  50 FB       BVC $8246             ; wait for CLK high
+824b  B1 22       LDA ($22),Y           ; get data byte
+824d  EA          NOP
+824e  48          PHA                   ; save data
+824f  4A          LSR A                 ; shify upper 4 bit into lower 4 bit
+8250  4A          LSR A
+8251  4A          LSR A
+8252  4A          LSR A
+8253  AA          TAX                   ; to X
+8254  38          SEC
+8255  AD 12 D0    LDA $D012             ; wait until not in badline
+8258  E5 AA       SBC $AA
+825a  90 04       BCC $8260
+825c  29 07       AND #$07
+825e  F0 F5       BEQ $8255
+8260  A5 A8       LDA $A8
+8262  8D 00 DD    STA $DD00             ; signal "byte start"
+8265  BD 8E 82    LDA $828E,X
+8268  8D 00 DD    STA $DD00             ; (4) transmit bits 7+5
+826b  4A          LSR A
+826c  4A          LSR A
+826d  29 F7       AND #$F7
+826f  8D 00 DD    STA $DD00             ; (4) transmit bits 6+4
+8272  68          PLA
+8273  29 0F       AND #$0F
+8275  AA          TAX
+8276  BD 8E 82    LDA $828E,X
+8279  8D 00 DD    STA $DD00             ; (4) transmit bits 3+1
+827c  4A          LSR A
+827d  4A          LSR A
+827e  29 F7       AND #$F7
+8280  8D 00 DD    STA $DD00             ; (4) transmit bits 2+0
+8283  A5 A9       LDA $A9
+8285  EA          NOP
+8286  EA          NOP
+8287  C8          INY                   ; next data byte
+8288  8D 00 DD    STA $DD00             ; signal "byte end"
+828b  D0 BE       BNE $824B
+828d  60          RTS
+
+; ========= receive 256 data bytes from drive ==========
+
+; store in $0200-$02FF
+; syncing via CLK every 4 bytes
+; getting checksum at end, Z=1 if checksum is correct
+
+8408  A9 00       LDA #$00
+840a  8D 00 DD    STA $DD00             ; release CLK+DATA
+840d  2C 00 DD    BIT $DD00
+8410  50 FB       BVC $840D             ; wait for CLK high
+
+8412  2C 00 DD    BIT $DD00
+8415  50 03       BVC $841A             ; jump if CLK low again
+8417  24 80       BIT $80
+8419  EA          NOP
+841a  2C 00 DD    BIT $DD00
+841d  70 02       BVS $8421             ; jump if CLK high
+841f  24 80       BIT $80
+8421  2C 00 DD    BIT $DD00
+8424  70 00       BVS $8426             ; jump if CLK high
+8426  A0 00       LDY #$00
+8428  2C 00 DD    BIT $DD00
+842b  70 02       BVS $842F             ; jump if CLK high
+842d  24 80       BIT $80
+842f  EA          NOP
+8430  24 80       BIT $80
+8432  C9 80       CMP #$80
+
+8434  AD 00 DD    LDA $DD00             ; receive bits 1 (DATA) and 0 (CLK)
+8437  4A          LSR A
+8438  4A          LSR A
+8439  0D 00 DD    ORA $DD00             ; receive bits 3 (DATA) and 2 (CLK)
+843c  4A          LSR A
+843d  4A          LSR A
+843e  EA          NOP
+843f  EA          NOP
+8440  0D 00 DD    ORA $DD00             ; receive bits 5 (DATA) and 4 (CLK)
+8443  4A          LSR A
+8444  4A          LSR A
+8445  0D 00 DD    ORA $DD00             ; receive bits 7 (DATA) and 6 (CLK)
+8448  99 00 02    STA $0200,Y           ; store data byte
+844b  C9 EA       CMP #$EA
+844d  AD 00 DD    LDA $DD00
+8450  4A          LSR A
+8451  4A          LSR A
+8452  0D 00 DD    ORA $DD00
+8455  4A          LSR A
+8456  4A          LSR A
+8457  EA          NOP
+8458  C8          INY
+8459  0D 00 DD    ORA $DD00
+845c  4A          LSR A
+845d  4A          LSR A
+845e  0D 00 DD    ORA $DD00
+8461  99 00 02    STA $0200,Y
+8464  C9 EA       CMP #$EA
+8466  AD 00 DD    LDA $DD00
+8469  4A          LSR A
+846a  4A          LSR A
+846b  0D 00 DD    ORA $DD00
+846e  4A          LSR A
+846f  4A          LSR A
+8470  EA          NOP
+8471  C8          INY
+8472  0D 00 DD    ORA $DD00
+8475  4A          LSR A
+8476  4A          LSR A
+8477  0D 00 DD    ORA $DD00
+847a  99 00 02    STA $0200,Y
+847d  C9 EA       CMP #$EA
+847f  AD 00 DD    LDA $DD00
+8482  4A          LSR A
+8483  4A          LSR A
+8484  0D 00 DD    ORA $DD00
+8487  4A          LSR A
+8488  4A          LSR A
+8489  EA          NOP
+848a  C8          INY
+848b  0D 00 DD    ORA $DD00
+848e  4A          LSR A
+848f  4A          LSR A
+8490  0D 00 DD    ORA $DD00
+8493  99 00 02    STA $0200,Y
+8496  C8          INY                   ; increment counter
+8497  F0 03       BEQ $849C             ; jump if all 256 bytes received
+8499  4C 28 84    JMP $8428             ; receive next 4 bytes
+849c  A5 A9       LDA $A9               ; signal "not ready"
+849e  8D 00 DD    STA $DD00
+84a1  20 88 81    JSR $8188             ; receive byte (checksum)
+84a4  59 00 02    EOR $0200,Y
+84a7  59 80 02    EOR $0280,Y
+84aa  C8          INY
+84ab  10 F7       BPL $84A4
+84ad  C9 00       CMP #$00              ; A=0 if checksum correct
+84af  60          RTS
+
+; ------------------------------
+
+84b0  A9 E0       LDA #$E0
+84b2  86 0C       STX $0C
+84b4  20 3B 82    JSR $823B
+84b7  A5 21       LDA $21
+84b9  20 3B 82    JSR $823B
+84bc  A5 0C       LDA $0C
+84be  4C 3B 82    JMP $823B
+84c1  A9 12       LDA #$12
+84c3  A2 01       LDX #$01
+84c5  85 21       STA $21
+84c7  86 22       STX $22
+84c9  24 1F       BIT $1F
+84cb  30 36       BMI $8503
+84cd  A2 00       LDX #$00
+84cf  20 B0 84    JSR $84B0
+84d2  20 47 80    JSR $8047
+84d5  A0 15       LDY #$15              ; fill $114-$129 (21 bytes) with $FF
+84d7  A9 FF       LDA #$FF
+84d9  99 14 01    STA $0114,Y
+84dc  88          DEY
+84dd  D0 FA       BNE $84D9
+84df  84 11       STY $11               ; 0 -> $11 (number of sectors read)
+84e1  20 88 81    JSR $8188             ; get byte from drive
+84e4  C9 16       CMP #$16              ; check if >=22
+84e6  B0 1A       BCS $8502             ; exit (error?) if so
+84e8  85 13       STA $13
+84ea  20 88 81    JSR $8188             ; get byte from drive (sector number?)
+84ed  C9 15       CMP #$15              ; check if >=21
+84ef  B0 0E       BCS $84FF             ; exit (no error?) if so
+84f1  85 0C       STA $0C               ; save sector number
+84f3  20 08 84    JSR $8408             ; get 256 bytes from drive
+84f6  F0 01       BEQ $84F9             ; jump if receive ok (A=0)
+84f8  98          TYA                   ; Y=$80 at this point
+84f9  20 21 85    JSR $8521
+84fc  4C EA 84    JMP $84EA             ; repeat
+84ff  A9 00       LDA #$00
+8501  18          CLC
+8502  60          RTS
+8503  60          RTS
+
+; ------------------------------
+
+8521  85 24       STA $24
+8523  D0 1C       BNE $8541             ; jump if error?
+8525  E6 11       INC $11               ; increment number of sectors read
+8527  A5 1C       LDA $1C
+8529  D0 16       BNE $8541             ; jump if ???
+852b  A6 0C       LDX $0C               ; get current sector number
+852d  E4 22       CPX $22
+852f  D0 10       BNE $8541
+8531  E6 1C       INC $1C
+8533  20 65 85    JSR $8565
+8536  A5 AE       LDA $AE
+8538  38          SEC
+8539  E9 04       SBC #$04
+853b  85 AE       STA $AE
+853d  B0 02       BCS $8541
+853f  C6 AF       DEC $AF
+8541  A6 0C       LDX $0C               ; get current sector number
+8543  E0 16       CPX #$16              ; check valid range
+8545  B0 10       BCS $8557             ; skip if not in range
+8547  AD 00 02    LDA $0200             ; get next block track number
+854a  29 7F       AND #$7F
+854c  05 24       ORA $24
+854e  9D 15 01    STA $0115,X
+8551  AD 01 02    LDA $0201             ; get next block sector number
+8554  9D 2A 01    STA $012A,X
+8557  A0 00       LDY #$00
+8559  84 0F       STY $0F
+855b  A5 0C       LDA $0C
+855d  18          CLC
+855e  65 0E       ADC $0E
+8560  85 10       STA $10
+8562  4C 3F 01    JMP $013F
+
+8565  AD 03 02    LDA $0203
+8568  AE 02 02    LDX $0202
+856b  85 AF       STA $AF
+856d  86 AE       STX $AE
+856f  A4 B9       LDY $B9
+8571  D0 08       BNE $857B
+8573  A4 C3       LDY $C3
+8575  84 AE       STY $AE
+8577  A4 C4       LDY $C4
+8579  84 AF       STY $AF
+857b  86 C3       STX $C3
+857d  85 C4       STA $C4
+857f  A5 AF       LDA $AF
+8581  C9 03       CMP #$03
+8583  B0 05       BCS $858A
+8585  A9 FF       LDA #$FF
+8587  85 90       STA $90
+8589  60          RTS
+
+858a  AD 88 02    LDA $0288
+858d  48          PHA
+858e  AD 86 02    LDA $0286
+8591  48          PHA
+8592  A5 0A       LDA $0A
+8594  8D 88 02    STA $0288
+8597  A5 09       LDA $09
+8599  8D 86 02    STA $0286
+859c  20 D2 F5    JSR $F5D2
+859f  20 49 80    JSR $8049
+85a2  68          PLA
+85a3  8D 86 02    STA $0286
+85a6  68          PLA
+85a7  8D 88 02    STA $0288
+85aa  38          SEC
+85ab  60          RTS
+.
+; ------------------------------
+
+87b7  A2 9F       LDX #$9F
+87b9  A0 08       LDY #$08
+87bb  20 A2 9F    JSR $9FA2
+87be  D0 D8       BNE $8798
+87c0  CA          DEX
+87c1  A0 86       LDY #$86
+87c3  20 AE 9F    JSR $9FAE
+87c6  A9 80       LDA #$80
+87c8  85 0E       STA $0E
+87ca  20 73 8A    JSR $8A73
+87cd  20 B1 DF    JSR $DFB1
+87d0  20 E2 88    JSR $88E2             ; transmit fast-load routine
+87d3  20 C1 84    JSR $84C1
+87d6  20 49 88    JSR $8849
+87d9  90 09       BCC $87E4
+87db  A9 62       LDA #$62
+87dd  20 3B 82    JSR $823B
+87e0  A9 84       LDA #$84
+87e2  D0 25       BNE $8809
+87e4  C9 0A       CMP #$0A
+87e6  F0 26       BEQ $880E
+87e8  A9 04       LDA #$04
+87ea  85 0D       STA $0D
+87ec  20 AC 8A    JSR $8AAC
+87ef  A9 00       LDA #$00
+87f1  85 1C       STA $1C
+87f3  20 C9 84    JSR $84C9
+87f6  30 0A       BMI $8802
+87f8  A5 90       LDA $90
+87fa  30 0F       BMI $880B
+
+
+
+88c3  A2 45       LDX #$45
+88c5  2C A2 52    BIT $52A2
+88c8  2C A2 57    BIT $57A2
+88cb  20 C9 80    JSR $80C9
+88ce  B0 F2       BCS $88C2
+88d0  A9 4D       LDA #$4D
+88d2  20 A8 FF    JSR $FFA8
+88d5  A9 2D       LDA #$2D
+88d7  20 A8 FF    JSR $FFA8
+88da  8A          TXA
+88db  4C A8 FF    JMP $FFA8
+
+88de  A0 FF       LDY #$FF
+88e0  D0 1C       BNE $88FE
+88e2  24 1F       BIT $1F
+88e4  30 0E       BMI $88F4
+88e6  A0 00       LDY #$00
+88e8  20 FC 88    JSR $88FC             ; fast-transmit fast-load routine to drive
+88eb  B0 0C       BCS $88F9
+88ed  A9 0B       LDA #$0B
+88ef  8D 11 D0    STA $D011
+88f2  90 05       BCC $88F9
+88f4  A2 23       LDX #$23
+88f6  20 DE 88    JSR $88DE
+88f9  E6 1C       INC $1C
+88fb  60          RTS
+
+88fc  A2 00       LDX #$00
+88fe  84 23       STY $23
+8900  8A          TXA
+8901  D0 1A       BNE $891D
+8903  24 1F       BIT $1F
+8905  50 16       BVC $891D
+8907  20 C9 88    JSR $88C9
+890a  A9 01       LDA #$01
+890c  A2 18       LDX #$18
+890e  20 D7 88    JSR $88D7
+8911  A9 01       LDA #$01
+8913  A6 1E       LDX $1E
+8915  20 D7 88    JSR $88D7
+8918  20 AE FF    JSR $FFAE             ; send UNLISTEN
+891b  A2 00       LDX #$00
+891d  A0 00       LDY #$00
+891f  BD 90 9E    LDA $9E90,X
+8922  99 24 00    STA $0024,Y
+8925  E8          INX
+8926  C8          INY
+8927  C0 07       CPY #$07
+8929  D0 F4       BNE $891F
+892b  20 C9 88    JSR $88C9
+892e  B0 92       BCS $88C2
+8930  A5 26       LDA $26
+8932  A6 27       LDX $27
+8934  20 D7 88    JSR $88D7
+8937  A9 23       LDA #$23
+8939  20 A8 FF    JSR $FFA8             ; output byte to serial bus
+893c  A0 00       LDY #$00
+893e  B1 24       LDA ($24),Y
+8940  20 A8 FF    JSR $FFA8             ; output byte to serial bus
+8943  E6 26       INC $26
+8945  D0 02       BNE $8949
+8947  E6 27       INC $27
+8949  C8          INY
+894a  C0 23       CPY #$23
+894c  D0 F0       BNE $893E
+894e  20 AE FF    JSR $FFAE             ; send UNLISTEN
+8951  98          TYA
+8952  18          CLC
+8953  65 24       ADC $24
+8955  85 24       STA $24
+8957  90 02       BCC $895B
+8959  E6 25       INC $25
+895b  C6 2A       DEC $2A
+895d  D0 CC       BNE $892B
+895f  20 C3 88    JSR $88C3
+8962  A5 28       LDA $28
+8964  A6 29       LDX $29
+8966  20 D7 88    JSR $88D7
+8969  A6 23       LDX $23
+896b  30 4A       BMI $89B7
+896d  A0 00       LDY #$00
+896f  BD BA 9E    LDA $9EBA,X
+8972  99 26 00    STA $0026,Y
+8975  E8          INX
+8976  C8          INY
+8977  C0 05       CPY #$05
+8979  D0 F4       BNE $896F
+897b  A5 28       LDA $28
+897d  A6 29       LDX $29
+897f  20 D7 88    JSR $88D7
+8982  A5 2A       LDA $2A
+8984  20 A8 FF    JSR $FFA8             ; output byte to serial bus
+8987  20 AC 89    JSR $89AC
+898a  A9 CD       LDA #$CD              ; transmit from $93CD
+898c  A0 93       LDY #$93
+898e  A2 01       LDX #$01              ; transmit one page
+8990  20 9B 89    JSR $899B
+8993  A5 26       LDA $26
+8995  A4 27       LDY $27
+8997  A6 28       LDX $28
+8999  F0 0F       BEQ $89AA
+
+; transmit X pages of data starting at Y/A
+899b  85 22       STA $22
+899d  84 23       STY $23
+899f  86 24       STX $24
+89a1  20 44 82    JSR $8244             ; transmit 256 bytes of data from ($22)
+89a4  E6 23       INC $23               ; next page
+89a6  C6 24       DEC $24
+89a8  D0 F7       BNE $89A1             ; repeat until done
+89aa  18          CLC
+89ab  60          RTS
+
+89ac  24 1F       BIT $1F
+89ae  A9 2C       LDA #$2C              ; 
+89b0  50 02       BVC $89B4
+89b2  A9 8D       LDA #$8D
+89b4  20 A8 FF    JSR $FFA8             ; output byte to serial bus
+89b7  A0 00       LDY #$00
+89b9  C4 B7       CPY $B7
+89bb  B0 08       BCS $89C5
+89bd  B1 BB       LDA ($BB),Y
+89bf  20 A8 FF    JSR $FFA8             ; output byte to serial bus
+89c2  C8          INY                   ; next byte
+89c3  D0 F4       BNE $89B9
+89c5  A9 A0       LDA #$A0
+89c7  20 A8 FF    JSR $FFA8
+89ca  20 AE FF    JSR $FFAE
+89cd  4C D5 81    JMP $81D5
+
+; drive type detection?
+89de  A9 FE       LDA #$FE
+89e0  A0 FF       LDY #$FF
+89e2  20 0D 8A    JSR $8A0D             ; read drive memory at $FFFE
+89e5  F0 23       BEQ $8A0A
+89e7  C9 03       CMP #$03
+89e9  F0 1D       BEQ $8A08
+89eb  A9 01       LDA #$01
+89ed  A0 18       LDY #$18
+89ef  20 0D 8A    JSR $8A0D             ; read drive memory at $1801
+89f2  A8          TAY
+89f3  F0 0E       BEQ $8A03
+89f5  29 DF       AND #$DF
+89f7  85 1E       STA $1E
+89f9  C8          INY
+89fa  F0 07       BEQ $8A03
+89fc  98          TYA
+89fd  29 78       AND #$78
+89ff  C9 38       CMP #$38
+8a01  F0 03       BEQ $8A06
+8a03  38          SEC
+8a04  66 1F       ROR $1F
+8a06  66 1F       ROR $1F
+8a08  66 1F       ROR $1F
+8a0a  A5 1F       LDA $1F
+8a0c  60          RTS

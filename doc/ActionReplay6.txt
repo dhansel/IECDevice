@@ -1,0 +1,424 @@
+; ================================== Action Replay 6 1581 fastload code ================================== 
+
+8780  20 91 86    JSR $8691
+8783  9A          TXS
+8784  A5 B7       LDA $B7
+8786  F0 7D       BEQ $8805
+8788  A0 00       LDY #$00
+878a  20 80 DF    JSR $DF80
+878d  C9 24       CMP #$24
+878f  F0 74       BEQ $8805
+8791  20 D0 89    JSR $89D0
+8794  F0 6F       BEQ $8805
+8796  10 1F       BPL $87B7
+8798  20 18 82    JSR $8218
+879b  B0 43       BCS $87E0
+879d  20 6F 85    JSR $856F
+87a0  90 69       BCC $880B
+87a2  A2 07       LDX #$07
+87a4  A0 FF       LDY #$FF
+87a6  24 1F       BIT $1F
+87a8  30 04       BMI $87AE
+87aa  A2 00       LDX #$00
+87ac  A0 1E       LDY #$1E
+87ae  20 FE 88    JSR $88FE             ; send 'M-W' and 'M-E' commands
+87b1  20 24 81    JSR $8124             ; receive file data from disk via fastload protocol
+87b4  4C 21 87    JMP $8721             ; done
+
+88c3  A2 45       LDX #$45              ; 'E'
+88c5  2C A2 52    BIT $52A2             ; skipping instructions up to $88cb
+88c8  2C A2 57    BIT $57A2               
+
+88c9  A2 57       LDX #$57              ; 'W'
+88cb  20 C9 80    JSR $80C9             
+88ce  B0 F2       BCS $88C2
+88d0  A9 4D       LDA #$4D              ; 'M'
+88d2  20 A8 FF    JSR $FFA8             ; send to drive
+88d5  A9 2D       LDA #$2D              ; '-'
+88d7  20 A8 FF    JSR $FFA8             ; send to drive
+88da  8A          TXA                   ; get X
+88db  4C A8 FF    JMP $FFA8             ; send to drive and return
+
+88fe  84 23       STY $23
+8900  8A          TXA
+8901  D0 1A       BNE $891D
+...
+891d  A0 00       LDY #$00
+891f  BD 90 9E    LDA $9E90,X           ; for 1581, X=7, data=b0 99 00 05 00 05 09
+8922  99 24 00    STA $0024,Y           ; $24/25=$99b0, $26/27=$0500, $28/29=$0500 $2a=9
+8925  E8          INX
+8926  C8          INY
+8927  C0 07       CPY #$07
+8929  D0 F4       BNE $891F
+892b  20 C9 88    JSR $88C9             ; send 'M-W'
+892e  B0 92       BCS $88C2
+8930  A5 26       LDA $26
+8932  A6 27       LDX $27
+8934  20 D7 88    JSR $88D7             ; send drive mem address ($26/$27)
+8937  A9 23       LDA #$23
+8939  20 A8 FF    JSR $FFA8             ; send data length (35 bytes)
+893c  A0 00       LDY #$00
+893e  B1 24       LDA ($24),Y           ; get next byte
+8940  20 A8 FF    JSR $FFA8             ; send data byte
+8943  E6 26       INC $26               ; 
+8945  D0 02       BNE $8949
+8947  E6 27       INC $27
+8949  C8          INY                   ; next byte
+894a  C0 23       CPY #$23              ; Y=35?
+894c  D0 F0       BNE $893E             ; repeat if not
+894e  20 AE FF    JSR $FFAE             ; send UNLISTEN
+8951  98          TYA
+8952  18          CLC
+8953  65 24       ADC $24               ; add Y to current data address
+8955  85 24       STA $24
+8957  90 02       BCC $895B
+8959  E6 25       INC $25
+895b  C6 2A       DEC $2A               ; decrement number of 35-byte blocks to send
+895d  D0 CC       BNE $892B             ; repeat until 0
+895f  20 C3 88    JSR $88C3             ; send 'M-E'
+8962  A5 28       LDA $28               ; get start address
+8964  A6 29       LDX $29
+8966  20 D7 88    JSR $88D7             ; send M-E run address
+8969  A6 23       LDX $23
+896b  30 4A       BMI $89B7
+...
+89b7  A0 00       LDY #$00
+89b9  C4 B7       CPY $B7
+89bb  B0 08       BCS $89C5
+89bd  B1 BB       LDA ($BB),Y           ; get byte (???)
+89bf  20 A8 FF    JSR $FFA8             ; output byte to serial bus
+89c2  C8          INY                   ; next byte
+89c3  D0 F4       BNE $89B9
+89c5  A9 A0       LDA #$A0
+89c7  20 A8 FF    JSR $FFA8             ; output byte to serial bus
+89ca  20 AE FF    JSR $FFAE             ; send UNLISTEN
+89cd  4C D5 81    JMP $81D5
+81d5  78          SEI
+81d6  AD 00 DD    LDA $DD00             ; get serial bus status
+81d9  29 03       AND #$03              ; clear bits 2-7 (=> DATA high, CLK high)
+81db  85 A8       STA $A8               ; save
+81dd  09 20       ORA #$20              ; set bit 5 (DATA low, CLK high)
+81df  85 A9       STA $A9               ; save
+81e1  8D 00 DD    STA $DD00             ; set DATA low ("not ready")
+81e4  AD 11 D0    LDA $D011
+81e7  29 07       AND #$07
+81e9  18          CLC
+81ea  69 2F       ADC #$2F
+81ec  85 AA       STA $AA               ; calculate and store raster scroll (for badline check)
+81ee  2C 00 DD    BIT $DD00
+81f1  70 FB       BVS $81EE             ; wait for CLK low
+81f3  60          RTS
+
+8124  A0 94       LDY #$94              ; copy fastload routine to $0100..$0194
+8126  B9 41 81    LDA $8141,Y
+8129  99 FF 00    STA $00FF,Y
+812c  88          DEY
+812d  D0 F7       BNE $8126
+812f  84 90       STY $90               ; Y=0 here => clear ST variable (no error)
+8131  A5 93       LDA $93
+8133  F0 0A       BEQ $813F             ; if $93 is zero then LOAD operation, otherwise VERIFY
+8135  A9 D0       LDA #$D0              ; change "STA ($AE),Y" to "BNE $0148"
+8137  8D 7E 01    STA $017E
+813a  A9 08       LDA #$08
+813c  8D 7F 01    STA $017F
+813f  4C 00 01    JMP $0100             ; get data from drive and return
+
+; receive a file from disk with 1581 fastloader
+0100  20 3D 01    JSR $013D             ; get one data byte from disk (number of bytes in block)
+0103  A8          TAY
+0104  20 3D 01    JSR $013D             ; get and discard one data byte from disk (start addr low)
+0107  20 3D 01    JSR $013D             ; get and discard one data byte from disk (start addr high)
+010a  88          DEY
+010b  88          DEY
+010c  98          TYA
+010d  C9 FF       CMP #$FF              ; length=$FF signals error condition
+010f  F0 16       BEQ $0127
+0111  85 24       STA $24               ; save number of bytes
+0113  A0 00       LDY #$00
+0115  20 40 01    JSR $0140             ; get ($24) bytes from disk and store them at $AE/$AF
+0118  98          TYA
+0119  18          CLC
+011a  65 AE       ADC $AE               ; add number of bytes received to $AE/$AF
+011c  85 AE       STA $AE
+011e  90 02       BCC $0122
+0120  E6 AF       INC $AF
+0122  20 3D 01    JSR $013D             ; get one data byte from disk (number of bytes in next block)
+0125  D0 E6       BNE $010D             ; loop until 0
+0127  0A          ASL A                 ; get bit 7 into carry (i.e. C=1 means error)
+0128  08          PHP                   ; save carry
+0129  A5 B8       LDA $B8
+012b  85 B9       STA $B9
+012d  20 42 F6    JSR $F642             ; close current file
+0130  28          PLP                   ; restore carry
+0131  A9 00       LDA #$00
+0133  6A          ROR A                 ; get carry into bit 7 (i.e. A=$80 if error)
+0134  05 90       ORA $90               ; OR into ST variable
+0136  85 90       STA $90
+0138  A6 AE       LDX $AE               ; get end address into $AE/$AF
+013a  A4 AF       LDY $AF
+013c  60          RTS
+
+; receive data byte from disk
+013d  A9 60       LDA #$60              ; "RTS" opcode (receive 1 byte)
+013f  2C                                ; ignore following (2-byte) instruction
+0140  A9 E6       LDA #$E6              ; "INC $zeropage" opcode (receive ($24) bytes)
+0142  8D 7C 01    STA $017C             ; either put RTS or INC into $017C
+0145  EA          NOP
+0146  A6 A9       LDX $A9
+0148  2C 00 DD    BIT $DD00
+014b  50 FB       BVC $0148             ; wait for CLK high
+014d  38          SEC
+014e  AD 12 D0    LDA $D012
+0151  E5 AA       SBC $AA
+0153  90 04       BCC $0159
+0155  29 07       AND #$07
+0157  F0 F5       BEQ $014E             ; wait for no badline
+0159  A5 A8       LDA $A8
+015b  8D 00 DD    STA $DD00             ; (4)   signal "ready" (DATA high)
+015e  24 1F       BIT $1F               ; (3)   if bit 7 of $1f is 1 then delay 6 cycles, 
+0160  30 03       BMI $0165             ; (2/3) otherwise delay 10 cycles
+0162  24 80       BIT $80               ; (3)
+0164  EA          NOP                   ; (2)
+0165  AD 00 DD    LDA $DD00             ; (4)   read bits 1 (DATA) and 0 (CLK)
+0168  4A          LSR A                 ; (2)
+0169  4A          LSR A                 ; (2)
+016a  4D 00 DD    EOR $DD00             ; (4)   read bits 3 (DATA) and 2 (CLK)
+016d  4A          LSR A                 ; (2)
+016e  4A          LSR A                 ; (2)
+016f  4D 00 DD    EOR $DD00             ; (4)   read bits 5 (DATA) and 4 (CLK)
+0172  4A          LSR A                 ; (2)
+0173  4A          LSR A                 ; (2)
+0174  4D 00 DD    EOR $DD00             ; (4)   read bits 7 (DATA) and 6 (CLK)
+0177  8E 00 DD    STX $DD00             ; signal "not ready" (DATA low)
+017a  45 A8       EOR $A8               ; cancel out lower bits of $DD00
+017c  60          RTS                   ; this opcode is either RTS or INC $01
+017c  E6 01       INC $01               
+017e  91 AE       STA ($AE),Y           ; write data to memory (if LOAD) OR
+017e  D0 08       BNE $0188             ; jump always (if VERIFY)
+0180  C6 01       DEC $01
+0182  C8          INY                   ; next byte
+0183  C6 24       DEC $24               ; decrement number of bytes
+0185  D0 C1       BNE $0148             ; repeat until 0
+0187  60          RTS
+0188  51 AE       EOR ($AE),Y           ; compare A to ($AE),Y
+018a  F0 F4       BEQ $0180             ; if equal then continue
+018c  A9 30       LDA #$30              ; set "VERIFY error" flag in $90
+018e  85 90       STA $90
+0190  D0 EE       BNE $0180             ; continue
+
+
+; ================================== Action Replay 6 1581 fastsave code ================================== 
+
+
+; attempt to send LISTEN
+80cb  85 9E       STA $9E               ; save A (secondary address)
+80cd  86 9F       STX $9F               ; save X
+80cf  A2 03       LDX #$03              ; three attempts
+80d1  A9 00       LDA #$00
+80d3  85 90       STA $90
+80d5  A5 BA       LDA $BA
+80d7  20 B1 FF    JSR $FFB1             ; send LISTEN
+80da  A5 9E       LDA $9E               ; get secondary address
+80dc  20 93 FF    JSR $FF93             ; send secondary address
+80df  A5 90       LDA $90
+80e1  0A          ASL A
+80e2  90 07       BCC $80EB             ; jump if success
+80e4  20 AE FF    JSR $FFAE             ; send UNLISTEN
+80e7  CA          DEX
+80e8  D0 E7       BNE $80D1             ; next attempt
+80ea  38          SEC                   ; failure flag
+80eb  A6 9F       LDX $9F               ; restore X
+80ed  60          RTS
+
+; transfer 256 bytes to disk drive
+823b  A0 FF       LDY #$FF           ; 255 bytes to transfer
+823d  2C 00 DD    BIT $DD00          ; 
+8240  50 FB       BVC $823D          ; wait for CLK high
+8242  70 0A       BVS $824E          ; start tranfer (jump always)
+8244  A0 00       LDY #$00           ; 256 bytes to transfer
+8246  2C 00 DD    BIT $DD00          ; wait for CLK high (receiver signals "ready")
+8249  50 FB       BVC $8246          
+824b  B1 22       LDA ($22),Y        ; get next data byte
+824d  EA          NOP
+824e  48          PHA                ; save data byte
+824f  4A          LSR A
+8250  4A          LSR A
+8251  4A          LSR A
+8252  4A          LSR A
+8253  AA          TAX                ; upper 4 bits into X
+8254  38          SEC
+8255  AD 12 D0    LDA $D012          ; wait for "no badline"
+8258  E5 AA       SBC $AA
+825a  90 04       BCC $8260
+825c  29 07       AND #$07
+825e  F0 F5       BEQ $8255
+8260  A5 A8       LDA $A8
+8262  8D 00 DD    STA $DD00          ; signal "ready" (DATA high)
+8265  BD 8E 82    LDA $828E,X        ; get CLK/DATA settings for bits 4-7
+8268  8D 00 DD    STA $DD00          ; transmit bits 7(CLK)+5(DATA) (inverted, at DATA+8)
+826b  4A          LSR A
+826c  4A          LSR A
+826d  29 F7       AND #$F7
+826f  8D 00 DD    STA $DD00          ; transmit bits 6(CLK)+4(DATA) (inverted, at DATA+18)
+8272  68          PLA                ; get data byte back
+8273  29 0F       AND #$0F           ; isolate bits 0-3
+8275  AA          TAX                ; into X
+8276  BD 8E 82    LDA $828E,X        ; get CLK/DATA settings for bits 0-3
+8279  8D 00 DD    STA $DD00          ; transmit bits 3(CLK)+1(DATA) (inverted, at DATA+34)
+827c  4A          LSR A
+827d  4A          LSR A
+827e  29 F7       AND #$F7
+8280  8D 00 DD    STA $DD00          ; transmit bits 2(CLK)+0(DATA) (inverted, at DATA+44)
+8283  A5 A9       LDA $A9
+8285  EA          NOP
+8286  EA          NOP
+8287  C8          INY
+8288  8D 00 DD    STA $DD00          ; signal "not ready" (at DATA+57)
+828b  D0 BE       BNE $824B          ; next data byte
+828d  60          RTS
+
+
+; copy 256-X bytes of data from ($AC) to $0200+X
+0115  E6 01       INC $01
+0117  A0 00       LDY #$00
+0119  B1 AC       LDA ($AC),Y
+011b  9D 00 02    STA $0200,X
+011e  C8          INY
+011f  E8          INX
+0120  D0 F7       BNE $0119
+0122  C6 01       DEC $01
+0124  60          RTS
+
+
+
+8c31  85 B9       STA $B9
+8c33  4C 87 DF    JMP $DF87
+
+8d0d  A0 01       LDY #$01
+8d0f  20 80 DF    JSR $DF80
+8d12  C9 2A       CMP #$2A
+8d14  F0 04       BEQ $8D1A
+8d16  C9 3F       CMP #$3F
+8d18  D0 0B       BNE $8D25
+8d1a  88          DEY
+8d1b  20 80 DF    JSR $DF80
+8d1e  C9 3F       CMP #$3F
+8d20  D0 03       BNE $8D25
+8d22  20 9C 8B    JSR $8B9C
+8d25  20 85 8B    JSR $8B85
+8d28  20 C6 8A    JSR $8AC6
+8d2b  30 1F       BMI $8D4C
+8d2d  24 1F       BIT $1F
+8d2f  30 1B       BMI $8D4C
+...
+8d4c  A9 61       LDA #$61
+8d4e  20 31 8C    JSR $8C31             ; send secondary address and filename
+8d51  90 05       BCC $8D58
+8d53  A9 85       LDA #$85
+8d55  85 90       STA $90
+8d57  60          RTS
+8d58  20 A5 DF    JSR $DFA5             ; print "SAVING"
+8d5b  A9 61       LDA #$61
+8d5d  20 CB 80    JSR $80CB             ; send LISTEN (returns with A=0)
+8d60  20 D7 88    JSR $88D7             ; send A and X to drive (X value is "1" - left from drive detection at $8a1d)
+8d63  20 AE FF    JSR $FFAE             ; send UNLISTEN
+8d66  A5 90       LDA $90
+8d68  F0 04       BEQ $8D6E
+8d6a  A9 0A       LDA #$0A
+8d6c  D0 E7       BNE $8D55
+8d6e  20 9E 8F    JSR $8F9E
+8d71  D0 05       BNE $8D78
+8d73  20 77 80    JSR $8077
+8d76  51 80       EOR ($80),Y
+8d78  20 91 86    JSR $8691
+8d7b  9A          TXS
+8d7c  20 06 8E    JSR $8E06
+8d7f  A5 BF       LDA $BF
+8d81  C9 FE       CMP #$FE
+8d83  F0 03       BEQ $8D88
+8d85  4C 62 8F    JMP $8F62
+8d88  A4 1F       LDY $1F
+8d8a  30 0F       BMI $8D9B
+8d8c  8A          TXA
+8d8d  20 3B 82    JSR $823B             ; transfer 255 bytes from ($22)
+8d90  C8          INY
+8d91  D0 FD       BNE $8D90
+8d93  2C 00 DD    BIT $DD00
+8d96  50 03       BVC $8D9B
+8d98  4C 72 8F    JMP $8F72
+8d9b  A2 04       LDX #$04
+8d9d  20 47 80    JSR $8047             ; waste 12 cycles ($8047 has RTS)?
+8da0  20 15 01    JSR $0115             ; copy data to $0204...$02FF
+8da3  98          TYA
+8da4  18          CLC
+8da5  65 AC       ADC $AC
+8da7  85 AC       STA $AC
+8da9  90 02       BCC $8DAD
+8dab  E6 AD       INC $AD
+8dad  CE 00 02    DEC $0200             ; decrement number of blocks
+8db0  08          PHP
+8db1  20 44 82    JSR $8244             ; transfer 256 bytes from ($22)
+8db4  A2 02       LDX #$02              ; next copy goes to $0202...$02FF
+8db6  28          PLP
+8db7  D0 E4       BNE $8D9D             ; copy next block
+8db9  A5 AE       LDA $AE
+8dbb  85 AC       STA $AC
+
+
+; ================================== Action Replay 6 common code ================================== 
+
+
+; send M-R command to disk to read ONE data byte at address YYAA
+; returns the result in A
+8a0d  48          PHA
+8a0e  20 C6 88    JSR $88C6             ; send LISTEN and "M-R"
+8a11  68          PLA
+8a12  90 05       BCC $8A19
+8a14  68          PLA
+8a15  68          PLA
+8a16  A9 00       LDA #$00
+8a18  60          RTS
+8a19  20 A8 FF    JSR $FFA8             ; send A to drive (M-R address low byte)
+8a1c  98          TYA
+8a1d  A2 01       LDX #$01
+8a1f  20 D7 88    JSR $88D7             ; send A then X to drive
+8a22  20 AE FF    JSR $FFAE             ; send UNLISTEN
+8a25  20 9E 82    JSR $829E             ; receive response
+8a28  48          PHA
+8a29  20 AB FF    JSR $FFAB             ; send UNTALK
+8a2c  68          PLA
+8a2d  60          RTS
+
+; determine drive type
+89d0  A0 00       LDY #$00
+89d2  84 1F       STY $1F
+89d4  A5 BA       LDA $BA
+89d6  C9 08       CMP #$08
+89d8  90 30       BCC $8A0A
+89da  C9 0C       CMP #$0C
+89dc  B0 2C       BCS $8A0A
+89de  A9 FE       LDA #$FE
+89e0  A0 FF       LDY #$FF
+89e2  20 0D 8A    JSR $8A0D             ; read one byte in drive memory at $FFFE
+89e5  F0 23       BEQ $8A0A
+89e7  C9 03       CMP #$03
+89e9  F0 1D       BEQ $8A08             ; if "3" then drive is C1581
+89eb  A9 01       LDA #$01
+89ed  A0 18       LDY #$18
+89ef  20 0D 8A    JSR $8A0D             ; read one byte in drive memory at $1801
+89f2  A8          TAY
+89f3  F0 0E       BEQ $8A03
+89f5  29 DF       AND #$DF
+89f7  85 1E       STA $1E
+89f9  C8          INY
+89fa  F0 07       BEQ $8A03
+89fc  98          TYA
+89fd  29 78       AND #$78
+89ff  C9 38       CMP #$38
+8a01  F0 03       BEQ $8A06
+8a03  38          SEC
+8a04  66 1F       ROR $1F
+8a06  66 1F       ROR $1F
+8a08  66 1F       ROR $1F
+8a0a  A5 1F       LDA $1F
+8a0c  60          RTS
