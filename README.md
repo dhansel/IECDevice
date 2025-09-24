@@ -70,7 +70,7 @@ That should be enough for up to 7 other devices.
   - The ESP32 can sink 28mA per pin (total max 250 mA) which should be enough for a computer and up to 4 other devices.
 
 If you want to make sure your microcontroller's I/O pins cannot be overdriven by the sink current, you 
-can use a 74LS07 or 74LS06 buffer/line driver. It is certainly the safer way to go, however it adds the 
+can use a 7407 or 7406 buffer/line driver. It is certainly the safer way to go, however it adds the 
 complication of having to acquire those ICs and wiring them up.
 
 Personally, in all my testing I always connected Clock and Data directly to my IECDevice,
@@ -124,13 +124,13 @@ to simplifiy the level converter wiring:
 If want to use line drivers, first follow the wiring instructions above. I recommend experimenting with
 the simplified wiring first to make sure everything is working. Then
   1. Un-comment the line ```#define USE_LINE_DRIVERS``` in IECConfig.h and re-upload the sketch. If you are using an
-     interting line drive (74LS06) then also un-comment ```#define USE_INVERTED_DRIVERS```.
+     interting line drive (7406) then also un-comment ```#define USE_INVERTED_DRIVERS```.
   2. In your code, where you instantiate the IECBusHandler class add two pins for controlling
      the line drivers for the CLK and DATA line to the IECBusHandler constructor call, i.e. change
      ```IECBusHandler myBus(pinATN, pinCLK, pinDATA, pinRESET);``` to
      ```IECBusHandler myBus(pinATN, pinCLK, pinCLKout, pinDATA, pinDATAout, pinRESET);```
-  3. Add a 74LS06 or 74LS07 IC to your project and wire it up as follows:
-     - Connect the ```pinCLKout``` pin from the constuctor above to an input pin (1, 3, 5, 8, 10 or 12), of the 74LS07 
+  3. Add a 7406 or 7407 IC to your project and wire it up as follows:
+     - Connect the ```pinCLKout``` pin from the constuctor above to an input pin (1, 3, 5, 8, 10 or 12), of the 7407 
      - Connect the corresponding output pin (2, 4, 6, 9, 11 or 13) directly to the Clock signal of the IEC bus
      - Put a 1k resistor between the IEC bus Clock signal and +5V.
      - Do **not** remove the connection from the Clock signal to the microcontroller. This connection is still
@@ -138,7 +138,7 @@ the simplified wiring first to make sure everything is working. Then
   4. Do the same as in the step 3 for the Data signal.
   5. If you are using the SRQ line, also wire it through the driver just like Clock and Data. Note that there is no
      "SRQout" pin defined in the constructor because SRQ is a write-only signal from the perspective of the device.
-     Instead connect the SRQ pin to the 74LS07 and make sure to remove the direct connection from the SRQ pin to the IEC bus.
+     Instead connect the SRQ pin to the 7407 and make sure to remove the direct connection from the SRQ pin to the IEC bus.
 
 After doing this your device should work the same as before but with the added protection of the line driver.
 
