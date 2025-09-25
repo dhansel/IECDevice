@@ -266,6 +266,13 @@ static void RAMFUNC(delayMicrosecondsISafe)(uint16_t t)
 }
 
 
+// define digitalReadFastExtIEC according to whether IEC lines are inverted or not
+#if defined(IEC_USE_LINE_DRIVERS) && defined(IEC_USE_INVERTED_INPUTS)
+#define digitalReadFastExtIEC(pin, reg, bit) (!(digitalReadFastExt(pin, reg, bit)))
+#else
+#define digitalReadFastExtIEC(pin, reg, bit) (digitalReadFastExt(pin, reg, bit))
+#endif
+
 // -----------------------------------------------------------------------------------------
 
 #define P_ATN        0x80
@@ -337,26 +344,26 @@ void RAMFUNC(IECBusHandler::writePinCTRL)(bool v)
 
 bool RAMFUNC(IECBusHandler::readPinATN)()
 {
-  return digitalReadFastExt(m_pinATN, m_regATNread, m_bitATN)!=0;
+  return digitalReadFastExtIEC(m_pinATN, m_regATNread, m_bitATN)!=0;
 }
 
 
 bool RAMFUNC(IECBusHandler::readPinCLK)()
 {
-  return digitalReadFastExt(m_pinCLK, m_regCLKread, m_bitCLK)!=0;
+  return digitalReadFastExtIEC(m_pinCLK, m_regCLKread, m_bitCLK)!=0;
 }
 
 
 bool RAMFUNC(IECBusHandler::readPinDATA)()
 {
-  return digitalReadFastExt(m_pinDATA, m_regDATAread, m_bitDATA)!=0;
+  return digitalReadFastExtIEC(m_pinDATA, m_regDATAread, m_bitDATA)!=0;
 }
 
 
 bool RAMFUNC(IECBusHandler::readPinRESET)()
 {
   if( m_pinRESET==0xFF ) return true;
-  return digitalReadFastExt(m_pinRESET, m_regRESETread, m_bitRESET)!=0;
+  return digitalReadFastExtIEC(m_pinRESET, m_regRESETread, m_bitRESET)!=0;
 }
 
 
@@ -693,7 +700,11 @@ void IECBusHandler::begin()
   if( m_atnInterrupt!=NOT_AN_INTERRUPT && s_bushandler==NULL )
     {
       s_bushandler = this;
+#if defined(IEC_USE_LINE_DRIVERS) && defined(IEC_USE_INVERTED_INPUTS)
+      attachInterrupt(m_atnInterrupt, atnInterruptFcn, RISING);
+#else
       attachInterrupt(m_atnInterrupt, atnInterruptFcn, FALLING);
+#endif
     }
 
   // call begin() function for all attached devices
@@ -1224,16 +1235,16 @@ bool RAMFUNC(IECBusHandler::waitParallelBusHandshakeReceivedISafe)(bool exitOnCL
   volatile IOREG_TYPE bitHandshakeReceive = digitalPinToBitMask(m_pinParallelHandshakeReceive);
 #endif
 
-  bool atnVal = digitalReadFastExt(m_pinATN, m_regATNread, m_bitATN);
-  bool clkVal = digitalReadFastExt(m_pinCLK, m_regCLKread, m_bitCLK);
+  bool atnVal = digitalReadFastExtIEC(m_pinATN, m_regATNread, m_bitATN);
+  bool clkVal = digitalReadFastExtIEC(m_pinCLK, m_regCLKread, m_bitCLK);
 
   // wait for handshake signal going LOW (until either ATN or CLK change)
   while( true ) 
     {
       if( !digitalReadFastExt(m_pinParallelHandshakeReceive, regHandshakeReceive, bitHandshakeReceive) ) return true;
-      if( atnVal!=digitalReadFastExt(m_pinATN, m_regATNread, m_bitATN) ) return false;
+      if( atnVal!=digitalReadFastExtIEC(m_pinATN, m_regATNread, m_bitATN) ) return false;
       if( !digitalReadFastExt(m_pinParallelHandshakeReceive, regHandshakeReceive, bitHandshakeReceive) ) return true;
-      if( exitOnCLKchange && clkVal!=digitalReadFastExt(m_pinCLK, m_regCLKread, m_bitCLK) ) return false;
+      if( exitOnCLKchange && clkVal!=digitalReadFastExtIEC(m_pinCLK, m_regCLKread, m_bitCLK) ) return false;
       if( !digitalReadFastExt(m_pinParallelHandshakeReceive, regHandshakeReceive, bitHandshakeReceive) ) return true;
     }
 }
@@ -1402,7 +1413,7 @@ bool RAMFUNC(IECBusHandler::receiveJiffyByte)(bool canWriteOk)
   // NOTE: this must be in a blocking loop since the sender starts transmitting
   // the byte immediately after setting CLK high. If we exit the "task" function then
   // we may not get back here in time to receive.
-  while( !digitalReadFastExt(m_pinCLK, m_regCLKread, m_bitCLK) && digitalReadFastExt(m_pinATN, m_regATNread, m_bitATN) )
+  while( !digitalReadFastExtIEC(m_pinCLK, m_regCLKread, m_bitCLK) && digitalReadFastExtIEC(m_pinATN, m_regATNread, m_bitATN) )
 #ifdef ESP_PLATFORM
     if( !timer_less_than(IWDT_FEED_TIME) )
       {
@@ -1509,7 +1520,7 @@ bool RAMFUNC(IECBusHandler::transmitJiffyByte)(uint8_t numData)
   // NOTE: this must be in a blocking loop since the receiver receives the data
   // immediately after setting DATA high. If we exit the "task" function then
   // we may not get back here in time to transmit.
-  while( !digitalReadFastExt(m_pinDATA, m_regDATAread, m_bitDATA) && digitalReadFastExt(m_pinATN, m_regATNread, m_bitATN) )
+  while( !digitalReadFastExtIEC(m_pinDATA, m_regDATAread, m_bitDATA) && digitalReadFastExtIEC(m_pinATN, m_regATNread, m_bitATN) )
 #ifdef ESP_PLATFORM
     if( !timer_less_than(IWDT_FEED_TIME) )
       {
@@ -1667,7 +1678,7 @@ bool RAMFUNC(IECBusHandler::transmitJiffyBlock)(uint8_t *buffer, uint8_t numByte
       // NOTE: this must be in a blocking loop since the receiver receives the data
       // immediately after setting DATA high. If we exit the "task" function then
       // we may not get back here in time to transmit.
-      while( digitalReadFastExt(m_pinDATA, m_regDATAread, m_bitDATA) && digitalReadFastExt(m_pinATN, m_regATNread, m_bitATN) )
+      while( digitalReadFastExtIEC(m_pinDATA, m_regDATAread, m_bitDATA) && digitalReadFastExtIEC(m_pinATN, m_regATNread, m_bitATN) )
 #ifdef ESP_PLATFORM
         if( !timer_less_than(IWDT_FEED_TIME) )
           {
@@ -2300,7 +2311,7 @@ bool RAMFUNC(IECBusHandler::transmitEpyxByte)(uint8_t data)
   // NOTE: this must be in a blocking loop since the sender starts transmitting
   // the byte immediately after setting CLK high. If we exit the "task" function then
   // we may not get back here in time to receive.
-  while( !digitalReadFastExt(m_pinDATA, m_regDATAread, m_bitDATA) && digitalReadFastExt(m_pinATN, m_regATNread, m_bitATN) )
+  while( !digitalReadFastExtIEC(m_pinDATA, m_regDATAread, m_bitDATA) && digitalReadFastExtIEC(m_pinATN, m_regATNread, m_bitATN) )
 #ifdef ESP_PLATFORM
     if( !timer_less_than(IWDT_FEED_TIME) )
       {
@@ -2761,7 +2772,7 @@ bool RAMFUNC(IECBusHandler::receiveFC3Byte)(uint8_t *pdata)
   timer_reset();
 
   // wait (indefinitely) for CLK high
-  while( !digitalReadFastExt(m_pinCLK, m_regCLKread, m_bitCLK) && digitalReadFastExt(m_pinATN, m_regATNread, m_bitATN) )
+  while( !digitalReadFastExtIEC(m_pinCLK, m_regCLKread, m_bitCLK) && digitalReadFastExtIEC(m_pinATN, m_regATNread, m_bitATN) )
 #ifdef ESP_PLATFORM
     if( !timer_less_than(IWDT_FEED_TIME) )
       {
@@ -2995,7 +3006,7 @@ bool RAMFUNC(IECBusHandler::transmitAR6Byte)(uint8_t data)
   writePinCLK(HIGH);
 
   // wait (indefinitely) for DATA high
-  while( !digitalReadFastExt(m_pinDATA, m_regDATAread, m_bitDATA) && digitalReadFastExt(m_pinATN, m_regATNread, m_bitATN) )
+  while( !digitalReadFastExtIEC(m_pinDATA, m_regDATAread, m_bitDATA) && digitalReadFastExtIEC(m_pinATN, m_regATNread, m_bitATN) )
 #ifdef ESP_PLATFORM
     if( !timer_less_than(IWDT_FEED_TIME) )
       {
@@ -3063,7 +3074,7 @@ bool RAMFUNC(IECBusHandler::receiveAR6Byte)(uint8_t *pdata)
 
   JDEBUG1();
   // wait (indefinitely) for DATA high
-  while( !digitalReadFastExt(m_pinDATA, m_regDATAread, m_bitDATA) && digitalReadFastExt(m_pinATN, m_regATNread, m_bitATN) )
+  while( !digitalReadFastExtIEC(m_pinDATA, m_regDATAread, m_bitDATA) && digitalReadFastExtIEC(m_pinATN, m_regATNread, m_bitATN) )
 #ifdef ESP_PLATFORM
     if( !timer_less_than(IWDT_FEED_TIME) )
       {
