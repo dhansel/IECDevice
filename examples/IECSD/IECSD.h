@@ -13,7 +13,8 @@
 #include <VDriveClass.h>
 #endif
 
-#define IECSD_BUFSIZE 64
+#define IECSD_BUFSIZE   96
+#define IECSD_MAX_PATH 128
 
 class IECSD : public IECFileDevice
 {
@@ -29,6 +30,7 @@ class IECSD : public IECFileDevice
   virtual uint8_t write(uint8_t channel, uint8_t *buffer, uint8_t bufferSize, bool eoi);
   virtual void close(uint8_t channel);
   virtual void getStatus(char *buffer, uint8_t bufferSize);
+  virtual uint8_t getStatusData(char *buffer, uint8_t bufferSize, bool *eoi);
   virtual void execute(const char *command, uint8_t len);
   virtual void reset();
 
@@ -46,19 +48,22 @@ class IECSD : public IECFileDevice
   void toPETSCII(uint8_t *name);
   void fromPETSCII(uint8_t *name);
 
-  const char *findFile(const char *name, char ftype);
+  uint8_t chdir(const char *c);
+  const char *findFile(const char *name, uint8_t ftype);
 
   SdFat m_sd;
   SdFile m_file, m_dir;
+  char m_cwd[IECSD_MAX_PATH+1];
   bool m_cardOk;
 
 #ifdef HAVE_VDRIVE
   VDrive *m_drive;
+  size_t  m_driveStatusRemaining;
 #endif
 
   uint8_t m_pinLED, m_pinChipSelect, m_errorCode, m_scratched;
-  uint8_t m_dirBufferLen, m_dirBufferPtr;
-  char m_dirBuffer[IECSD_BUFSIZE];
+  uint8_t m_bufferLen, m_bufferPtr, m_dirFormat;
+  char m_buffer[IECSD_BUFSIZE];
 };
 
 #endif
