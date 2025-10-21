@@ -29,7 +29,7 @@
 
 #if DEBUG>0
 
-void print_hex(uint8_t data)
+static void print_hex(uint8_t data)
 {
   static const PROGMEM char hex[16] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'};
   Serial.write(pgm_read_byte_near(hex+(data/16)));
@@ -39,7 +39,7 @@ void print_hex(uint8_t data)
 
 static uint8_t dbgbuf[16], dbgnum = 0;
 
-void dbg_print_data()
+static void dbg_print_data()
 {
   if( dbgnum>0 )
     {
@@ -62,10 +62,31 @@ void dbg_print_data()
     }
 }
 
-void dbg_data(uint8_t data)
+static void dbg_data(uint8_t data)
 {
   dbgbuf[dbgnum++] = data;
   if( dbgnum==16 ) dbg_print_data();
+}
+
+static void logStatus(uint8_t devnr, const char *data, uint8_t dataLen)
+{
+  dbg_print_data();
+  Serial.print((dataLen==0) ? F("CLEARSTATUS ") : F("SETSTATUS "));
+#if IEC_MAX_DEVICES>1
+  Serial.write('#'); Serial.print(devnr); Serial.write(' ');
+#endif
+  if( dataLen>0 )
+    {
+      Serial.write(':'); Serial.write(' ');
+      for(uint8_t i=0; i<dataLen; i++)
+        {
+          if( isprint(data[i]) )
+            Serial.print(data[i]);
+          else
+            { Serial.print("["); print_hex(data[i]); Serial.print("]"); }
+        }
+    }
+  Serial.println();
 }
 
 #endif
@@ -171,12 +192,14 @@ void IECFileDevice::begin()
 }
 
 
-uint8_t IECFileDevice::getStatusData(char *buffer, uint8_t bufferSize) 
+uint8_t IECFileDevice::getStatusData(char *buffer, uint8_t bufferSize, bool *m_eoi)
 { 
   // call the getStatus() function that returns a null-terminated string
+  // the string will be capped at IECFILEDEVICE_STATUS_BUFFER_SIZE characters
   m_statusBuffer[0] = 0;
   getStatus(m_statusBuffer, bufferSize);
   m_statusBuffer[bufferSize-1] = 0;
+  if( m_eoi ) *m_eoi = true;
   return strlen(m_statusBuffer);
 }
 
@@ -203,21 +226,29 @@ int8_t IECFileDevice::canRead()
     {
       if( m_statusBufferPtr==m_statusBufferLen )
         {
+          // no more data in status buffer => get new data
+          m_statusBufferLen = getStatusData(m_statusBuffer, IECFILEDEVICE_STATUS_BUFFER_SIZE, &m_statusEoi);
           m_statusBufferPtr = 0;
-          m_statusBufferLen = getStatusData(m_statusBuffer, IECFILEDEVICE_STATUS_BUFFER_SIZE);
 #if DEBUG>0
-          Serial.print(F("STATUS")); 
-#if IEC_MAX_DEVICES>1
-          Serial.write('#'); Serial.print(m_devnr);
+          logStatus(m_devnr, m_statusBuffer, m_statusBufferLen);
 #endif
-          Serial.write(':'); Serial.write(' ');
-          Serial.println(m_statusBuffer);
-          for(uint8_t i=0; i<m_statusBufferLen; i++) dbg_data(m_statusBuffer[i]);
-          dbg_print_data();
+        }
+      else if( (m_statusBufferPtr+1)==m_statusBufferLen && !m_statusEoi )
+        {
+          // only one byte left and previous call to getStatusData did NOT set EOI
+          // => get the next chunk of data
+          m_statusBuffer[0] = m_statusBuffer[m_statusBufferPtr];
+          m_statusBufferLen = getStatusData(m_statusBuffer+1, IECFILEDEVICE_STATUS_BUFFER_SIZE-1, &m_statusEoi) + 1;
+          m_statusBufferPtr = 0;
+#if DEBUG>0
+          logStatus(m_devnr, m_statusBuffer+1, m_statusBufferLen-1);
 #endif
         }
       
-      return m_statusBufferLen-m_statusBufferPtr;
+#if DEBUG>2
+      print_hex(min(m_statusBufferLen-m_statusBufferPtr, 2));
+#endif
+      return min(m_statusBufferLen-m_statusBufferPtr, 2);
     }
   else if( m_channel > 15 || m_readBufferLen[m_channel]==-128 )
     {
@@ -621,7 +652,15 @@ void IECFileDevice::fileTask()
           {
             for(uint8_t i=0; i<m_writeBufferLen; i++) dbg_data(m_writeBuffer[i]);
             dbg_print_data();
-            Serial.print(F("EXECUTE: ")); Serial.println(cmd);
+            Serial.print(F("EXECUTE: "));
+            for(uint8_t i=0; i<m_writeBufferLen; i++)
+              {
+                if( isprint(m_writeBuffer[i]) )
+                  Serial.print((char) m_writeBuffer[i]);
+                else if( m_writeBuffer[i]!=13 || i<m_writeBufferLen-1 )
+                  { Serial.print("["); print_hex(m_writeBuffer[i]); Serial.print("]"); }
+              }
+            Serial.println();
           }
 #endif
 #ifdef IEC_FP_EPYX
@@ -668,6 +707,9 @@ void IECFileDevice::fileTask()
             // returning 0x03 when reading $FFFE identifies this as a 1581 drive
             m_statusBuffer[0] = 0x03;
             m_statusBufferLen = 1;
+#if DEBUG>0
+            logStatus(m_devnr, m_statusBuffer, m_statusBufferLen);
+#endif
             handled = true;
           }
         else if( checkMWcmds(ar6LoadSig, 9, 180) )
@@ -852,16 +894,12 @@ bool IECFileDevice::checkMWcmd(uint16_t addr, uint8_t len, uint8_t checksum) con
 void IECFileDevice::setStatus(const char *data, uint8_t dataLen)
 {
 #if DEBUG>0
-  Serial.print(F("SETSTATUS ")); 
-#if IEC_MAX_DEVICES>1
-  Serial.write('#'); Serial.print(m_devnr); Serial.write(' ');
+  logStatus(m_devnr, data, dataLen);
 #endif
-  Serial.println(dataLen);
-#endif
-
   m_statusBufferPtr = 0;
   m_statusBufferLen = min((uint8_t) IECFILEDEVICE_STATUS_BUFFER_SIZE, dataLen);
   memcpy(m_statusBuffer, data, m_statusBufferLen);
+  m_statusEoi = true;
 }
 
 

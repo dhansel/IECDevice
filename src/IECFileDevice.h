@@ -60,14 +60,16 @@ class IECFileDevice : public IECDevice
   // This should populate buffer with an appropriate status message,
   // bufferSize is the maximum allowed length of the message
   // the data in the buffer should be a null-terminated string
+  // "bufferSize" is defined by IECFILEDEVICE_STATUS_BUFFER_SIZE
   virtual void getStatus(char *buffer, uint8_t bufferSize) { *buffer=0; }
 
   // called when the bus master reads from channel 15 and the status
   // buffer is currently empty, this should 
   // - fill buffer with up to bufferSize bytes of data
   // - return the number of data bytes stored in the buffer
+  // - set "eoi" to false if more data is available to read, true otherwise
   // The default implementation of getStatusData just calls getStatus().
- virtual uint8_t getStatusData(char *buffer, uint8_t bufferSize);
+  virtual uint8_t getStatusData(char *buffer, uint8_t bufferSize, bool *eoi);
 
   // called when the bus master sends data (i.e. a command) to channel 15
   // command is a 0-terminated string representing the command to execute
@@ -115,7 +117,7 @@ class IECFileDevice : public IECDevice
   bool checkMWcmd(uint16_t addr, uint8_t len, uint8_t checksum) const;
   bool checkMWcmds(const struct MWSignature *sig, uint8_t sigLen, uint8_t offset);
 
-  bool    m_opening, m_eoi, m_canServeATN;
+  bool    m_opening, m_eoi, m_statusEoi, m_canServeATN;
   uint8_t m_channel, m_cmd, m_uploadCtr;
 #if defined(IEC_FP_AR6)
   uint8_t m_ar6detect;
