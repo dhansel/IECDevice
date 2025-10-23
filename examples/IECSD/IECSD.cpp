@@ -60,6 +60,8 @@ IECSD::IECSD(uint8_t devnum, uint8_t pinChipSelect, uint8_t pinLED) :
   m_pinLED = pinLED;
   m_pinChipSelect = pinChipSelect;
   m_dirFormat = 1;
+  m_suppressMemExeError = false;
+  m_suppressReset  = false;
 #ifdef HAVE_VDRIVE
   m_drive = NULL;
 #endif
@@ -312,9 +314,23 @@ uint8_t IECSD::chdir(const char *c)
 }
 
 
-uint8_t IECSD::openDir()
+uint8_t IECSD::openDir(const char *pattern)
 {
   uint8_t res = E_OK;
+
+  while( *pattern && isspace(*pattern) ) pattern++;
+
+  if( pattern[0]==':' )
+    pattern += 1;
+  else if( isdigit(pattern[0]) && pattern[1]==':' )
+    pattern += 2;
+
+  m_dirPattern = NULL;
+  if( pattern[0]!=0 && strlen(m_cwd) + strlen(pattern) + 2 < IECSD_MAX_PATH )
+    {
+      m_dirPattern = m_cwd + strlen(m_cwd) + 1;
+      strcpy(m_dirPattern, pattern);
+    }
 
   if( m_dir.openCwd() )
     {
@@ -391,7 +407,12 @@ bool IECSD::readDir(uint8_t *data)
               if( n>0 )
                 {
                   toPETSCII((uint8_t *) m_buffer+m_bufferLen);
+                  if( m_dirPattern && !isMatch(m_buffer+m_bufferLen, m_dirPattern, FT_ANY) )
+                    n = 0;
+                }
 
+              if( n>0 )
+                {
                   char ftype[3] = {'P', 'R', 'G'};
                   char *dot = strrchr(m_buffer+m_bufferLen, '.');
                   if( dot!=NULL && isalnum(dot[1]) && isalnum(dot[2]) && isalnum(dot[3]) && dot[4]==0 )
@@ -494,6 +515,10 @@ const char *IECSD::findFile(const char *pattern, uint8_t ftypes)
       while( !found && m_file.openNext(&m_dir, O_RDONLY) )
         {
           found = ((ftypes&FT_DIR)!=0 || !m_file.isDir()) && m_file.getName(m_buffer, IECSD_BUFSIZE) && isMatch(m_buffer, pattern, ftypes);
+#if SDFAT_FILE_TYPE != 3
+          if( !found )
+            found = ((ftypes&FT_DIR)!=0 || !m_file.isDir()) && m_file.getSFN(m_buffer, IECSD_BUFSIZE) && isMatch(m_buffer, pattern, ftypes);
+#endif
           m_file.close();
         }
       
@@ -575,7 +600,7 @@ uint8_t IECSD::openFile(uint8_t channel, const char *constName)
                       if( channel==0 )
                         {
                           chdir(name);
-                          res = openDir();
+                          res = openDir("*");
                         }
                       else
                         res = E_MISMATCH;
@@ -598,7 +623,7 @@ uint8_t IECSD::openFile(uint8_t channel, const char *constName)
           else if( strcmp(name, "..")==0 )
             {
               chdir(name);
-              res = openDir();
+              res = openDir("*");
             }
           else
             res = E_NOTFOUND;
@@ -654,7 +679,7 @@ bool IECSD::open(uint8_t channel, const char *name)
     m_errorCode = m_drive->openFile(channel, name) ? E_OK : E_VDRIVE;
 #endif
   else if( channel==0 && name[0]=='$' )
-    m_errorCode = openDir();
+    m_errorCode = openDir(name+1);
   else if ( !m_file )
     m_errorCode = openFile(channel, name);
   else
@@ -752,7 +777,14 @@ void IECSD::execute(const char *command, uint8_t len)
            (command[0]=='U' && command[1]>='C' && command[1]<='H') )
     {
       // M-E and related commands not supported
-      m_errorCode = E_MEMEXE;
+      m_errorCode = m_suppressMemExeError ? E_OK : E_MEMEXE;
+
+      // block and blink LED for 2 seconds - blinking will continue after
+      // but this should ensure that the user sees the blinking before the
+      // computer sends another command
+      if( m_errorCode==E_MEMEXE && m_pinLED<0xFF )
+        for(int i=0; i<2*8; i++)
+          { digitalWrite(m_pinLED, !digitalRead(m_pinLED)); delay(125); }
     }
 #ifdef HAVE_VDRIVE
   else if( m_drive->isOk() )
@@ -779,13 +811,6 @@ void IECSD::execute(const char *command, uint8_t len)
         }
     }
 #endif
-  else if( command[0]=='X' || command[0]=='E' )
-    {
-      if( command[1]=='D' && isdigit(command[2]) )
-        m_dirFormat = command[2]-'0';
-      else
-        m_errorCode = E_INVCMD;
-    }
   else if( strncmp(command, "S:", 2)==0 )
     {
       if( m_dir.openCwd() )
@@ -892,6 +917,12 @@ void IECSD::execute(const char *command, uint8_t len)
           else
             m_errorCode = E_INVCMD;
         }
+      else if( command[0]=='D' && isdigit(command[1]) )
+        m_dirFormat = command[1]-'0';
+      else if( command[0]=='E' && isdigit(command[1]) )
+        m_suppressMemExeError = command[1]=='0';
+      else if( command[0]=='R' && isdigit(command[1]) )
+        m_suppressReset = command[1]=='0';
       else
         m_errorCode = E_INVCMD;
     }
@@ -935,7 +966,7 @@ void IECSD::getStatus(char *buffer, uint8_t bufferSize)
     case E_INVNAME:              { message = PSTR("SYNTAX ERROR"); break; }
     case E_MEMEXE:               { message = PSTR("M-E NOT SUPPORTED"); break; }
     case E_TOOMANY:              { message = PSTR("TOO MANY OPEN FILES"); break; }
-    case E_SPLASH:               { message = PSTR("IECSD V0.1"); break; }
+    case E_SPLASH:               { message = PSTR("IECSD V1.0"); break; }
     default:                     { message = PSTR("UNKNOWN"); break; }
     }
 
@@ -958,28 +989,31 @@ void IECSD::getStatus(char *buffer, uint8_t bufferSize)
 
 void IECSD::reset()
 {
-  unsigned long ledTestEnd = millis() + 250;
-  if( m_pinLED<0xFF ) digitalWrite(m_pinLED, HIGH);
+  if( !m_suppressReset )
+    {
+      unsigned long ledTestEnd = millis() + 250;
+      if( m_pinLED<0xFF ) digitalWrite(m_pinLED, HIGH);
 
-  IECFileDevice::reset();
+      IECFileDevice::reset();
 
-  m_cardOk = false;
-  m_errorCode = E_SPLASH;
+      m_cardOk = false;
+      m_errorCode = E_SPLASH;
 #ifdef HAVE_VDRIVE
-  m_drive->closeAllChannels();
+      m_drive->closeAllChannels();
 #endif
-  if( checkCard() ) 
-    m_sd.chdir(m_cwd);
-  else
-    m_errorCode = E_NOTREADY;
+      if( checkCard() )
+        m_sd.chdir(m_cwd);
+      else
+        m_errorCode = E_NOTREADY;
 
-  m_file.close();
-  m_dir.close();
+      m_file.close();
+      m_dir.close();
 
-  if( m_pinLED<0xFF ) 
-    { 
-      unsigned long t = millis();
-      if( t<ledTestEnd ) delay(ledTestEnd-t);
-      digitalWrite(m_pinLED, LOW); 
+      if( m_pinLED<0xFF )
+        {
+          unsigned long t = millis();
+          if( t<ledTestEnd ) delay(ledTestEnd-t);
+          digitalWrite(m_pinLED, LOW);
+        }
     }
 }

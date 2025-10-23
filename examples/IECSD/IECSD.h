@@ -42,7 +42,7 @@ class IECSD : public IECFileDevice
  private:
   bool checkCard();
   uint8_t openFile(uint8_t channel, const char *name);
-  uint8_t openDir();
+  uint8_t openDir(const char *pattern);
   bool readDir(uint8_t *data);
   bool isMatch(const char *name, const char *pattern, uint8_t extmatch);
   void toPETSCII(uint8_t *name);
@@ -53,16 +53,16 @@ class IECSD : public IECFileDevice
 
   SdFat m_sd;
   SdFile m_file, m_dir;
-  char m_cwd[IECSD_MAX_PATH+1];
+  char m_cwd[IECSD_MAX_PATH+1], *m_dirPattern;
   bool m_cardOk;
 
 #ifdef HAVE_VDRIVE
   VDrive *m_drive;
-  size_t  m_driveStatusRemaining;
 #endif
 
   uint8_t m_pinLED, m_pinChipSelect, m_errorCode, m_scratched;
   uint8_t m_bufferLen, m_bufferPtr, m_dirFormat;
+  bool m_suppressMemExeError, m_suppressReset;
   char m_buffer[IECSD_BUFSIZE];
 };
 
