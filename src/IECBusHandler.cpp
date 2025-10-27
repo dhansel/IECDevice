@@ -648,15 +648,18 @@ IECBusHandler::IECBusHandler(uint8_t pinATN, uint8_t pinCLK, uint8_t pinDATA, ui
   m_regATNread   = portInputRegister(digitalPinToPort(pinATN));
   m_bitCLK       = digitalPinToBitMask(pinCLK);
   m_regCLKread   = portInputRegister(digitalPinToPort(pinCLK));
-  m_regCLKwrite  = portOutputRegister(digitalPinToPort(pinCLK));
   m_regCLKmode   = portModeRegister(digitalPinToPort(pinCLK));
   m_bitDATA      = digitalPinToBitMask(pinDATA);
   m_regDATAread  = portInputRegister(digitalPinToPort(pinDATA));
-  m_regDATAwrite = portOutputRegister(digitalPinToPort(pinDATA));
   m_regDATAmode  = portModeRegister(digitalPinToPort(pinDATA));
 #ifdef IEC_USE_LINE_DRIVERS
   m_bitCLKout    = digitalPinToBitMask(pinCLKout);
+  m_regCLKwrite  = portOutputRegister(digitalPinToPort(pinCLKout));
   m_bitDATAout   = digitalPinToBitMask(pinDATAout);
+  m_regDATAwrite = portOutputRegister(digitalPinToPort(pinDATAout));
+#else
+  m_regCLKwrite  = portOutputRegister(digitalPinToPort(pinCLK));
+  m_regDATAwrite = portOutputRegister(digitalPinToPort(pinDATA));
 #endif
 #endif
 
