@@ -3940,7 +3940,7 @@ void IECBusHandler::task()
           IECDevice *dev = m_currentDevice;
           m_inTask = false;
           dev->task();
-          bool canWrite = (dev->canWrite()>0);
+          bool canWrite = (dev->canWrite()!=0);
           m_inTask = true;
 
           // m_currentDevice could have been reset to NULL while m_inTask was 'false'
@@ -4030,8 +4030,7 @@ void IECBusHandler::task()
 #endif
       else if( numData>=0 && readPinCLK() )
         {
-          // either under ATN (in which case we always accept data)
-          // or canWrite() result was non-negative
+          // canWrite() result was non-negative
           // CLK high signals sender is ready to transmit
           if( !receiveIECByte(numData>0) )
             {
