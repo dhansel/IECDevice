@@ -87,10 +87,6 @@ void IECSD::begin()
       digitalWrite(m_pinLED, LOW); 
     }
 
-#ifdef HAVE_VDRIVE
-  m_drive = new VDrive(0);
-#endif
-
   IECFileDevice::begin();
 }
 
@@ -120,7 +116,7 @@ void IECSD::task()
         {
           bool active = m_dir || m_file;
 #ifdef HAVE_VDRIVE
-          active |= m_drive->getNumOpenChannels()>0;
+          active |= (m_drive!=NULL) && (m_drive->getNumOpenChannels()>0);
 #endif
           digitalWrite(m_pinLED, active);
         }
@@ -174,7 +170,7 @@ bool IECSD::epyxReadSector(uint8_t track, uint8_t sector, uint8_t *buffer)
 {
   bool res = false;
 
-  if( m_drive->isOk() )
+  if( m_drive!=NULL )
     res = m_drive->readSector(track, sector, buffer);
 
   // for debug log
@@ -191,7 +187,7 @@ bool IECSD::epyxWriteSector(uint8_t track, uint8_t sector, uint8_t *buffer)
   // for debug log
   IECFileDevice::epyxWriteSector(track, sector, buffer);
 
-  if( m_drive->isOk() )
+  if( m_drive!=NULL )
     res = m_drive->writeSector(track, sector, buffer);
 
   return res;
@@ -209,7 +205,7 @@ uint8_t IECSD::chdir(const char *c)
   if( c[0]=='/' || c[0]=='^' )
     {
 #ifdef HAVE_VDRIVE
-      if( m_drive->isOk() ) m_drive->closeDiskImage();
+      if( m_drive!=NULL ) { delete m_drive; m_drive=NULL; }
 #endif
       strcpy(dir, "/");
       c++;
@@ -226,8 +222,8 @@ uint8_t IECSD::chdir(const char *c)
       if( (len==2 && c[0]=='.' && c[1]=='.') || (len==1 && c[0]=='_') )
         {
 #ifdef HAVE_VDRIVE
-          if( m_drive->isOk() )
-            m_drive->closeDiskImage();
+          if( m_drive!=NULL ) 
+            { delete m_drive; m_drive=NULL; }
           else
 #endif
             {
@@ -277,7 +273,7 @@ uint8_t IECSD::chdir(const char *c)
               res = E_NOTFOUND;
             }
 #ifdef HAVE_VDRIVE
-          else if( !f.isDir() && m_drive->openDiskImage(dir) )
+          else if( !f.isDir() && (m_drive=VDrive::create(0, dir))!=NULL )
             {
               // dir is a disk image, set cwd to directory containing the image
               char *lastarc = strrchr(dir, '/');
@@ -606,7 +602,7 @@ uint8_t IECSD::openFile(uint8_t channel, const char *constName)
                         res = E_MISMATCH;
                     }
 #ifdef HAVE_VDRIVE
-                  else if( m_drive->openDiskImage(fn) )
+                  else if( (m_drive=VDrive::create(0, fn))!=NULL )
                     {
                       // the file is a mountable disk image => mount it and open its directory
                       m_file.close();
@@ -675,7 +671,7 @@ bool IECSD::open(uint8_t channel, const char *name)
   if( !checkCard() )
     m_errorCode = E_NOTREADY;
 #ifdef HAVE_VDRIVE
-  else if( m_drive->isOk() )
+  else if( m_drive!=NULL )
     m_errorCode = m_drive->openFile(channel, name) ? E_OK : E_VDRIVE;
 #endif
   else if( channel==0 && name[0]=='$' )
@@ -698,7 +694,7 @@ bool IECSD::open(uint8_t channel, const char *name)
 uint8_t IECSD::read(uint8_t channel, uint8_t *buffer, uint8_t bufferSize, bool *eoi)
 {
 #ifdef HAVE_VDRIVE
-  if( m_drive->isFileOk(channel) )
+  if( m_drive!=NULL && m_drive->isFileOk(channel) )
     {
       size_t n = bufferSize;
       if( !m_drive->read(channel, buffer, &n, eoi) )
@@ -721,7 +717,7 @@ uint8_t IECSD::read(uint8_t channel, uint8_t *buffer, uint8_t bufferSize, bool *
 uint8_t IECSD::write(uint8_t channel, uint8_t *buffer, uint8_t bufferSize, bool eoi)
 {
 #ifdef HAVE_VDRIVE
-  if( m_drive->isFileOk(channel) )
+  if( m_drive!=NULL && m_drive->isFileOk(channel) )
     {
       size_t n = bufferSize;
       if( !m_drive->write(channel, buffer, &n) )
@@ -744,7 +740,7 @@ uint8_t IECSD::write(uint8_t channel, uint8_t *buffer, uint8_t bufferSize, bool 
 void IECSD::close(uint8_t channel)
 {
 #ifdef HAVE_VDRIVE
-  if( m_drive->isFileOk(channel) )
+  if( m_drive!=NULL && m_drive->isFileOk(channel) )
     {
       m_drive->closeFile(channel);
     }
@@ -787,7 +783,7 @@ void IECSD::execute(const char *command, uint8_t len)
           { digitalWrite(m_pinLED, !digitalRead(m_pinLED)); delay(125); }
     }
 #ifdef HAVE_VDRIVE
-  else if( m_drive->isOk() )
+  else if( m_drive!=NULL )
     {
       m_errorCode = m_drive->execute(command, len)==0 ? E_VDRIVE : E_OK;
 
@@ -868,13 +864,12 @@ void IECSD::execute(const char *command, uint8_t len)
       setStatus((char *) data, 3);
       m_errorCode = E_OK;
     }
-  else if( strncmp_P(command, PSTR("M-R"), 3)==0 && len>=6 && command[5]<=32 )
+  else if( strncmp_P(command, PSTR("M-R"), 3)==0 && len>=5 )
     {
       // memory read not supported => always return 0xFF
-      uint8_t n = command[5];
-      char buf[32];
-      memset(buf, 0xFF, n);
-      setStatus(buf, n);
+      uint8_t n = min(len==5 ? 1 : command[5], IECSD_BUFSIZE);
+      memset(m_buffer, 0xFF, n);
+      setStatus(m_buffer, n);
       m_errorCode = E_OK;
     }
   else if( strncmp_P(command, PSTR("M-W"), 3)==0 )
@@ -937,7 +932,7 @@ uint8_t IECSD::getStatusData(char *buffer, uint8_t bufferSize, bool *eoi)
 { 
 #ifdef HAVE_VDRIVE
   // if we have an active VDrive then just return its status
-  if( m_drive->isOk() )
+  if( m_drive!=NULL )
     {
       m_errorCode = E_OK;
       return m_drive->getStatusBuffer(buffer, bufferSize, eoi);
@@ -999,7 +994,7 @@ void IECSD::reset()
       m_cardOk = false;
       m_errorCode = E_SPLASH;
 #ifdef HAVE_VDRIVE
-      m_drive->closeAllChannels();
+      if( m_drive!=NULL ) m_drive->closeAllChannels();
 #endif
       if( checkCard() )
         m_sd.chdir(m_cwd);
