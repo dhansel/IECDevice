@@ -256,6 +256,10 @@ int8_t IECFileDevice::canRead()
     }
   else
     {
+      // we have already signaled EOI => reset EOI flag so fillReadBuffer will
+      // call read() again to see if there is more data
+      if( m_eoi && m_readBufferLen[m_channel]==0 ) m_eoi = false;
+
       fillReadBuffer();
 #if DEBUG>2
       print_hex(m_readBufferLen[m_channel]);
@@ -601,7 +605,6 @@ void IECFileDevice::fileTask()
         Serial.print(m_channel); Serial.print(F(": ")); Serial.println((const char *) m_writeBuffer);
 #endif
         bool ok = open(m_channel, (const char *) m_writeBuffer);
-        
         m_readBufferLen[m_channel] = ok ? 0 : -128;
         m_writeBufferLen = 0;
         m_channel = 0xFF; 

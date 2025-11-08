@@ -1606,6 +1606,11 @@ bool RAMFUNC(IECBusHandler::transmitJiffyByte)(uint8_t numData)
   if( !waitPinDATA(LOW) ) { interrupts(); return false; }
   JDEBUG0();
 
+  // at this point make sure CLK/DATA are in "busy" configuration
+  // even if we signaled EOI or error before
+  writePinCLK(LOW);
+  writePinDATA(HIGH);
+
   interrupts();
 
   if( numData>0 )
@@ -3321,14 +3326,14 @@ bool RAMFUNC(IECBusHandler::receiveIECByteATN)(uint8_t &data)
   // after receiving secondary address, wait for either:
   //  HIGH->LOW edge (1us pulse) on incoming parallel handshake signal, 
   //      if received pull outgoing parallel handshake signal LOW to confirm
-  //  LOW->HIGH edge on ATN, 
+  //  LOW->HIGH edge on ATN or CLK,
   //      if so then timeout, host does not support DolphinDos
 
   if( &data==&m_secondary )
     {
       IECDevice *dev = findDevice(m_primary & 0x1F);
       if( dev!=NULL && dev->isFastLoaderEnabled(IEC_FP_DOLPHIN) )
-        if( waitParallelBusHandshakeReceivedISafe() )
+        if( waitParallelBusHandshakeReceivedISafe(true) )
           {
             dev->m_flFlags |= S_DOLPHIN_DETECTED;
             parallelBusHandshakeTransmit();
@@ -3470,8 +3475,8 @@ bool RAMFUNC(IECBusHandler::transmitIECByte)(uint8_t numData)
       // signal "data valid" (CLK=1)
       writePinCLK(HIGH);
 
-      // hold for 60us
-      if( !waitTimeout(60) ) return false;
+      // hold for 70us (60us is not enough for game "Mercenary" or "Tracer Junction")
+      if( !waitTimeout(70) ) return false;
 
       // next bit
       data >>= 1;
@@ -3562,8 +3567,21 @@ void RAMFUNC(IECBusHandler::handleATNSequence)()
       // => receive the secondary address, assume 0 if not sent
       if( (m_primary == 0x3f) || (m_primary == 0x5f) || !receiveIECByteATN(m_secondary) ) m_secondary = 0;
 
-      // wait until ATN is released
-      waitPinATN(HIGH);
+      // wait until either ATN or CLK is released
+      // TODO: should this be more generic? Is the host allowed to
+      //       address multiple devices within the same ATN sequence?
+      if( waitPinCLK(HIGH, 0) )
+        {
+          // CLK released => host might issue an UNTALK/UNLISTEN right after TALK/LISTEN
+          // (e.g. in game "tracer sanction")
+          uint8_t p = 0;
+          if( receiveIECByteATN(p) && (p==0x3f || p==0x5f) ) m_primary = 0;
+
+          // wait until ATN is finally released
+          waitPinATN(HIGH);
+        }
+
+      // ATN was released
       m_flags &= ~P_ATN;
 
       // allow ATN to pull DATA low in hardware
