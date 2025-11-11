@@ -666,13 +666,13 @@ uint8_t IECSD::openFile(uint8_t channel, const char *constName)
 }
 
 
-bool IECSD::open(uint8_t channel, const char *name)
+bool IECSD::open(uint8_t channel, const char *name, uint8_t nameLen)
 {
   if( !checkCard() )
     m_errorCode = E_NOTREADY;
 #ifdef HAVE_VDRIVE
   else if( m_drive!=NULL )
-    m_errorCode = m_drive->openFile(channel, name) ? E_OK : E_VDRIVE;
+    m_errorCode = m_drive->openFile(channel, name, nameLen) ? E_OK : E_VDRIVE;
 #endif
   else if( channel==0 && name[0]=='$' )
     m_errorCode = openDir(name+1);
@@ -739,6 +739,9 @@ uint8_t IECSD::write(uint8_t channel, uint8_t *buffer, uint8_t bufferSize, bool 
 
 void IECSD::close(uint8_t channel)
 {
+  // 1541 drive clears status when closing a channel (needed in "Odell Lake" game)
+  clearStatus();
+
 #ifdef HAVE_VDRIVE
   if( m_drive!=NULL && m_drive->isFileOk(channel) )
     {
@@ -788,7 +791,7 @@ void IECSD::execute(const char *command, uint8_t len)
       m_errorCode = m_drive->execute(command, len)==0 ? E_VDRIVE : E_OK;
 
       // when executing commands that read data into a buffer or reposition
-      // the pointer we need to clear the our read buffer of channel for which 
+      // the pointer we need to clear our read buffer of the channel for which
       // this command is issued, otherwise remaining characters in the buffer 
       // will be prefixed to the data from the new record or buffer location
       if( command[0]=='P' && len>=2 )
@@ -932,7 +935,7 @@ uint8_t IECSD::getStatusData(char *buffer, uint8_t bufferSize, bool *eoi)
 { 
 #ifdef HAVE_VDRIVE
   // if we have an active VDrive then just return its status
-  if( m_drive!=NULL )
+  if( m_drive!=NULL && m_errorCode!=E_MEMEXE )
     {
       m_errorCode = E_OK;
       return m_drive->getStatusBuffer(buffer, bufferSize, eoi);
@@ -994,7 +997,11 @@ void IECSD::reset()
       m_cardOk = false;
       m_errorCode = E_SPLASH;
 #ifdef HAVE_VDRIVE
-      if( m_drive!=NULL ) m_drive->closeAllChannels();
+      if( m_drive!=NULL )
+        {
+          m_drive->closeAllChannels();
+          m_drive->execute("UJ", 2, false);
+        }
 #endif
       if( checkCard() )
         m_sd.chdir(m_cwd);

@@ -294,7 +294,7 @@ class IECBasicSD : public IECFileDevice
 
  protected:
   virtual void begin();
-  virtual bool open(uint8_t channel, const char *name);
+  virtual bool open(uint8_t channel, const char *name, uint8_t nameLen);
   virtual uint8_t read(uint8_t channel, uint8_t *buffer, uint8_t bufferSize, bool *eoi);
   virtual uint8_t write(uint8_t channel, uint8_t *buffer, uint8_t n, bool eoi);
   virtual void close(uint8_t channel);
@@ -329,7 +329,7 @@ interface, using pin 10 for CS. Note that we must also call the IECFileDevice::b
 function to properly initialize the device.
 
 ```
-bool IECBasicSD::open(uint8_t channel, const char *name)
+bool IECBasicSD::open(uint8_t channel, const char *name, uint8_t nameLen)
 {
   return m_file.open(name, channel==0 ? O_RDONLY : (O_WRONLY | O_CREAT));
 }
@@ -604,10 +604,12 @@ executes a SAVE command.
   This function will automatically be called on every execution of IECBusHandler::task(), once for all attached devices. 
   It can be used to handle device-specific periodic tasks. 
   If you overload this function, make sure to call IECFileDevice::task() from within your overloaded function.
-- ```bool open(uint8_t channel, const char *filename)```  
+- ```bool open(uint8_t channel, const char *filename, uint8_t nameLen)```  
   This function is called whenever the bus controller (computer) issues an OPEN command.
   The *channel* parameter specifies the channel as described above and the *filename* 
   parameter is a zero-terminated string representing the file name given in the OPEN command.
+  The nameLen parameter gives the length of the file name which can be useful if the file name
+  itself may contain NUL characters.
   The function should return true if opening the file succeeded and false otherwise.
 - ```void close(uint8_t channel)```  
   Close the file that was previously opened on *channel*. The close() function does not have a 

@@ -591,7 +591,7 @@ void IECFDC::openFile(FIL *f, uint8_t channel, const char *name)
 }
 
 
-bool IECFDC::open(uint8_t channel, const char *name)
+bool IECFDC::open(uint8_t channel, const char *name, uint8_t nameLen)
 {
   uint8_t fileIdx = 0;
   m_ferror = FR_OK;

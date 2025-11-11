@@ -63,7 +63,7 @@ class IECBasicSD : public IECFileDevice
   virtual void begin();
   virtual void reset();
 
-  virtual bool open(uint8_t channel, const char *name);
+  virtual bool open(uint8_t channel, const char *name, uint8_t nameLen);
   virtual uint8_t read(uint8_t channel, uint8_t *buffer, uint8_t bufferSize, bool *eoi);
   virtual uint8_t write(uint8_t channel, uint8_t *buffer, uint8_t bufferSize, bool eoi);
   virtual void close(uint8_t channel);
@@ -97,7 +97,7 @@ void IECBasicSD::begin()
 }
 
 
-bool IECBasicSD::open(uint8_t channel, const char *name)
+bool IECBasicSD::open(uint8_t channel, const char *name, uint8_t nameLen)
 {
   // open file for reading or writing. Use channel number to determine
   // whether to read (channel 0) or write (channel 1). These channel numbers

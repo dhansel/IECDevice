@@ -4,7 +4,7 @@
 #if defined(ARDUINO_ARCH_RP2040) || defined(ESP_PLATFORM) || defined(__SAM3X8E__)
 // Un-comment the line below if you have the VDrive library (https://github.com/dhansel/VDrive) 
 // installed. This will allow to "CD" into Commodore disk image files (D64/G64 etc).
-//#define HAVE_VDRIVE
+#define HAVE_VDRIVE
 #endif
 
 #include <IECFileDevice.h>
@@ -25,7 +25,7 @@ class IECSD : public IECFileDevice
   virtual void begin();
   virtual void task();
 
-  virtual bool open(uint8_t channel, const char *name);
+  virtual bool open(uint8_t channel, const char *name, uint8_t nameLen);
   virtual uint8_t read(uint8_t channel, uint8_t *buffer, uint8_t bufferSize, bool *eoi);
   virtual uint8_t write(uint8_t channel, uint8_t *buffer, uint8_t bufferSize, bool eoi);
   virtual void close(uint8_t channel);

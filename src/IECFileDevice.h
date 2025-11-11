@@ -36,8 +36,9 @@ class IECFileDevice : public IECDevice
   // called during IECBusHandler::task()
   virtual void task();
 
-  // open file "name" on channel
-  virtual bool open(uint8_t channel, const char *name) = 0;
+  // open file "name" on channel, the file name will be zero-terminated but
+  // nameLen can also be used, especially if the file name contains NUL characters
+  virtual bool open(uint8_t channel, const char *name, uint8_t nameLen) = 0;
 
   // close file on channel
   virtual void close(uint8_t channel) = 0;

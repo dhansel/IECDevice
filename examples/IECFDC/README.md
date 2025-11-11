@@ -78,8 +78,6 @@ Supported DOS commands:
   - `S:filename`: delete file filename (filename may contain "*" and "?" wildcards)
   - `N:diskname,n`: format disk (n is ignored, interleave factor is fixed to 7)
   - `N:diskname`: delete all files on disk
-  - `MD:dirname`: create a directory named dirname
-  - `RD:dirname`: remove the directory named dirname
   - `CD:dirname`: change into sub-directory named dirname
   - `CD[left-arrow]`: change to parent sub-directory
   - `X` or `E`: query extended device status: next status channel read will return `02, T=n, 00, 00` where n is the current drive type.

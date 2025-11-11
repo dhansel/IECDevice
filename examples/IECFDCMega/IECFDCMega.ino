@@ -19,7 +19,7 @@
 #include "IECFDCMega.h"
 #include "IECBusHandler.h"
 
-#define DEVICE    7
+#define DEVICE    9
 
 #define PIN_ATN   A3
 #define PIN_CLK   A2

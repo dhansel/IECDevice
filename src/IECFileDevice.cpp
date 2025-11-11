@@ -596,7 +596,7 @@ void IECFileDevice::fileTask()
     case IFD_OPEN:
       {
 #if DEBUG>0
-        for(uint8_t i=0; m_writeBuffer[i]; i++) dbg_data(m_writeBuffer[i]);
+        for(uint8_t i=0; i<m_writeBufferLen; i++) dbg_data(m_writeBuffer[i]);
         dbg_print_data();
         Serial.print(F("OPEN #")); 
 #if IEC_MAX_DEVICES>1
@@ -604,7 +604,7 @@ void IECFileDevice::fileTask()
 #endif
         Serial.print(m_channel); Serial.print(F(": ")); Serial.println((const char *) m_writeBuffer);
 #endif
-        bool ok = open(m_channel, (const char *) m_writeBuffer);
+        bool ok = open(m_channel, (const char *) m_writeBuffer, m_writeBufferLen);
         m_readBufferLen[m_channel] = ok ? 0 : -128;
         m_writeBufferLen = 0;
         m_channel = 0xFF; 

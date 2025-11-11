@@ -383,7 +383,7 @@ void IECFDC::openFile(uint8_t channel, const char *name)
 }
 
 
-bool IECFDC::open(uint8_t channel, const char *name)
+bool IECFDC::open(uint8_t channel, const char *name, uint8_t nameLen)
 {
   // The "~" (0x7E) used by FAT in shortened file names translates
   // to the "pi" symbol in PETSCII (when listing the directory).
@@ -544,16 +544,18 @@ void IECFDC::execute(const char *command, uint8_t len)
       m_ferror = FR_NOT_ENOUGH_CORE;
 #endif
     }
+#if 0
   else if( strncmp_P(command, PSTR("MD:"), 3)==0 )
     {
       startDiskOp();
       m_ferror = f_mkdir(command+3);
-      }
+    }
   else if( strncmp_P(command, PSTR("RD:"), 3)==0 )
     {
       startDiskOp();
       m_ferror = f_unlink(command+3);
     }
+#endif
   else if( strncmp_P(command, PSTR("CD:"), 3)==0 )
     m_ferror = f_chdir(command+3);
   else if( strcmp_P(command, PSTR("CD_"))==0 )
