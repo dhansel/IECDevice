@@ -318,8 +318,13 @@ uint8_t IECSD::openDir(const char *pattern)
 
   if( pattern[0]==':' )
     pattern += 1;
-  else if( isdigit(pattern[0]) && pattern[1]==':' )
-    pattern += 2;
+  else if( isdigit(pattern[0]) )
+    {
+      if( pattern[1]==':' )
+        pattern += 2;
+      else
+        pattern = "*";
+    }
 
   m_dirPattern = NULL;
   if( pattern[0]!=0 && strlen(m_cwd) + strlen(pattern) + 2 < IECSD_MAX_PATH )
@@ -530,7 +535,7 @@ uint8_t IECSD::openFile(uint8_t channel, const char *constName)
   uint8_t res = E_OK;
   char ftype = FT_PRG;
   char mode  = 'R';
-  char namebuf[40];
+  char namebuf[41];
   char *name = namebuf;
 
   strncpy(name, constName, 40);
