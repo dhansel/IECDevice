@@ -3638,6 +3638,10 @@ void RAMFUNC(IECBusHandler::handleATNSequence)()
             m_devices[i]->untalk();
         }
           
+      // if we don't have a device then we can't be listening or talking
+      if( m_currentDevice==NULL )
+        m_flags &= ~(P_LISTENING|P_TALKING);
+
       if( !(m_flags & (P_LISTENING | P_TALKING)) )
         {
           // we're neither listening nor talking => release CLK/DATA
