@@ -2993,7 +2993,11 @@ int8_t RAMFUNC(IECBusHandler::receiveFC3Block)()
   bool eoi = len>0;
 
   // send data to device
-  if( m_currentDevice->write(m_buffer, n, eoi)==n )
+  m_inTask = false;
+  bool ok = m_currentDevice->write(m_buffer, n, eoi)==n;
+  m_inTask = true;
+
+  if( ok )
     return eoi ? 0 : 1;
   else
     return -1;
@@ -3188,7 +3192,11 @@ int8_t RAMFUNC(IECBusHandler::receiveAR6Block)()
   uint8_t n   = eoi ? m_buffer[1]-2 : 254;
 
   // send data to device
-  if( m_currentDevice->write(m_buffer+2, n, eoi)==n )
+  m_inTask = false;
+  bool ok = m_currentDevice->write(m_buffer+2, n, eoi)==n;
+  m_inTask = true;
+
+  if( ok )
     return eoi ? 0 : 1;
   else
     return -1;
