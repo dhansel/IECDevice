@@ -37,6 +37,7 @@ class SimpleQueue
   int  availableToWrite()    { return m_start == m_end ? 256 : ((m_start-m_end-1)&0xFF); }
   bool enqueue(uint8_t data) { return full()  ? false : (m_data[m_end++] = data, true); }
   uint8_t dequeue()          { return empty() ? 0xFF  : m_data[m_start++]; }
+  void clear()               { m_start = 0; m_end = 0; }
 
  private:
   uint8_t m_start, m_end, m_data[256];
@@ -68,10 +69,12 @@ class IECCentronics : public IECDevice
   virtual void    write(uint8_t data, bool eoi);
   virtual int8_t  canRead();
   virtual uint8_t read();
+  virtual void    reset();
 
  private:
   void printerReadySig();
   void sendByte(uint8_t data);
+  void writeShiftRegister(uint8_t data);
   uint8_t readShiftRegister();
   uint8_t readDIP();
   bool printerReady();

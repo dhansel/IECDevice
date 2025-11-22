@@ -27,6 +27,7 @@ class ConverterTandyMPS801 : public Converter
   ConverterTandyMPS801();
 
   virtual void begin();
+  virtual void reset();
   virtual void setChannel(uint8_t channel);
 
   virtual void convert();

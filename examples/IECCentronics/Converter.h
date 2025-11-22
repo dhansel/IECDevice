@@ -39,6 +39,9 @@ class Converter
   // called when DIP setting is switched AWAY from this mode
   virtual void end() {}
 
+  // called when RESET signal is received on IEC bus
+  virtual void reset() {}
+
   // called to set current channel number
   virtual void setChannel(uint8_t channel) {}
 
@@ -58,15 +61,14 @@ class Converter
   virtual void getStatus(char buffer[], uint8_t bufLen)
   {
     uint8_t status = printerStatus();
-
     if( status & PRINTER_READY )
       strncpy_P(buffer, PSTR("00,READY\r"), bufLen);
     else if( status & PRINTER_PAPEROUT )
       strncpy_P(buffer, PSTR("03,NO PAPER\r"), bufLen);
-    else if( status & PRINTER_ERROR ) 
-      strncpy_P(buffer, PSTR("04,PRINTER ERROR\r"), bufLen);
     else if( !(status & PRINTER_SELECT) )
       strncpy_P(buffer, PSTR("01,OFF LINE\r"), bufLen);
+    else if( status & PRINTER_ERROR )
+      strncpy_P(buffer, PSTR("04,PRINTER ERROR\r"), bufLen);
     else
       strncpy_P(buffer, PSTR("05,UNKNOWN\r"), bufLen);
   }
@@ -78,7 +80,7 @@ class Converter
   void init(IECCentronics *controller) { m_controller = controller; }
 
  protected:
-  uint8_t printerStatus() { return (m_controller->readShiftRegister() >> 4) ^ PRINTER_READY; }
+  uint8_t printerStatus() { return (m_controller->readShiftRegister() >> 4) ^ (PRINTER_READY|PRINTER_ERROR); }
 
   int  canRead()        { return m_controller->m_receive.availableToRead(); }
   uint8_t read()        { return m_controller->m_receive.dequeue(); }

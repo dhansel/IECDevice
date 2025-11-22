@@ -247,8 +247,17 @@ ConverterTandyMPS801::ConverterTandyMPS801() : Converter()
 
 void ConverterTandyMPS801::begin()
 {
+  reset();
   m_mode = MODE_MPS801_STANDARD;
   m_cmdbytes = 0;
+}
+
+
+void ConverterTandyMPS801::reset()
+{
+  m_mode = MODE_MPS801_STANDARD;
+  m_cmdbytes = 0;
+  m_dotcolumn = 0;
 }
 
 

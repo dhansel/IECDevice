@@ -1,5 +1,5 @@
 // -----------------------------------------------------------------------------
-// Copyright (C) 2023 David Hansel
+// Copyright (C) 2025 David Hansel
 //
 // This program is free software; you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
@@ -25,31 +25,31 @@ D0        2      PD0        in         Serial RX
 D1        3      PD1        out        Serial TX     
 D2        4      PD2        in         Printer ACK
 D3        5      PD3        in         IEC bus ATN
-D4        6      PD4        out        Printer data bit 4
+D4        6      PD4        in         IEC bus RESET
 VIn       7                            VCC
 GND       8                            GND
 -         9      PB6                   Crystal
 -         10     PB7                   Crystal
-D5        11     PD5        out        Printer data bit 5
-D6        12     PD6        out        Printer data bit 6
-D7        13     PD7        out        Printer data bit 7
-D8        14     PB0        in         IEC bus CLK
-D9        15     PB1        in         Shift register DATA
-D10       16     PB2        in         Shift register CLK
-D11       17     PB3        out        Shift register SH!LD
-D12       18     PB4        in/out     IEC bus DATA
+D5        11     PD5                   [not connected]
+D6        12     PD6        out        IEC bus DATA out
+D7        13     PD7        out        IEC bus CLK out
+D8        14     PB0        in         IEC bus CLK in
+D9        15     PB1        in         Shift register in DATA
+D10       16     PB2        in         Shift register in CLK
+D11       17     PB3        out        Shift register in SH!LD
+D12       18     PB4        in         IEC bus DATA in
 D13       19     PB5        in         LED ("ready")
 VIn       20                           AVCC
 ARef      21                           AREF
 GND       22                           GND
-A0        23     PC0        out        Printer data bit 0
-A1        24     PC1        out        Printer data bit 1
-A2        25     PC2        out        Printer data bit 2
-A3        26     PC3        out        Printer data bit 3
+A0        23     PC0                   Shift register out DATA
+A1        24     PC1                   Shift register out CLK
+A2        25     PC2                   Shift register out LATCH
+A3        26     PC3                   [not connected]
 A4        27     PC4        out        Printer STROBE
 A5        28     PC5        out        Printer RESET
 
-Shift register (74HC165)
+Shift register in (74HC165)
 Input   Pin  Function
 D0      11   DIP0
 D1      12   DIP1
@@ -60,6 +60,9 @@ D5       4   Printer PE (paper end)
 D6       5   Printer ERROR
 D7       6   Printer BUSY
 
+Shift register out (74HC595)
+Output 0-7: Printer data 0-7
+
 Compile as Arduino UNO
 Fuse bytes (Arduino standard): LOW=0xFF, HIGH=0xDA, EXTENDED=0xFD
 
@@ -68,14 +71,16 @@ Fuse bytes (Arduino standard): LOW=0xFF, HIGH=0xDA, EXTENDED=0xFD
 #include "IECCentronics.h"
 #include "Converter.h"
 
-// printer data bits hardcoded to PORTC 0-3 and PORTD 4-7 in sendByte()
 #define PIN_ACK        2
-#define PIN_PRIME     A5
-#define PIN_STROBE    A4
-#define PIN_SR_LATCH  11 // hardcoded to PORTB3 in readShiftRegister() and printerBusy()
-#define PIN_SR_CLOCK  10 // hardcoded to PORTB2 in readShiftRegister() and printerBusy()
-#define PIN_SR_DATA    9 // hardcoded to PINB1  in readShiftRegister() and printerBusy()
-#define PIN_LEDRDY    13
+#define PIN_PRIME      A5
+#define PIN_STROBE     A4
+#define PIN_SRO_CLOCK  A1 // hardcoded to PORTC1 in writeShiftRegister()
+#define PIN_SRO_DATA   A0 // hardcoded to PORTC0 in writeShiftRegister()
+#define PIN_SRO_LATCH  A2 // hardcoded to PORTC2 in writeShiftRegister()
+#define PIN_SRI_CLOCK  10 // hardcoded to PORTB2 in readShiftRegister() and printerBusy()
+#define PIN_SRI_DATA    9 // hardcoded to PINB1  in readShiftRegister() and printerBusy()
+#define PIN_SRI_LATCH  11 // hardcoded to PORTB3 in readShiftRegister() and printerBusy()
+#define PIN_LEDRDY     13
 
 #define DEBUG     0
 
@@ -158,32 +163,29 @@ IECCentronics::IECCentronics() : IECDevice()
 
 void IECCentronics::begin()
 {
-#if DEBUG>0
+  //#if DEBUG>0
   Serial.begin(115200);
-#endif
+  Serial.println("DEBUG START");
+  //#endif
 
-  digitalWrite(PIN_STROBE,   HIGH);
-  digitalWrite(PIN_PRIME,    HIGH);
-  digitalWrite(PIN_LEDRDY,   LOW);
-  digitalWrite(PIN_SR_LATCH, LOW);
-  digitalWrite(PIN_SR_CLOCK, LOW);
+  digitalWrite(PIN_STROBE,    LOW);
+  digitalWrite(PIN_PRIME,     LOW);
+  digitalWrite(PIN_LEDRDY,    LOW);
+  digitalWrite(PIN_SRI_LATCH, LOW);
+  digitalWrite(PIN_SRI_CLOCK, LOW);
+  digitalWrite(PIN_SRO_LATCH, HIGH);
+  digitalWrite(PIN_SRO_CLOCK, LOW);
   
-  pinMode(PIN_ACK,      INPUT_PULLUP);
-  pinMode(PIN_PRIME,    OUTPUT);
-  pinMode(PIN_STROBE,   OUTPUT);
-  pinMode(PIN_LEDRDY,   OUTPUT);
-  pinMode(PIN_SR_LATCH, OUTPUT);
-  pinMode(PIN_SR_CLOCK, OUTPUT);
-  pinMode(PIN_SR_DATA,  INPUT);
-
-  pinMode( 4, OUTPUT); // D4 (PD4)
-  pinMode( 5, OUTPUT); // D5 (PD5)
-  pinMode( 6, OUTPUT); // D6 (PD6)
-  pinMode( 7, OUTPUT); // D7 (PD7)
-  pinMode(A0, OUTPUT); // D0 (PC0)
-  pinMode(A1, OUTPUT); // D1 (PC1)
-  pinMode(A2, OUTPUT); // D2 (PC2)
-  pinMode(A3, OUTPUT); // D3 (PC3)
+  pinMode(PIN_ACK,       INPUT_PULLUP);
+  pinMode(PIN_PRIME,     OUTPUT);
+  pinMode(PIN_STROBE,    OUTPUT);
+  pinMode(PIN_LEDRDY,    OUTPUT);
+  pinMode(PIN_SRI_LATCH, OUTPUT);
+  pinMode(PIN_SRI_CLOCK, OUTPUT);
+  pinMode(PIN_SRI_DATA,  INPUT);
+  pinMode(PIN_SRO_LATCH, OUTPUT);
+  pinMode(PIN_SRO_CLOCK, OUTPUT);
+  pinMode(PIN_SRO_DATA,  OUTPUT);
 
   m_cmdBufferLen = 0;
   m_cmdBufferPtr = 0;
@@ -199,15 +201,19 @@ void IECCentronics::begin()
   m_converters[m_mode]->begin();
 
   // reset printer
-  digitalWrite(PIN_PRIME, LOW);
-  delayMicroseconds(10);
   digitalWrite(PIN_PRIME, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(PIN_PRIME, LOW);
 
   // initialize IECDevice
   IECDevice::begin();
 
   // set IEC device address (4 or 5)
   setDeviceNumber((readDIP() & 8) ? 5 : 4);
+
+#if DEBUG>0
+  Serial.print("Device number: "); Serial.println(m_devnr); 
+#endif
 
   // set up interrupt handler for printer ACK signal
   attachInterrupt(digitalPinToInterrupt(PIN_ACK), printerReadyISR, FALLING);
@@ -238,11 +244,12 @@ uint8_t IECCentronics::readDIP()
   if( millis() >= nextReadTime )
     {
       dip = (~readShiftRegister()) & 15;
-      nextReadTime = millis() + 10;
+      nextReadTime = millis() + 1000;
     }
 
   return dip;
 }
+
 
 
 uint8_t IECCentronics::readShiftRegister()
@@ -261,8 +268,29 @@ uint8_t IECCentronics::readShiftRegister()
     }
   
   PORTB &= ~0x08;  // release inputs
+
   return res;
 }
+
+
+void IECCentronics::writeShiftRegister(uint8_t data)
+{
+  // this implementation takes about 9us to write all 8 bits
+  PORTC &= ~0x02; // set clock low
+  PORTC &= ~0x04; // set latch low
+  for(uint8_t i=0; i<8; i++)
+    {
+      // 4 cycles = 250ns delay
+      asm (" nop\n nop\n nop\n nop\n");
+      // set data bit
+      if( data & 0x80 ) PORTC |= 0x01; else PORTC &= ~0x01; 
+      data = data * 2;
+      // pulse clock
+      PORTC |= 0x02; PORTC &= ~0x02;
+    }
+  PORTC |= 0x04; // latch data
+}
+
 
 
 bool IECCentronics::printerReady()
@@ -302,10 +330,9 @@ bool IECCentronics::printerSelect()
 
 void IECCentronics::sendByte(uint8_t data)
 {
-  PORTC = (PORTC & 0xF0) | (data & 0x0F);
-  PORTD = (PORTD & 0x0F) | (data & 0xF0);
-  digitalWrite(PIN_STROBE, LOW);
+  writeShiftRegister(~data);
   digitalWrite(PIN_STROBE, HIGH);
+  digitalWrite(PIN_STROBE, LOW);
   m_ready = false;
 }
 
@@ -409,10 +436,39 @@ void IECCentronics::task()
   // call converter
   m_converters[m_mode]->convert();
 
+#if 1
   // if we have data to send and the printer can receive it then send it now
   if( !m_send.empty() && printerReady() )
     sendByte(m_send.dequeue());
+#else
+  static unsigned long t = 0, c = 0;
+  if( !m_send.empty() && millis()>t )
+    {
+      m_send.dequeue();
+      t = millis() + ((++c % 80) == 0 ? 500 : 2);
+    }
+#endif
 
   // handle IEC bus communication
   IECDevice::task();
+}
+
+
+void IECCentronics::reset()
+{
+#if DEBUG>0
+  Serial.println("RESET");
+#endif
+  
+  // reset printer
+  digitalWrite(PIN_PRIME, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(PIN_PRIME, LOW);
+
+  // clear queues
+  m_send.clear();
+  m_receive.clear();
+
+  // reset converter
+  m_converters[m_mode]->reset();
 }

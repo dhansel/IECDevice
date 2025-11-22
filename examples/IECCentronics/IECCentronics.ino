@@ -22,12 +22,15 @@
 #include "Converter.h"
 #include "ConverterTandyMPS801.h"
 
-#define PIN_ATN        3
-#define PIN_CLK        8
-#define PIN_DATA      12
+#define PIN_ATN         3 // PD3
+#define PIN_CLK_IN      8 // PB0
+#define PIN_DATA_IN    12 // PB4
+#define PIN_CLK_OUT     7 // PD7
+#define PIN_DATA_OUT    6 // PD6
+#define PIN_RESET       4 // PD4
 
 
-IECBusHandler iecBus(PIN_ATN, PIN_CLK, PIN_DATA);
+IECBusHandler iecBus(PIN_ATN, PIN_CLK_IN, PIN_CLK_OUT, PIN_DATA_IN, PIN_DATA_OUT, PIN_RESET);
 IECCentronics iec;
 
 
