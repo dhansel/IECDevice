@@ -882,7 +882,7 @@ bool IECFileDevice::isFastLoaderRequest(const char *cmd)
 #ifdef IEC_FP_DOLPHIN
   if( m_writeBufferLen==2 && strncmp_P(cmd, PSTR("XQ"), 2)==0 )
     {
-     e fastLoadRequest(IEC_FP_DOLPHIN, IEC_FL_PROT_LOAD);
+      fastLoadRequest(IEC_FP_DOLPHIN, IEC_FL_PROT_LOAD);
       m_channel = 0;
       m_eoi = false;
       return true;
