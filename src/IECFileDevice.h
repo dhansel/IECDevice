@@ -115,6 +115,7 @@ class IECFileDevice : public IECDevice
   void fillReadBuffer();
   void emptyWriteBuffer();
   void fileTask();
+  bool isFastLoaderRequest(const char *cmd);
   bool checkMWcmd(uint16_t addr, uint8_t len, uint8_t checksum) const;
   bool checkMWcmds(const struct MWSignature *sig, uint8_t sigLen, uint8_t offset);
 

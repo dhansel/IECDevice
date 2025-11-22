@@ -422,3 +422,167 @@
 8a08  66 1F       ROR $1F
 8a0a  A5 1F       LDA $1F
 8a0c  60          RTS
+
+
+; ================================== Action Replay 6 disk write code ================================== 
+
+; code on drive, uploaded for "save snapshot turbo" and "save snapshot warp" if drive is 1541
+; or "save loader" (always, will crash 1581)
+
+.8:0150  78          SEI
+.8:0151  20 8F 01    JSR $018F
+.8:0154  A9 7A       LDA #$7A
+.8:0156  8D 02 18    STA $1802
+.8:0159  20 E9 F5    JSR $F5E9
+.8:015c  20 62 01    JSR $0162   ; receive second-stage code, store in $0300...
+.8:015f  4C 00 03    JMP $0300   ; run second-stage code
+
+.8:0162  A0 00       LDY #$00
+.8:0164  A9 00       LDA #$00
+.8:0166  8D 00 18    STA $1800
+.8:0169  AD 00 18    LDA $1800
+.8:016c  D0 FB       BNE $0169
+.8:016e  08          PHP
+.8:016f  AD 00 18    LDA $1800
+.8:0172  0A          ASL A
+.8:0173  28          PLP
+.8:0174  4D 00 18    EOR $1800
+.8:0177  0A          ASL A
+.8:0178  0A          ASL A
+.8:0179  0A          ASL A
+.8:017a  EA          NOP
+.8:017b  EA          NOP
+.8:017c  EA          NOP
+.8:017d  4D 00 18    EOR $1800
+.8:0180  0A          ASL A
+.8:0181  EA          NOP
+.8:0182  EA          NOP
+.8:0183  EA          NOP
+.8:0184  4D 00 18    EOR $1800
+.8:0187  99 00 03    STA $0300,Y
+.8:018a  C8          INY
+.8:018b  EA          NOP
+.8:018c  EA          NOP
+.8:018d  D0 DA       BNE $0169
+.8:018f  A9 08       LDA #$08
+.8:0191  8D 00 18    STA $1800
+.8:0194  60          RTS
+
+
+; ================================== Action Replay 3(!) loader code ================================== 
+
+
+09fc  20 A7 02    JSR $02A7       ; wait until drive ready
+09ff  20 C1 02    JSR $02C1       ; receive block length
+0a02  AA          TAX
+0a03  20 C1 02    JSR $02C1       ; receive and discard load address low byte
+0a06  20 C1 02    JSR $02C1       ; receive and discard load address high byte
+0a09  CA          DEX             ; decrement block length by 2
+0a0a  CA          DEX
+0a0b  4C 20 02    JMP $0220
+
+0220  20 C1 02    JSR $02C1       ; receive data byte
+0223  A0 00       LDY #$00
+0225  E6 01       INC $01
+0227  91 AE       STA ($AE),Y     ; store data byte
+0229  C6 01       DEC $01
+022b  E6 AE       INC $AE         ; increment address low byte
+022d  D0 02       BNE $0231      
+022f  E6 AF       INC $AF         ; increment address high byte
+0231  CA          DEX
+0232  D0 EC       BNE $0220       ; repeat until all bytes received
+0234  20 A7 02    JSR $02A7       ; wait until disk is ready
+0237  20 C1 02    JSR $02C1       ; receive block length
+023a  AA          TAX
+023b  D0 E3       BNE $0220       ; repeat until block length is 0
+023d  A6 AE       LDX $AE
+023f  A4 AF       LDY $AF
+0241  86 2D       STX $2D
+0243  84 2E       STY $2E
+0245  20 60 A6    JSR $A660
+0248  4C 7B E3    JMP $E37B
+
+02a7  AD 00 DD    LDA $DD00
+02aa  29 0F       AND #$0F
+02ac  09 20       ORA #$20       ; set DATA low
+02ae  8D 00 DD    STA $DD00
+02b1  20 C0 02    JSR $02C0      ; waste some cycles
+02b4  A9 40       LDA #$40       ; 
+02b6  2C 00 DD    BIT $DD00
+02b9  F0 FB       BEQ $02B6      ; wait until CLK high
+02bb  A9 7F       LDA #$7F
+02bd  4A          LSR A
+02be  B0 FD       BCS $02BD      ; waste more cycles?
+02c0  60          RTS
+
+; receive byte from disk
+02c1  38          SEC
+02c2  AD 12 D0    LDA $D012
+02c5  E9 31       SBC #$31
+02c7  90 04       BCC $02CD
+02c9  29 06       AND #$06
+02cb  F0 F5       BEQ $02C2
+02cd  A9 0F       LDA #$0F
+02cf  2D 00 DD    AND $DD00
+02d2  8D 00 DD    STA $DD00     ; release DATA
+02d5  09 20       ORA #$20      ; (2)
+02d7  A8          TAY           ; (2)
+02d8  EA          NOP           ; (2)
+02d9  EA          NOP           ; (2)
+02da  EA          NOP           ; (2)
+02db  EA          NOP           ; (2)
+02dc  AD 00 DD    LDA $DD00     ; (4) read bits 1 (DATA) and 0 (CLK) [DATA high + 16]
+02df  4A          LSR A         ; (2)
+02e0  4A          LSR A         ; (2)
+02e1  EA          NOP           ; (2)
+02e2  4D 00 DD    EOR $DD00     ; (4) read bits 3 (DATA) and 2 (CLK) [DATA high + 26]
+02e5  4A          LSR A         ; (2)
+02e6  4A          LSR A         ; (2)
+02e7  EA          NOP           ; (2)
+02e8  4D 00 DD    EOR $DD00     ; (4) read bits 5 (DATA) and 4 (CLK) [DATA high + 36]
+02eb  4A          LSR A         ; (2)
+02ec  4A          LSR A         ; (2)
+02ed  EA          NOP           ; (2)
+02ee  4D 00 DD    EOR $DD00     ; (4) read bits 7 (DATA) and 6 (CLK) [DATA high + 46]
+02f1  8C 00 DD    STY $DD00     ; set DATA low
+02f4  49 F9       EOR #$F9
+02f6  A8          TAY
+02f7  B9 20 01    LDA $0120,Y
+02fa  60          RTS
+
+
+; disk: transmit 1 byte to computer
+0576  A0 00       LDY #$00
+0578  A9 00       LDA #$00
+057a  8D 00 18    STA $1800
+057d  C8          INY
+057e  B9 00 04    LDA $0400,Y
+
+0581  4A          LSR A
+0582  4A          LSR A
+0583  4A          LSR A
+0584  4A          LSR A
+0585  AA          TAX           ; data byte bits 7-4 into X bits 0-3
+0586  A9 01       LDA #$01
+0588  8D 00 18    STA $1800     ; sigal "ready" (CLK=1)
+058b  2C 00 18    BIT $1800
+058e  D0 FB       BNE $058B     ; wait for computer to signal "ready" (DATA=1)
+
+0590  8E 00 18    STX $1800     ; transmit bits 7 (CLK) and 5 (DATA)
+0593  8A          TXA
+0594  0A          ASL A
+0595  29 0F       AND #$0F
+0597  8D 00 18    STA $1800     ; transmit bits 6 (CLK) and 4 (DATA)
+
+059a  B9 00 04    LDA $0400,Y
+059d  29 0F       AND #$0F
+059f  8D 00 18    STA $1800
+05a2  0A          ASL A
+05a3  29 0F       AND #$0F
+05a5  EA          NOP
+05a6  8D 00 18    STA $1800
+
+05a9  C4 15       CPY $15
+05ab  D0 D0       BNE $057D
+
+

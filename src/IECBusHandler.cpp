@@ -3016,7 +3016,7 @@ int8_t RAMFUNC(IECBusHandler::receiveFC3Block)()
 #pragma GCC push_options
 #pragma GCC optimize ("O2")
 
-bool RAMFUNC(IECBusHandler::transmitAR6Byte)(uint8_t data)
+bool RAMFUNC(IECBusHandler::transmitAR6Byte)(uint8_t data, bool ar6Protocol)
 {
   noInterrupts();
   timer_init();
@@ -3042,30 +3042,65 @@ bool RAMFUNC(IECBusHandler::transmitAR6Byte)(uint8_t data)
   // abort if ATN low
   if( !readPinATN() ) { interrupts(); return false; }
 
-  JDEBUG0();
-  writePinCLK( data & bit(0));
-  writePinDATA(data & bit(1));
-  JDEBUG1();
-  // receiver reads bits 0(CLK) and 1(DATA) 10us after DATA high
-  timer_wait_until(12);
-  JDEBUG0();
-  writePinCLK( data & bit(2));
-  writePinDATA(data & bit(3));
-  JDEBUG1();
-  // receiver reads bits 2(CLK) and 3(DATA) 18us after DATA high
-  timer_wait_until(20);
-  JDEBUG0();
-  writePinCLK( data & bit(4));
-  writePinDATA(data & bit(5));
-  JDEBUG1();
-  // receiver reads bits 4(CLK) and 5(DATA) 26us after DATA high
-  timer_wait_until(28);
-  JDEBUG0();
-  writePinCLK( data & bit(6));
-  writePinDATA(data & bit(7));
-  JDEBUG1();
-  // receiver reads bits 4(CLK) and 5(DATA) 34us after DATA high
-  timer_wait_until(36);
+  if( ar6Protocol )
+    {
+      // Action Replay 6 protocol
+
+      JDEBUG0();
+      writePinCLK( data & bit(0));
+      writePinDATA(data & bit(1));
+      JDEBUG1();
+      // receiver reads bits 0(CLK) and 1(DATA) 10us after DATA high
+      timer_wait_until(12);
+      JDEBUG0();
+      writePinCLK( data & bit(2));
+      writePinDATA(data & bit(3));
+      JDEBUG1();
+      // receiver reads bits 2(CLK) and 3(DATA) 18us after DATA high
+      timer_wait_until(20);
+      JDEBUG0();
+      writePinCLK( data & bit(4));
+      writePinDATA(data & bit(5));
+      JDEBUG1();
+      // receiver reads bits 4(CLK) and 5(DATA) 26us after DATA high
+      timer_wait_until(28);
+      JDEBUG0();
+      writePinCLK( data & bit(6));
+      writePinDATA(data & bit(7));
+      JDEBUG1();
+      // receiver reads bits 4(CLK) and 5(DATA) 34us after DATA high
+      timer_wait_until(36);
+    }
+  else
+    {
+      // Action Replay 3 protocol (for image loader)
+      data = ~data;
+
+      JDEBUG0();
+      writePinCLK( data & bit(7));
+      writePinDATA(data & bit(5));
+      JDEBUG1();
+      // receiver reads bits 7(CLK) and 5(DATA) 16us after DATA high
+      timer_wait_until(18);
+      JDEBUG0();
+      writePinCLK( data & bit(6));
+      writePinDATA(data & bit(4));
+      JDEBUG1();
+      // receiver reads bits 6(CLK) and 4(DATA) 26us after DATA high
+      timer_wait_until(28);
+      JDEBUG0();
+      writePinCLK( data & bit(3));
+      writePinDATA(data & bit(1));
+      JDEBUG1();
+      // receiver reads bits 3(CLK) and 1(DATA) 36us after DATA high
+      timer_wait_until(38);
+      JDEBUG0();
+      writePinCLK( data & bit(2));
+      writePinDATA(data & bit(0));
+      JDEBUG1();
+      // receiver reads bits 2(CLK) and 0(DATA) 46us after DATA high
+      timer_wait_until(48);
+    }
 
   // pull CLK low ("not ready") and release DATA
   writePinCLK(LOW);
@@ -3155,7 +3190,7 @@ bool RAMFUNC(IECBusHandler::receiveAR6Byte)(uint8_t *pdata)
 #pragma GCC pop_options
 
 
-int8_t RAMFUNC(IECBusHandler::transmitAR6Block)()
+int8_t RAMFUNC(IECBusHandler::transmitAR6Block)(bool ar6Protocol)
 {
   uint8_t n;
 
@@ -3167,10 +3202,10 @@ int8_t RAMFUNC(IECBusHandler::transmitAR6Block)()
   else
     n = m_currentDevice->read(m_buffer, 254);
 
-  if( !transmitAR6Byte(n) ) return -1;
+  if( !transmitAR6Byte(n, ar6Protocol) ) return -1;
 
   for(uint8_t i=0; i<n; i++)
-    if( !transmitAR6Byte(m_buffer[i]) ) 
+    if( !transmitAR6Byte(m_buffer[i], ar6Protocol) )
       return -1;
 
   // next block number
@@ -3881,11 +3916,13 @@ void IECBusHandler::handleFastLoadProtocols()
 #ifdef IEC_FP_AR6
           // ------------------ Action Replay 6 transfer handling -------------------
 
-          if( (loader==IEC_FP_AR6) && (protocol==IEC_FL_PROT_LOAD) && ((m_timeoutDuration==0) || (micros()-m_timeoutStart)>m_timeoutDuration) )
+          if( (loader==IEC_FP_AR6) && (protocol==IEC_FL_PROT_LOAD || protocol==IEC_FL_PROT_LOADIMG) &&
+              ((m_timeoutDuration==0) || (micros()-m_timeoutStart)>m_timeoutDuration) )
             {
               m_timeoutDuration = 0;
 
-              int8_t res = transmitAR6Block();
+              // use AR3 protocol for LOADIMG (we support AR3 stand-alone LOADER, not AR6)
+              int8_t res = transmitAR6Block(protocol==IEC_FL_PROT_LOAD);
               if( res!=1 )
                 {
                   // either end-of-data or transmission error => we are done

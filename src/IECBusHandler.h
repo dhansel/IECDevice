@@ -236,9 +236,9 @@ class IECBusHandler
 #endif
   
 #ifdef IEC_FP_AR6
-  bool transmitAR6Byte(uint8_t data);
+  bool transmitAR6Byte(uint8_t data, bool ar6Protocol);
   bool receiveAR6Byte(uint8_t *data);
-  int8_t transmitAR6Block();
+  int8_t transmitAR6Block(bool ar6Protocol);
   int8_t receiveAR6Block();
 #endif
   

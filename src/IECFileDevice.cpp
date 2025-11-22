@@ -163,6 +163,8 @@ void IECFileDevice::begin()
   m_cmd = IFD_NONE;
   m_channel = 0xFF;
   m_opening = false;
+  m_eoi = true;
+  m_statusEoi = true;
   m_uploadCtr = 0;
 
   // calling fileTask() may result in significant time spent accessing the
@@ -642,7 +644,6 @@ void IECFileDevice::fileTask()
 
     case IFD_EXEC:  
       {
-        bool handled = false;
         const char *cmd = (const char *) m_writeBuffer;
 
 #if DEBUG>0
@@ -666,182 +667,14 @@ void IECFileDevice::fileTask()
             Serial.println();
           }
 #endif
-#ifdef IEC_FP_EPYX
-        static const struct MWSignature epyxV1sig[2] PROGMEM   = 
-          { {0x0180, 0x20, 0x2E}, {0x01A0, 0x20, 0xA5} };
-        static const struct MWSignature epyxV2V3sig[3] PROGMEM = 
-          { {0x0180, 0x19, 0x53}, {0x0199, 0x19, 0xA6}, {0x01B2, 0x19, 0x8F} };
 
-        if( checkMWcmds(epyxV1sig, 2, 10) || checkMWcmds(epyxV2V3sig, 3, 20) )
-          handled = true;
-        else if( m_uploadCtr==12 && strncmp_P(cmd, PSTR("M-E\xa2\x01"), 5)==0 )
-          m_uploadCtr = 99;
-        else if( m_uploadCtr==23 && strncmp_P(cmd, PSTR("M-E\xa9\x01"), 5)==0 )
-          m_uploadCtr = 99;
-
-        if( m_uploadCtr==99 )
-          {
-#if DEBUG>0
-            Serial.println(F("EPYX FASTLOAD DETECTED"));
-#endif
-            fastLoadRequest(IEC_FP_EPYX, IEC_FL_PROT_HEADER);
-            m_uploadCtr = 0;
-            handled = true;
-          }
-#endif
-#ifdef IEC_FP_AR6
-        static const struct MWSignature ar6LoadSig[9] PROGMEM = 
-          { {0x500,0x23,0x8c}, {0x523,0x23,0xa8}, {0x546,0x23,0x93}, {0x569,0x23,0x0f},
-            {0x58c,0x23,0xea}, {0x5af,0x23,0x94}, {0x5d2,0x23,0x6a}, {0x5f5,0x23,0xb2},
-            {0x618,0x23,0xbc} };
-
-        static const struct MWSignature ar6SaveSig[12] PROGMEM = 
-          { {0x59b,0x23,0xe3}, {0x5be,0x23,0x35}, {0x5e1,0x23,0x3c}, {0x604,0x23,0x2c},
-            {0x627,0x23,0xe0}, {0x64a,0x23,0x0e}, {0x66d,0x23,0xd7}, {0x690,0x23,0x03},
-            {0x6b3,0x23,0xb8}, {0x6d6,0x23,0xad}, {0x6f9,0x23,0x38}, {0x71c,0x23,0x8c} };
-
-        // Action Replay 6 reads $FFFE to determine drive type. We return 3 which identifies
-        // us as a 1581 drive. The 1581 fastloader is very much more suited for our needs.
-        // The 1541 fastloader transfers the whole directory track (18) to the C64 and then
-        // the C64 finds the file to load, i.e. it never actually transmits the name of the
-        // file to load to the drive, which obviously can't work for us here.
-        if( strncmp_P(cmd, PSTR("M-R\xfe\xff\x01"), 6)==0 )
-          {
-            // returning 0x03 when reading $FFFE identifies this as a 1581 drive
-            m_statusBuffer[0] = 0x03;
-            m_statusBufferLen = 1;
-#if DEBUG>0
-            logStatus(m_devnr, m_statusBuffer, m_statusBufferLen);
-#endif
-            handled = true;
-          }
-        else if( checkMWcmds(ar6LoadSig, 9, 180) )
-          handled = true;
-        else if( checkMWcmds(ar6SaveSig, 12, 190) )
-          handled = true;
-        else if( m_uploadCtr==189 && strncmp_P(cmd, PSTR("M-E\x00\x05"), 5)==0 )
-          {
-#if DEBUG>0
-            Serial.println(F("ACTION REPLAY 6 FASTLOAD DETECTED"));
-#endif
-            fastLoadRequest(IEC_FP_AR6, IEC_FL_PROT_LOAD);
-            m_uploadCtr = 0;
-            handled = true;
-            m_eoi = false;
-            m_channel = 0;
-          }
-        else if( m_uploadCtr==202 && strncmp_P(cmd, PSTR("M-E\xf4\x05"), 5)==0 )
-          {
-#if DEBUG>0
-            Serial.println(F("ACTION REPLAY 6 FASTSAVE DETECTED"));
-#endif
-            fastLoadRequest(IEC_FP_AR6, IEC_FL_PROT_SAVE);
-            m_uploadCtr = 0;
-            handled = true;
-            m_eoi = false;
-            m_channel = 1;
-          }
-#endif
-#ifdef IEC_FP_FC3
-        static const struct MWSignature fc3LoadSig[16] PROGMEM =
-          { {0x400,0x20,0xb0}, {0x420,0x20,0x6a}, {0x440,0x20,0x51}, {0x460,0x20,0x0a},
-            {0x480,0x20,0x61}, {0x4a0,0x20,0x9b}, {0x4c0,0x20,0x18}, {0x4e0,0x20,0x0b},
-            {0x500,0x20,0xb7}, {0x520,0x20,0xb7}, {0x540,0x20,0xf7}, {0x560,0x20,0x8f},
-            {0x580,0x20,0x6b}, {0x5a0,0x20,0x5d}, {0x5c0,0x20,0x7b}, {0x5e0,0x20,0x52} };
-
-        static const struct MWSignature fc3LoadImageSig[16] PROGMEM =
-          { {0x400,0x20,0x23}, {0x420,0x20,0xfc}, {0x440,0x20,0x25}, {0x460,0x20,0xcd},
-            {0x480,0x20,0x4d}, {0x4a0,0x20,0xc2}, {0x4c0,0x20,0x9e}, {0x4e0,0x20,0x5a},
-            {0x500,0x20,0xc9}, {0x520,0x20,0xb2}, {0x540,0x20,0x5c}, {0x560,0x20,0x8a},
-            {0x580,0x20,0xc5}, {0x5a0,0x20,0x02}, {0x5c0,0x20,0xae}, {0x5e0,0x20,0x2d} };
-
-        static const struct MWSignature fc3SaveSig[16] PROGMEM =
-          { {0x500,0x20,0x16}, {0x520,0x20,0x7e}, {0x540,0x20,0xe1}, {0x560,0x20,0xd8},
-            {0x580,0x20,0xf2}, {0x5a0,0x20,0xe2}, {0x5c0,0x20,0xa3}, {0x5e0,0x20,0x2e},
-            {0x600,0x20,0x27}, {0x620,0x20,0x09}, {0x640,0x20,0xfc}, {0x660,0x20,0x8e},
-            {0x680,0x20,0xaf}, {0x6a0,0x20,0xe0}, {0x6c0,0x20,0xc9}, {0x6e0,0x20,0xa4} };
-
-        if( checkMWcmds(fc3LoadSig, 16, 120) )
-          handled = true;
-        else if( checkMWcmds(fc3LoadImageSig, 16, 140) )
-          handled = true;
-        else if( checkMWcmds(fc3SaveSig, 16, 160) )
-          handled = true;
-        else if( m_uploadCtr==136 && strncmp_P(cmd, PSTR("M-E\x9a\x05"), 5)==0 )
-          {
-#if DEBUG>0
-            Serial.println(F("FINAL CARTRIDGE 3 FASTLOAD DETECTED"));
-#endif
-            fastLoadRequest(IEC_FP_FC3, IEC_FL_PROT_LOAD);
-            m_uploadCtr = 0;
-            handled = true;
-            m_eoi = false;
-            m_channel = 0;
-          }
-        else if( m_uploadCtr==156 && strncmp_P(cmd, PSTR("M-E\x03\x04"), 5)==0 )
-          {
-#if DEBUG>0
-            Serial.println(F("FINAL CARTRIDGE 3 SNAPSHOT FASTLOAD DETECTED"));
-#endif
-            fastLoadRequest(IEC_FP_FC3, IEC_FL_PROT_LOADIMG);
-            m_uploadCtr = 0;
-            handled = true;
-            m_eoi = false;
-            m_channel = 0;
-          }
-        else if( m_uploadCtr==176 && (strncmp_P(cmd, PSTR("M-E\x9c\x05"), 5)==0 || strncmp_P(cmd, PSTR("M-E\xaf\x05"), 5)==0) )
-          {
-            // 059c entry address for PAL, 05af for NTSC (slightly different timing)
-#if DEBUG>0
-            Serial.println(F("FINAL CARTRIDGE 3 FASTSAVE DETECTED"));
-#endif
-            fastLoadRequest(IEC_FP_FC3, IEC_FL_PROT_SAVE);
-            m_uploadCtr = 0;
-            handled = true;
-            m_eoi = false;
-            m_channel = 1;
-          }
-#endif
-#ifdef IEC_FP_SPEEDDOS
-        static const struct MWSignature speedDosLoadSig[18] PROGMEM =
-          { {0x300,0x1e,0xc9}, {0x31e,0x1e,0xe9}, {0x33c,0x1e,0xb9}, {0x35a,0x1e,0x4d},
-            {0x378,0x1e,0x5c}, {0x396,0x1e,0x96}, {0x3b4,0x1e,0x39}, {0x3d2,0x1e,0xde},
-            {0x3f0,0x1e,0x0d}, {0x40e,0x1e,0xaf}, {0x42c,0x1e,0x1e}, {0x44a,0x1e,0xf6},
-            {0x468,0x1e,0xd2}, {0x486,0x1e,0x1b}, {0x4a4,0x1e,0x5f}, {0x4c2,0x1e,0x96},
-            {0x4e0,0x1e,0x53}, {0x4fe,0x1e,0x16} };
-
-        if( checkMWcmds(speedDosLoadSig, 18, 100) )
-          handled = true;
-        else if( m_uploadCtr==118 && strncmp_P(cmd, PSTR("M-E\x03\x03"), 5)==0 )
-          {
-#if DEBUG>0
-            Serial.println(F("SPEEDDOS FASTLOAD DETECTED"));
-#endif
-            fastLoadRequest(IEC_FP_SPEEDDOS, IEC_FL_PROT_LOAD);
-            m_uploadCtr = 0;
-            handled = true;
-            m_eoi = false;
-            m_channel = 0;
-          }
-#endif
-#ifdef IEC_FP_DOLPHIN
-        if( m_writeBufferLen==2 && strncmp_P(cmd, PSTR("XQ"), 2)==0 )
-          { fastLoadRequest(IEC_FP_DOLPHIN, IEC_FL_PROT_LOAD);
-            m_channel = 0; handled = true; m_eoi = false; }
-        else if( m_writeBufferLen==2 && strncmp_P(cmd, PSTR("XZ"), 2)==0 )
-          { fastLoadRequest(IEC_FP_DOLPHIN, IEC_FL_PROT_SAVE);
-            m_channel = 1; handled = true; m_eoi = false; }
-        else if( m_writeBufferLen==3 && strncmp_P(cmd, PSTR("XF+"), 2)==0 )
-          { enableDolphinBurstMode(true); setStatus(NULL, 0); handled = true; }
-        else if( m_writeBufferLen==3 && strncmp_P(cmd, PSTR("XF-"), 2)==0 )
-          { enableDolphinBurstMode(false); setStatus(NULL, 0); handled = true; }
-#endif
-        if( !handled )
+        // first check whether this command is part of a supported fast loader request,
+        // if NOT then let the execute() function handle it
+        if( !isFastLoaderRequest(cmd) )
           {
             if( m_writeBuffer[m_writeBufferLen-1]==13 ) m_writeBufferLen--;
             m_writeBuffer[m_writeBufferLen]=0;
             execute(cmd, m_writeBufferLen);
-            m_uploadCtr = 0;
           }
 
         m_writeBufferLen = 0;
@@ -850,6 +683,233 @@ void IECFileDevice::fileTask()
     }
 
   m_cmd = IFD_NONE;
+}
+
+
+
+bool IECFileDevice::isFastLoaderRequest(const char *cmd)
+{
+  // --------------------------- EPYX FastLoad ----------------------------
+
+#ifdef IEC_FP_EPYX
+  static const struct MWSignature epyxV1sig[2] PROGMEM =
+    { {0x0180, 0x20, 0x2E}, {0x01A0, 0x20, 0xA5} };
+  static const struct MWSignature epyxV2V3sig[3] PROGMEM =
+    { {0x0180, 0x19, 0x53}, {0x0199, 0x19, 0xA6}, {0x01B2, 0x19, 0x8F} };
+
+  if( checkMWcmds(epyxV1sig, 2, 10) || checkMWcmds(epyxV2V3sig, 3, 20) )
+    return true;
+  else if( m_uploadCtr==12 && strncmp_P(cmd, PSTR("M-E\xa2\x01"), 5)==0 )
+    m_uploadCtr = 99;
+  else if( m_uploadCtr==23 && strncmp_P(cmd, PSTR("M-E\xa9\x01"), 5)==0 )
+    m_uploadCtr = 99;
+
+  if( m_uploadCtr==99 )
+    {
+#if DEBUG>0
+      Serial.println(F("EPYX FASTLOAD DETECTED"));
+#endif
+      fastLoadRequest(IEC_FP_EPYX, IEC_FL_PROT_HEADER);
+      m_uploadCtr = 0;
+      return true;
+    }
+#endif
+
+  // --------------------------- Action Replay 6 ----------------------------
+
+#ifdef IEC_FP_AR6
+  static const struct MWSignature ar6LoadSig[9] PROGMEM =
+    { {0x500,0x23,0x8c}, {0x523,0x23,0xa8}, {0x546,0x23,0x93}, {0x569,0x23,0x0f},
+      {0x58c,0x23,0xea}, {0x5af,0x23,0x94}, {0x5d2,0x23,0x6a}, {0x5f5,0x23,0xb2},
+      {0x618,0x23,0xbc} };
+
+  static const struct MWSignature ar6SaveSig[12] PROGMEM =
+    { {0x59b,0x23,0xe3}, {0x5be,0x23,0x35}, {0x5e1,0x23,0x3c}, {0x604,0x23,0x2c},
+      {0x627,0x23,0xe0}, {0x64a,0x23,0x0e}, {0x66d,0x23,0xd7}, {0x690,0x23,0x03},
+      {0x6b3,0x23,0xb8}, {0x6d6,0x23,0xad}, {0x6f9,0x23,0x38}, {0x71c,0x23,0x8c} };
+
+  static const struct MWSignature ar3ImageLoaderSig[6] PROGMEM =
+    { {0x500,0x20,0xf1}, {0x520,0x20,0x32}, {0x540,0x20,0x7a}, {0x560,0x20,0x99},
+      {0x580,0x20,0xcd}, {0x5a0,0x20,0x9b} };
+
+  // Action Replay 6 reads $FFFE to determine drive type. We return 3 which identifies
+  // us as a 1581 drive. The 1581 fastloader is very much more suited for our needs.
+  // The 1541 fastloader transfers the whole directory track (18) to the C64 and then
+  // the C64 finds the file to load, i.e. it never actually transmits the name of the
+  // file to load to the drive, which obviously can't work for us here.
+  if( strncmp_P(cmd, PSTR("M-R\xfe\xff\x01"), 6)==0 )
+    {
+      // returning 0x03 when reading $FFFE identifies this as a 1581 drive
+      char data = 0x03;
+      setStatus(&data, 1);
+      return true;
+    }
+  else if( checkMWcmds(ar6LoadSig, 9, 180) )
+    return true;
+  else if( checkMWcmds(ar6SaveSig, 12, 190) )
+    return true;
+  else if( m_uploadCtr==189 && strncmp_P(cmd, PSTR("M-E\x00\x05"), 5)==0 )
+    {
+#if DEBUG>0
+      Serial.println(F("ACTION REPLAY 6 FASTLOAD DETECTED"));
+#endif
+      fastLoadRequest(IEC_FP_AR6, IEC_FL_PROT_LOAD);
+      m_uploadCtr = 0;
+      m_eoi = false;
+      m_channel = 0;
+      return true;
+    }
+  else if( m_uploadCtr==202 && strncmp_P(cmd, PSTR("M-E\xf4\x05"), 5)==0 )
+    {
+#if DEBUG>0
+      Serial.println(F("ACTION REPLAY 6 FASTSAVE DETECTED"));
+#endif
+      fastLoadRequest(IEC_FP_AR6, IEC_FL_PROT_SAVE);
+      m_uploadCtr = 0;
+      m_eoi = false;
+      m_channel = 1;
+      return true;
+    }
+  else if( checkMWcmds(ar3ImageLoaderSig, 6, 210) )
+    return true;
+  else if( m_uploadCtr==216 && strncmp_P(cmd, PSTR("M-W\xc0\x05\x20"), 6)==0 )
+    { m_uploadCtr++; return true; } // data is random after 16th byte
+  else if( m_uploadCtr==217 && strncmp_P(cmd, PSTR("M-W\xe0\x05\x20"), 6)==0 )
+    { m_uploadCtr++; return true; } // data is random
+  else if( m_uploadCtr==218 && strncmp_P(cmd, PSTR("M-E\x00\x05"), 5)==0 )
+    {
+#if DEBUG>0
+      Serial.println(F("ACTION REPLAY 3 IMAGE LOADER DETECTED"));
+#endif
+      fastLoadRequest(IEC_FP_AR6, IEC_FL_PROT_LOADIMG);
+      m_uploadCtr = 0;
+      m_eoi = false;
+      m_channel = 0;
+      return true;
+    }
+#endif
+
+  // --------------------------- Final Cartridge 3 ----------------------------
+
+#ifdef IEC_FP_FC3
+  static const struct MWSignature fc3LoadSig[16] PROGMEM =
+    { {0x400,0x20,0xb0}, {0x420,0x20,0x6a}, {0x440,0x20,0x51}, {0x460,0x20,0x0a},
+      {0x480,0x20,0x61}, {0x4a0,0x20,0x9b}, {0x4c0,0x20,0x18}, {0x4e0,0x20,0x0b},
+      {0x500,0x20,0xb7}, {0x520,0x20,0xb7}, {0x540,0x20,0xf7}, {0x560,0x20,0x8f},
+      {0x580,0x20,0x6b}, {0x5a0,0x20,0x5d}, {0x5c0,0x20,0x7b}, {0x5e0,0x20,0x52} };
+
+  static const struct MWSignature fc3LoadImageSig[16] PROGMEM =
+    { {0x400,0x20,0x23}, {0x420,0x20,0xfc}, {0x440,0x20,0x25}, {0x460,0x20,0xcd},
+      {0x480,0x20,0x4d}, {0x4a0,0x20,0xc2}, {0x4c0,0x20,0x9e}, {0x4e0,0x20,0x5a},
+      {0x500,0x20,0xc9}, {0x520,0x20,0xb2}, {0x540,0x20,0x5c}, {0x560,0x20,0x8a},
+      {0x580,0x20,0xc5}, {0x5a0,0x20,0x02}, {0x5c0,0x20,0xae}, {0x5e0,0x20,0x2d} };
+
+  static const struct MWSignature fc3SaveSig[16] PROGMEM =
+    { {0x500,0x20,0x16}, {0x520,0x20,0x7e}, {0x540,0x20,0xe1}, {0x560,0x20,0xd8},
+      {0x580,0x20,0xf2}, {0x5a0,0x20,0xe2}, {0x5c0,0x20,0xa3}, {0x5e0,0x20,0x2e},
+      {0x600,0x20,0x27}, {0x620,0x20,0x09}, {0x640,0x20,0xfc}, {0x660,0x20,0x8e},
+      {0x680,0x20,0xaf}, {0x6a0,0x20,0xe0}, {0x6c0,0x20,0xc9}, {0x6e0,0x20,0xa4} };
+
+  if( checkMWcmds(fc3LoadSig, 16, 120) )
+    return true;
+  else if( checkMWcmds(fc3LoadImageSig, 16, 140) )
+    return true;
+  else if( checkMWcmds(fc3SaveSig, 16, 160) )
+    return true;
+  else if( m_uploadCtr==136 && strncmp_P(cmd, PSTR("M-E\x9a\x05"), 5)==0 )
+    {
+#if DEBUG>0
+      Serial.println(F("FINAL CARTRIDGE 3 FASTLOAD DETECTED"));
+#endif
+      fastLoadRequest(IEC_FP_FC3, IEC_FL_PROT_LOAD);
+      m_uploadCtr = 0;
+      m_eoi = false;
+      m_channel = 0;
+      return true;
+    }
+  else if( m_uploadCtr==156 && strncmp_P(cmd, PSTR("M-E\x03\x04"), 5)==0 )
+    {
+#if DEBUG>0
+      Serial.println(F("FINAL CARTRIDGE 3 SNAPSHOT FASTLOAD DETECTED"));
+#endif
+      fastLoadRequest(IEC_FP_FC3, IEC_FL_PROT_LOADIMG);
+      m_uploadCtr = 0;
+      m_eoi = false;
+      m_channel = 0;
+      return true;
+    }
+  else if( m_uploadCtr==176 && (strncmp_P(cmd, PSTR("M-E\x9c\x05"), 5)==0 || strncmp_P(cmd, PSTR("M-E\xaf\x05"), 5)==0) )
+    {
+      // 059c entry address for PAL, 05af for NTSC (slightly different timing)
+#if DEBUG>0
+      Serial.println(F("FINAL CARTRIDGE 3 FASTSAVE DETECTED"));
+#endif
+      fastLoadRequest(IEC_FP_FC3, IEC_FL_PROT_SAVE);
+      m_uploadCtr = 0;
+      m_eoi = false;
+      m_channel = 1;
+      return true;
+    }
+#endif
+
+  // --------------------------- Speed DOS ----------------------------
+
+#ifdef IEC_FP_SPEEDDOS
+  static const struct MWSignature speedDosLoadSig[18] PROGMEM =
+    { {0x300,0x1e,0xc9}, {0x31e,0x1e,0xe9}, {0x33c,0x1e,0xb9}, {0x35a,0x1e,0x4d},
+      {0x378,0x1e,0x5c}, {0x396,0x1e,0x96}, {0x3b4,0x1e,0x39}, {0x3d2,0x1e,0xde},
+      {0x3f0,0x1e,0x0d}, {0x40e,0x1e,0xaf}, {0x42c,0x1e,0x1e}, {0x44a,0x1e,0xf6},
+      {0x468,0x1e,0xd2}, {0x486,0x1e,0x1b}, {0x4a4,0x1e,0x5f}, {0x4c2,0x1e,0x96},
+      {0x4e0,0x1e,0x53}, {0x4fe,0x1e,0x16} };
+
+  if( checkMWcmds(speedDosLoadSig, 18, 100) )
+    return true;
+  else if( m_uploadCtr==118 && strncmp_P(cmd, PSTR("M-E\x03\x03"), 5)==0 )
+    {
+#if DEBUG>0
+      Serial.println(F("SPEEDDOS FASTLOAD DETECTED"));
+#endif
+      fastLoadRequest(IEC_FP_SPEEDDOS, IEC_FL_PROT_LOAD);
+      m_uploadCtr = 0;
+      m_eoi = false;
+      m_channel = 0;
+      return true;
+    }
+#endif
+
+  // --------------------------- Dolphin DOS ----------------------------
+
+#ifdef IEC_FP_DOLPHIN
+  if( m_writeBufferLen==2 && strncmp_P(cmd, PSTR("XQ"), 2)==0 )
+    {
+     e fastLoadRequest(IEC_FP_DOLPHIN, IEC_FL_PROT_LOAD);
+      m_channel = 0;
+      m_eoi = false;
+      return true;
+    }
+  else if( m_writeBufferLen==2 && strncmp_P(cmd, PSTR("XZ"), 2)==0 )
+    {
+      fastLoadRequest(IEC_FP_DOLPHIN, IEC_FL_PROT_SAVE);
+      m_channel = 1;
+      m_eoi = false;
+      return true;
+    }
+  else if( m_writeBufferLen==3 && strncmp_P(cmd, PSTR("XF+"), 2)==0 )
+    {
+      enableDolphinBurstMode(true);
+      setStatus(NULL, 0);
+      return true;
+    }
+  else if( m_writeBufferLen==3 && strncmp_P(cmd, PSTR("XF-"), 2)==0 )
+    {
+      enableDolphinBurstMode(false);
+      setStatus(NULL, 0);
+      return true;
+    }
+#endif
+
+  m_uploadCtr = 0;
+  return false;
 }
 
 
@@ -929,6 +989,8 @@ void IECFileDevice::reset()
   m_cmd = IFD_NONE;
   m_opening = false;
   m_uploadCtr = 0;
+  m_eoi = true;
+  m_statusEoi = true;
 
   IECDevice::reset();
 }
