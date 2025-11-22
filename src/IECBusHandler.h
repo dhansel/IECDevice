@@ -81,7 +81,7 @@ class IECBusHandler
   static uint8_t getSupportedFastLoaders();
   static bool isFastLoaderSupported(uint8_t loader);
   bool enableFastLoader(IECDevice *dev, uint8_t protocol, bool enable);
-  void fastLoadRequest(uint8_t loader, uint8_t request);
+  void fastLoadRequest(IECDevice *dev, uint8_t loader, uint8_t request);
 
 #ifdef IEC_FP_DOLPHIN
   void enableDolphinBurstMode(IECDevice *dev, bool enable);

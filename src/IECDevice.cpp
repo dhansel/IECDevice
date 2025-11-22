@@ -77,7 +77,7 @@ bool IECDevice::fastLoadRequest(uint8_t loader, uint8_t request)
   if( m_handler!=NULL && isFastLoaderEnabled(loader) )
     {
       m_flProtocol = (loader<<3) | request;
-      m_handler->fastLoadRequest(loader, request);
+      m_handler->fastLoadRequest(this, loader, request);
       return true;
     }
   else
