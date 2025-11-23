@@ -620,6 +620,7 @@ executes a SAVE command.
   of bytes read. There are two ways to signal end-of-data (EOI) to the receiver:
     - Returning a data length of 0.
     - Returning a data length of >0 and setting the *eoi parameter to true signals EOI after transmitting the data returned in this call.
+  
   Note that read() may be called again even after signaling EOI once if the receiver requests
   more data 
 - ```uint8_t write(uint8_t channel, uint8_t *buffer, uint8_t bufferSize, bool eoi)```  
@@ -628,9 +629,10 @@ executes a SAVE command.
 - ```uint8_t getStatusData(char *buffer, uint8_t bufferSize, bool *eoi)```  
   Called when the computer reads from channel 15 and the status
   buffer is currently empty. This should 
-  - fill *buffer* with up to *bufferSize* bytes of data
-  - return the number of data bytes stored in *buffer*
-  - set "eoi" to false if more data is available to read, true otherwise
+    - fill *buffer* with up to *bufferSize* bytes of data
+    - return the number of data bytes stored in *buffer*
+    - set "eoi" to false if more data is available to read, true otherwise.
+      
   If this function is *not* overloaded in the derived class then ```getStatus()``` will be called (see below).
   Overload this function if you need to return binary data on the status channel.
 - ```void getStatus(char *buffer, uint8_t bufferSize)```  
@@ -644,7 +646,7 @@ executes a SAVE command.
   If this function is *not* overloaded in the derived class then ```execute(command)``` will be called (see below).
   Overload this function if you expect to receive binary data on channel 15.
 - ```void execute(const char *command)```  
-  Called when the computers sends data (i.e. a command) to channel 15 and ```executeData()```
+  Called when the computers sends data (i.e. a command) to channel 15 and ```executeData()``` is *not* overloaded in the derived class.
   The *command* parameter is a 0-terminated string representing the command to execute,
   trailing CR ($13) characters are stripped off. 
   Overload this function if you expect to only receive string data on channel 15.
