@@ -449,7 +449,7 @@ void IECFDC::close(uint8_t channel)
 }
 
 
-void IECFDC::execute(const char *command, uint8_t len)
+void IECFDC::execute(const char *command)
 {
   // clear the status buffer so getStatus() is called again next time the buffer is queried
   clearStatus();

@@ -41,8 +41,6 @@
 #define FT_NODIR     ((FT_ANY) & ~(FT_DIR))
 
 #define SHOW_LOWERCASE 0
-//#define PIN_BUTTON_IMAGE_PREV 26
-//#define PIN_BUTTON_IMAGE_NEXT 27
 
 #if !defined(SD_FAT_VERSION) || SD_FAT_VERSION<20200
 #error This code requires SdFat library version 2.2.0 or later
@@ -831,34 +829,27 @@ void IECSD::close(uint8_t channel)
 }
 
 
-void IECSD::execute(const char *command, uint8_t len)
+bool IECSD::isMemExeCommand(const char *command) const
 {
+  return (strncmp(command, "M-E", 3)==0 || strncmp(command, "B-E", 3)==0 ||
+          (command[0]=='U' && command[1]>='3' && command[1]<='8') ||
+          (command[0]=='U' && command[1]>='C' && command[1]<='H'));
+}
+
+
+void IECSD::executeData(const uint8_t *data, uint8_t len)
+{
+  // This function deals with executing commands that may contain binary data,
+  // i.e. the command itself may contain a NUL character and/or may end in one
+  // or more CRs ($13). Text-based commands are dealt with in execute(command) below.
+  const char *command = (const char *) data;
+
   // clear the status buffer so getStatus() is called again next time the buffer is queried
   clearStatus();
   digitalWrite(m_pinLED, HIGH);
 
-  if( strncmp_P(command, PSTR("CD"),2)==0 )
-    {
-      // "CD" command: if there is a colon then ignore anything before (and including) the colon
-      const char *colon = strchr(command, ':');
-      m_errorCode = chdir(colon==NULL ? command+2 : colon+1);
-    }
-  else if( strncmp(command, "M-E", 3)==0 || strncmp(command, "B-E", 3)==0 || 
-           (command[0]=='U' && command[1]>='3' && command[1]<='8') ||
-           (command[0]=='U' && command[1]>='C' && command[1]<='H') )
-    {
-      // M-E and related commands not supported
-      m_errorCode = m_suppressMemExeError ? E_OK : E_MEMEXE;
-
-      // block and blink LED for 2 seconds - blinking will continue after
-      // but this should ensure that the user sees the blinking before the
-      // computer sends another command
-      if( m_errorCode==E_MEMEXE && m_pinLED<0xFF )
-        for(int i=0; i<2*8; i++)
-          { digitalWrite(m_pinLED, !digitalRead(m_pinLED)); delay(125); }
-    }
 #ifdef HAVE_VDRIVE
-  else if( m_drive!=NULL )
+  if( m_drive!=NULL && strncmp_P(command, PSTR("CD"),2)!=0 && !isMemExeCommand(command) )
     {
       m_errorCode = m_drive->execute(command, len)==0 ? E_VDRIVE : E_OK;
 
@@ -881,7 +872,61 @@ void IECSD::execute(const char *command, uint8_t len)
           if( i<len ) clearReadBuffer(atoi(command+i));
         }
     }
+#else
+  if(0) {}
 #endif
+  else if( strncmp_P(command, PSTR("M-R\xfa\x02\x03"), 6)==0 )
+    {
+      // hack: DolphinDos' MultiDubTwo reads 02FA-02FC to determine
+      // number of free blocks => pretend we have 664 (0298h) blocks available
+      uint8_t data[3] = {0x98, 0, 0x02};
+      setStatus((char *) data, 3);
+      m_errorCode = E_OK;
+    }
+  else if( strncmp_P(command, PSTR("M-R"), 3)==0 && len>=5 )
+    {
+      // memory read not supported => always return 0xFF
+      uint8_t n = min(len==5 ? 1 : command[5], IECSD_BUFSIZE);
+      memset(m_buffer, 0xFF, n);
+      setStatus(m_buffer, n);
+      m_errorCode = E_OK;
+    }
+  else if( strncmp_P(command, PSTR("M-W"), 3)==0 )
+    {
+      // memory write not supported => ignore
+      m_errorCode = E_OK;
+    }
+  else
+    {
+      // calling IECFileDevice::executeData will strip off trailing CRs, make sure the 
+      // command is 0-terminated and then call IECSD::execute(command) below
+      IECFileDevice::executeData(data, len);
+    }
+
+  digitalWrite(m_pinLED, LOW);
+}
+
+
+void IECSD::execute(const char *command)
+{
+  if( strncmp_P(command, PSTR("CD"),2)==0 )
+    {
+      // "CD" command: if there is a colon then ignore anything before (and including) the colon
+      const char *colon = strchr(command, ':');
+      m_errorCode = chdir(colon==NULL ? command+2 : colon+1);
+    }
+  else if( isMemExeCommand(command) )
+    {
+      // M-E and related commands not supported
+      m_errorCode = m_suppressMemExeError ? E_OK : E_MEMEXE;
+
+      // block and blink LED for 2 seconds - blinking will continue after
+      // but this should ensure that the user sees the blinking before the
+      // computer sends another command
+      if( m_errorCode==E_MEMEXE && m_pinLED<0xFF )
+        for(int i=0; i<2*8; i++)
+          { digitalWrite(m_pinLED, !digitalRead(m_pinLED)); delay(125); }
+    }
   else if( strncmp(command, "S:", 2)==0 )
     {
       if( m_dir.openCwd() )
@@ -931,27 +976,6 @@ void IECSD::execute(const char *command, uint8_t len)
         }
     }
 #endif
-  else if( strncmp_P(command, PSTR("M-R\xfa\x02\x03"), 6)==0 )
-    {
-      // hack: DolphinDos' MultiDubTwo reads 02FA-02FC to determine
-      // number of free blocks => pretend we have 664 (0298h) blocks available
-      uint8_t data[3] = {0x98, 0, 0x02};
-      setStatus((char *) data, 3);
-      m_errorCode = E_OK;
-    }
-  else if( strncmp_P(command, PSTR("M-R"), 3)==0 && len>=5 )
-    {
-      // memory read not supported => always return 0xFF
-      uint8_t n = min(len==5 ? 1 : command[5], IECSD_BUFSIZE);
-      memset(m_buffer, 0xFF, n);
-      setStatus(m_buffer, n);
-      m_errorCode = E_OK;
-    }
-  else if( strncmp_P(command, PSTR("M-W"), 3)==0 )
-    {
-      // memory write not supported => ignore
-      m_errorCode = E_OK;
-    }
   else if( (strncmp_P(command, PSTR("MD:"),3)==0 || strncmp_P(command, PSTR("RD:"),3)==0) && command[3]!=0 )
     {
       strncpy(m_buffer, command+3, IECSD_BUFSIZE);
@@ -998,8 +1022,6 @@ void IECSD::execute(const char *command, uint8_t len)
     }
   else
     m_errorCode = E_INVCMD;
-
-  digitalWrite(m_pinLED, LOW);
 }
 
 

@@ -5,6 +5,8 @@
 // Un-comment the line below if you have the VDrive library (https://github.com/dhansel/VDrive) 
 // installed. This will allow to "CD" into Commodore disk image files (D64/G64 etc).
 //#define HAVE_VDRIVE
+//#define PIN_BUTTON_IMAGE_PREV 26
+//#define PIN_BUTTON_IMAGE_NEXT 27
 #endif
 
 #include <IECFileDevice.h>
@@ -31,7 +33,8 @@ class IECSD : public IECFileDevice
   virtual void close(uint8_t channel);
   virtual void getStatus(char *buffer, uint8_t bufferSize);
   virtual uint8_t getStatusData(char *buffer, uint8_t bufferSize, bool *eoi);
-  virtual void execute(const char *command, uint8_t len);
+  virtual void executeData(const uint8_t *data, uint8_t len);
+  virtual void execute(const char *command);
   virtual void reset();
 
 #if defined(IEC_FP_EPYX) && defined(IEC_FP_EPYX_SECTOROPS) && defined(HAVE_VDRIVE)
@@ -47,6 +50,7 @@ class IECSD : public IECFileDevice
   bool isMatch(const char *name, const char *pattern, uint8_t extmatch);
   void toPETSCII(uint8_t *name);
   void fromPETSCII(uint8_t *name);
+  bool isMemExeCommand(const char *command) const;
 
   uint8_t chdir(const char *c);
   const char *findFile(const char *name, uint8_t ftype);

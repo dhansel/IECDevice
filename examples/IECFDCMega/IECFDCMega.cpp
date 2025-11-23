@@ -706,14 +706,82 @@ void IECFDC::close(uint8_t channel)
 }
 
 
-void IECFDC::execute(const char *command, uint8_t len)
+void IECFDC::executeData(const uint8_t *data, uint8_t len)
 {
-  uint8_t drive = 0;
+  // This function deals with executing commands that may contain binary data,
+  // i.e. the command itself may contain a NUL character and/or may end in one
+  // or more CRs ($13). Text-based commands are handled in execute(command) below.
   m_ferror = FR_OK;
 
   // clear the status buffer so getStatus() is called again next time the buffer is queried
   clearStatus();
 
+  if( memcmp(data, "M-W", 3)==0 )
+    {
+      data+=3; len-=3;
+      if( *data==':' ) { data++; len--; }
+      if( len>=3 )
+        {
+          word addr = data[0] + (data[1]<<8);
+          len  = min(len-3, data[2]);
+          data+=3;
+#if DEBUG>0
+          Serial.print(F("MEMWRITE ")); Serial.print(addr, HEX); Serial.write(':');
+          for(uint8_t i=0;i<len; i++) { Serial.write(' '); Serial.print(data[i], HEX); }
+          Serial.println();
+#endif
+          if( addr<=119 && addr+len>120 && (data[119-addr]&0x0F)==(data[120-addr]&0x0F) )
+            m_devnr = data[119-addr]&0x0F;
+          else
+            m_ferror = FR_MEMOP; // general memory write not supported
+        }
+      else
+        m_ferror = FR_INVALID_PARAMETER;
+    }
+  else if( memcmp(data, "M-R", 3)==0 )
+    {
+      data+=3; len-=3;
+      if( *data==':' ) { data++; len--; }
+      if( len>=2 )
+        {
+          word addr = data[0] + (data[1]<<8);
+          len = len<3 ? 1 : data[2];
+#if DEBUG>0
+          Serial.print(F("MEMREAD ")); Serial.print(addr); Serial.write(':'); Serial.println(len, HEX); 
+#endif
+          if( addr==0xFFFF && len==1 )
+            {
+              // identify as C1541
+              uint8_t data[2] = {254, 0};
+              setStatus((char *) data, 2);
+            }
+          else if( addr==0x02FA && len==3 )
+            {
+              // hack: DolphinDos' MultiDubTwo reads 02FA-02FC to determine
+              // number of free blocks => pretend we have 664 (0x0298) blocks available
+              uint8_t data[3] = {0x98, 0, 0x02};
+              setStatus((char *) data, 3);
+            }
+          else
+            m_ferror = FR_MEMOP; // general memory read not supported
+        }
+      else
+        m_ferror = FR_INVALID_PARAMETER;
+    }
+  else if( memcmp(data, "M-E", 3)==0 )
+    m_ferror = FR_MEMOP;
+  else
+    {
+      // calling IECFileDevice::executeData will strip off trailing CRs, make sure the
+      // command is 0-terminated and then call IECFDC::execute(command) below
+      IECFileDevice::executeData(data, len);
+    }
+}
+
+
+void IECFDC::execute(const char *command)
+{
+  uint8_t drive = 0;
   if( command[0]=='X' || command[0]=='E' )
     {
       m_ferror = FR_EXTSTAT;
@@ -913,60 +981,6 @@ void IECFDC::execute(const char *command, uint8_t len)
       if( command[1]==':' || command[1]=='J' )
         reset();
     }
-  else if( strncmp(command, "M-W", 3)==0 )
-    {
-      command+=3; len-=3; 
-      if( *command==':' ) { command++; len--; }
-      if( len>=3 )
-        {
-          word addr = ((uint8_t) command[0]) + (((uint8_t) command[1])<<8);
-          len  = min(len-3, command[2]);
-          command+=3;
-#if DEBUG>0
-          Serial.print(F("MEMWRITE ")); Serial.print(addr, HEX); Serial.write(':'); 
-          for(uint8_t i=0;i<len; i++) { Serial.write(' '); Serial.print(command[i], HEX); }
-          Serial.println();
-#endif      
-          if( addr<=119 && addr+len>120 && (command[119-addr]&0x0F)==(command[120-addr]&0x0F) )
-            m_devnr = command[119-addr]&0x0F;
-          else
-            m_ferror = FR_MEMOP; // general memory write not supported
-        }
-      else
-        m_ferror = FR_INVALID_PARAMETER;
-    }
-  else if( strncmp(command, "M-R", 3)==0 )
-    {
-      command+=3; len-=3; 
-      if( *command==':' ) { command++; len--; }
-      if( len>=2 )
-        {
-          word addr = ((uint8_t) command[0]) + (((uint8_t) command[1])<<8);
-          len = len<3 ? 1 : command[2];
-#if DEBUG>0
-          Serial.print(F("MEMREAD ")); Serial.print(addr); Serial.write(':'); Serial.println(len, HEX); 
-#endif
-          if( addr==0xFFFF && len==1 )
-            {
-              // identify as C1541
-              uint8_t data[2] = {254, 0};
-              setStatus((char *) data, 2);
-            }
-          else if( addr==0x02FA && len==3 )
-            {
-              // hack: DolphinDos' MultiDubTwo reads 02FA-02FC to determine
-              // number of free blocks => pretend we have 664 (0x0298) blocks available
-              uint8_t data[3] = {0x98, 0, 0x02};
-              setStatus((char *) data, 3);
-            }
-          else
-            m_ferror = FR_MEMOP; // general memory read not supported
-        }
-      else
-        m_ferror = FR_INVALID_PARAMETER;
-    }
-  else if( strncmp(command, "M-E", 3)==0 )
-    m_ferror = FR_MEMOP;
   else
     m_ferror = FR_INVALID_PARAMETER;
 }

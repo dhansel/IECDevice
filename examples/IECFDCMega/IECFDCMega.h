@@ -38,7 +38,8 @@ class IECFDC : public IECFileDevice
   virtual uint8_t read(uint8_t channel, uint8_t *buffer, uint8_t bufferSize, bool *eoi);
   virtual void close(uint8_t channel);
   virtual void getStatus(char *buffer, uint8_t bufferSize);
-  virtual void execute(const char *command, uint8_t len);
+  virtual void executeData(const uint8_t *command, uint8_t len);
+  virtual void execute(const char *command);
   virtual void reset();
 
  private:

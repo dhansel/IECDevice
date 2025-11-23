@@ -72,11 +72,22 @@ class IECFileDevice : public IECDevice
   // The default implementation of getStatusData just calls getStatus().
   virtual uint8_t getStatusData(char *buffer, uint8_t bufferSize, bool *eoi);
 
+  // called when the bus master sends data (e.g. a command) to channel 15
+  // data is a pointer to the buffer containing the received data,
+  // len contains the length of the received data.
+  // If this function is NOT overloaded in a derived class then the
+  // text-based "execute()" function (see below) will be called.
+  // Overload this funcion if your device executes commands that may contain
+  // binary data.
+  virtual void executeData(const uint8_t *data, uint8_t len);
+
   // called when the bus master sends data (i.e. a command) to channel 15
-  // command is a 0-terminated string representing the command to execute
-  // commandLen contains the full length of the received command (useful if
-  // the command itself may contain zeros)
-  virtual void execute(const char *command, uint8_t cmdLen) {}
+  // and the aboce "execute(command, cmdLen)" is NOT overloaded.
+  // command is a 0-terminated string representing the command to execute,
+  // trailing CRs ($13) are stripped off.
+  // Overload this function if all commands sent to your device are text-based
+  // and do not contain biary data such as NUL or CR characters.
+  virtual void execute(const char *command) {}
 
   // called on falling edge of RESET line
   virtual void reset();

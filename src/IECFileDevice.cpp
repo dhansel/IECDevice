@@ -206,6 +206,17 @@ uint8_t IECFileDevice::getStatusData(char *buffer, uint8_t bufferSize, bool *m_e
 }
 
 
+void IECFileDevice::executeData(const uint8_t *data, uint8_t len)
+{
+  while( m_writeBufferLen>0 && m_writeBuffer[m_writeBufferLen-1]==13 ) m_writeBufferLen--;
+  m_writeBuffer[m_writeBufferLen]=0;
+#if DEBUG>0
+  Serial.print(F("EXECUTE: ")); Serial.println((const char *) m_writeBuffer);
+#endif
+  execute((const char *) m_writeBuffer);
+}
+
+
 int8_t IECFileDevice::canRead() 
 { 
 #if DEBUG>2
@@ -657,13 +668,7 @@ void IECFileDevice::fileTask()
             for(uint8_t i=0; i<m_writeBufferLen; i++) dbg_data(m_writeBuffer[i]);
             dbg_print_data();
             Serial.print(F("EXECUTE: "));
-            for(uint8_t i=0; i<m_writeBufferLen; i++)
-              {
-                if( isprint(m_writeBuffer[i]) )
-                  Serial.print((char) m_writeBuffer[i]);
-                else if( m_writeBuffer[i]!=13 || i<m_writeBufferLen-1 )
-                  { Serial.print("["); print_hex(m_writeBuffer[i]); Serial.print("]"); }
-              }
+            for(uint8_t i=0; i<m_writeBufferLen; i++) { print_hex(m_writeBuffer[i]); Serial.print(' '); }
             Serial.println();
           }
 #endif
@@ -671,11 +676,7 @@ void IECFileDevice::fileTask()
         // first check whether this command is part of a supported fast loader request,
         // if NOT then let the execute() function handle it
         if( !isFastLoaderRequest(cmd) )
-          {
-            if( m_writeBuffer[m_writeBufferLen-1]==13 ) m_writeBufferLen--;
-            m_writeBuffer[m_writeBufferLen]=0;
-            execute(cmd, m_writeBufferLen);
-          }
+          executeData(m_writeBuffer, m_writeBufferLen);
 
         m_writeBufferLen = 0;
         break;

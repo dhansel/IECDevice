@@ -625,15 +625,29 @@ executes a SAVE command.
 - ```uint8_t write(uint8_t channel, uint8_t *buffer, uint8_t bufferSize, bool eoi)```  
   Write *bufferSize* bytes of data to the file opened for *channel*, returning the number 
   of bytes written. Returning a number less than *bufferSize* signals an error condition.
-- ```void getStatus(char *buffer, uint8_t bufferSize)```  
+- ```uint8_t getStatusData(char *buffer, uint8_t bufferSize, bool *eoi)```  
   Called when the computer reads from channel 15 and the status
-  buffer is currently empty. This should populate *buffer* with an appropriate, zero-terminated
+  buffer is currently empty. This should 
+  - fill *buffer* with up to *bufferSize* bytes of data
+  - return the number of data bytes stored in *buffer*
+  - set "eoi" to false if more data is available to read, true otherwise
+  If this function is *not* overloaded in the derived class then ```getStatus()``` will be called (see below).
+  Overload this function if you need to return binary data on the status channel.
+- ```void getStatus(char *buffer, uint8_t bufferSize)```  
+  Called when the computer reads from channel 15, the status buffer is currently empty
+  and ```getStatusData()``` is not overloaded. This should populate *buffer* with an appropriate, zero-terminated
   status message of length up to *bufferSize*.
-- ```void execute(const char *command, uint8_t cmdLen)```  
-  Called when the computers sends data (i.e. a command) to channel 15.
+  Overload this function if you are only returning strings on the status channel.
+- ```void executeData(const uint8_t *data, uint8_t len)```  
+  Called when the computers sends data to channel 15.
+  *data* is a pointer to the data buffer and *len* gives the length of the received data.
+  If this function is *not* overloaded in the derived class then ```execute(command)``` will be called (see below).
+  Overload this function if you expect to receive binary data on channel 15.
+- ```void execute(const char *command)```  
+  Called when the computers sends data (i.e. a command) to channel 15 and ```executeData()```
   The *command* parameter is a 0-terminated string representing the command to execute,
-  *commandLen* gives the full length of the received command which can be useful if
-  the command itself may contain zeros.
+  trailing CR ($13) characters are stripped off. 
+  Overload this function if you expect to only receive string data on channel 15.
 - ```void reset()```  
   Called when a high->low edge is detected on the the IEC bus RESET signal line (only if pinRESET was given in the constructor).
   If you overload this function, make sure to call IECFileDevice::reset() from within your overloaded function.
