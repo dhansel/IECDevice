@@ -41,6 +41,8 @@
 #define FT_NODIR     ((FT_ANY) & ~(FT_DIR))
 
 #define SHOW_LOWERCASE 0
+//#define PIN_BUTTON_IMAGE_PREV 26
+//#define PIN_BUTTON_IMAGE_NEXT 27
 
 #if !defined(SD_FAT_VERSION) || SD_FAT_VERSION<20200
 #error This code requires SdFat library version 2.2.0 or later
@@ -51,6 +53,14 @@
 #endif
 
 // ----------------------------------------------------------------------------------------------
+
+#ifdef HAVE_VDRIVE
+static bool isDiskImage(const char *name)
+{
+  const char *dot = strrchr(name, '.');
+  return dot!=NULL && (strcasecmp(dot, ".d64")==0 || strcasecmp(dot, ".g64")==0 || strcasecmp(dot, ".d71")==0 || strcasecmp(dot, ".d81")==0);
+}
+#endif
 
 
 IECSD::IECSD(uint8_t devnum, uint8_t pinChipSelect, uint8_t pinLED) :
@@ -64,6 +74,10 @@ IECSD::IECSD(uint8_t devnum, uint8_t pinChipSelect, uint8_t pinLED) :
   m_suppressReset  = false;
 #ifdef HAVE_VDRIVE
   m_drive = NULL;
+#if defined(PIN_BUTTON_IMAGE_PREV) && defined(PIN_BUTTON_IMAGE_NEXT)
+  pinMode(PIN_BUTTON_IMAGE_PREV, INPUT_PULLUP);
+  pinMode(PIN_BUTTON_IMAGE_NEXT, INPUT_PULLUP);
+#endif
 #endif
   m_cwd[IECSD_MAX_PATH] = 0;
   strcpy(m_cwd, "/");
@@ -126,6 +140,59 @@ void IECSD::task()
           nextblink += (m_errorCode==E_MEMEXE) ? 125 : 500;
         }
     }
+
+#if defined(HAVE_VDRIVE) && defined(PIN_BUTTON_IMAGE_NEXT) && defined(PIN_BUTTON_IMAGE_PREV)
+  if( !digitalRead(PIN_BUTTON_IMAGE_NEXT) || !digitalRead(PIN_BUTTON_IMAGE_PREV) )
+    {
+      bool findPrev = !digitalRead(PIN_BUTTON_IMAGE_PREV);
+      const char *imgName = m_drive==NULL ? NULL : m_drive->getDiskImageFilename();
+      if( imgName && strrchr(imgName, '/')!=NULL ) imgName = strrchr(imgName, '/')+1;
+
+      bool found = false;
+      SdFile file, dir;
+      if( dir.openCwd() )
+        {
+          char buf1[256], buf2[256];
+          if( m_pinLED<0xFF ) digitalWrite(m_pinLED, HIGH);
+
+          buf2[0] = 0;
+          while( !found && file.openNext(&dir, O_RDONLY) )
+            {
+              file.getName(buf1, 256);
+              buf1[255]=0;
+              found = (imgName==NULL || strcmp(buf1, imgName)==0);
+              if( !found && isDiskImage(buf1) )
+                strcpy(buf2, buf1);
+            }
+
+          if( found )
+            {
+              buf1[0] = 0;
+              while( buf1[0]==0 && file.openNext(&dir, O_RDONLY) )
+                {
+                  file.getName(buf1, 256);
+                  if( !isDiskImage(buf1) ) buf1[0] = 0;
+                }
+
+              if( findPrev && *buf1 )
+                {
+                  delete m_drive;
+                  m_drive= VDrive::create(0, buf1);
+                }
+              else if( !findPrev && *buf2 )
+                {
+                  delete m_drive;
+                  m_drive= VDrive::create(0, buf2);
+                }
+            }
+
+          if( m_pinLED<0xFF ) digitalWrite(m_pinLED, LOW);
+        }
+
+      while( !digitalRead(PIN_BUTTON_IMAGE_NEXT) || !digitalRead(PIN_BUTTON_IMAGE_PREV) );
+      delay(50);
+    }
+#endif
 
   // handle IEC serial bus communication, the open/read/write/close/execute 
   // functions will be called from within this when required
