@@ -50,7 +50,6 @@ class IECSD : public IECFileDevice
   bool isMatch(const char *name, const char *pattern, uint8_t extmatch);
   void toPETSCII(uint8_t *name);
   void fromPETSCII(uint8_t *name);
-  bool isMemExeCommand(const char *command) const;
 
   uint8_t chdir(const char *c);
   const char *findFile(const char *name, uint8_t ftype);

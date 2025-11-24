@@ -208,6 +208,14 @@ uint8_t IECFileDevice::getStatusData(char *buffer, uint8_t bufferSize, bool *m_e
 
 void IECFileDevice::executeData(const uint8_t *data, uint8_t len)
 {
+  if( data!=m_writeBuffer )
+    {
+      // in most cases executeData() will be called because it was not overloaded, so data==m_writeBuffer
+      // but we have to account for the case where this could be called with some different data
+      m_writeBufferLen = min(len, IECFILEDEVICE_WRITE_BUFFER_SIZE-1);
+      memmove(m_writeBuffer, data, m_writeBufferLen);
+    }
+
   while( m_writeBufferLen>0 && m_writeBuffer[m_writeBufferLen-1]==13 ) m_writeBufferLen--;
   m_writeBuffer[m_writeBufferLen]=0;
 #if DEBUG>0
