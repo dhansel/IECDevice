@@ -1009,6 +1009,34 @@ void IECSD::execute(const char *command)
         m_suppressMemExeError = command[1]=='0';
       else if( command[0]=='R' && isdigit(command[1]) )
         m_suppressReset = command[1]=='0';
+#ifdef IEC_SUPPORT_FASTLOAD
+      else if( command[0]=='F' && isdigit(command[2]) )
+        {
+          switch( command[1] )
+            {
+#ifdef IEC_FP_JIFFY
+            case 'J': IECDevice::enableFastLoader(IEC_FP_JIFFY, command[2]!='0'); break;
+#endif
+#ifdef IEC_FP_DOLPHIN
+            case 'D': IECDevice::enableFastLoader(IEC_FP_DOLPHIN, command[2]!='0'); break;
+#endif
+#ifdef IEC_FP_EPYX
+            case 'E': IECDevice::enableFastLoader(IEC_FP_EPYX, command[2]!='0'); break;
+#endif
+#ifdef IEC_FP_FC3
+            case 'F': IECDevice::enableFastLoader(IEC_FP_FC3, command[2]!='0'); break;
+#endif
+#ifdef IEC_FP_AR6
+            case 'A': IECDevice::enableFastLoader(IEC_FP_AR6, command[2]!='0'); break;
+#endif
+#ifdef IEC_FP_SPEEDDOS
+            case 'S': IECDevice::enableFastLoader(IEC_FP_SPEEDDOS, command[2]!='0'); break;
+#endif
+            default:
+              m_errorCode = E_INVCMD;
+            }
+        }
+#endif
       else
         m_errorCode = E_INVCMD;
     }
