@@ -1,0 +1,91 @@
+; C1541 routine to service ATN request on serial bus
+; $1800 is serial bus (all inverted)
+;  bit 7: ATN in
+;  bit 4: ?
+;  bit 3: CLK out
+;  bit 2: CLK in
+;  bit 1: DATA out
+;  bit 0: DATA in
+
+E85B   78         SEI
+E85C   A9 00      LDA #$00
+E85E   85 7C      STA $7C
+E860   85 79      STA $79
+E862   85 7A      STA $7A
+E864   A2 45      LDX #$45
+E866   9A         TXS
+E867   A9 80      LDA #$80
+E869   85 F8      STA $F8
+E86B   85 7D      STA $7D
+E86D   20 B7 E9   JSR $E9B7     ; CLK high
+E870   20 A5 E9   JSR $E9A5     ; DATA low
+E873   AD 00 18   LDA $1800
+E876   09 10      ORA #$10
+E878   8D 00 18   STA $1800
+E87B   AD 00 18   LDA $1800
+E87E   10 57      BPL $E8D7
+E880   29 04      AND #$04
+E882   D0 F7      BNE $E87B
+E884   20 C9 E9   JSR $E9C9     ; get byte from bus
+E887   C9 3F      CMP #$3F      ; is it UNLISTEN?
+E889   D0 06      BNE $E891     ; jump if not
+E88B   A9 00      LDA #$00
+E88D   85 79      STA $79       ; clear flag: active listener
+E88F   F0 71      BEQ $E902     ; jump always
+E891   C9 5F      CMP #$5F      ; is it UNTALK?
+E893   D0 06      BNE $E89B     ; jump if not
+E895   A9 00      LDA #$00
+E897   85 7A      STA $7A       ; clear flag: active talker
+E899   F0 67      BEQ $E902     ; jump always
+E89B   C5 78      CMP $78       ; is it TALK 8 (#$48)?
+E89D   D0 0A      BNE $E8A9     ; jump if not
+E89F   A9 01      LDA #$01      ; set flag: active talker
+E8A1   85 7A      STA $7A
+E8A3   A9 00      LDA #$00      ; clear flag: active listener
+E8A5   85 79      STA $79
+E8A7   F0 29      BEQ $E8D2     ; jump always
+E8A9   C5 77      CMP $77       ; is it LISTEN 8 (#$28)?
+E8AB   D0 0A      BNE $E8B7     ; jump if not
+E8AD   A9 01      LDA #$01      ; set flag: active listener
+E8AF   85 79      STA $79
+E8B1   A9 00      LDA #$00      ; clear flag: active talker
+E8B3   85 7A      STA $7A
+E8B5   F0 1B      BEQ $E8D2     ; jump always
+E8B7   AA         TAX
+E8B8   29 60      AND #$60      ; is it #%x11xxxxx (secondary address) ?
+E8BA   C9 60      CMP #$60
+E8BC   D0 3F      BNE $E8FD     ; jump if not (unknown command, wait for ATN high)
+E8BE   8A         TXA
+E8BF   85 84      STA $84       ; save full secondary address
+E8C1   29 0F      AND #$0F
+E8C3   85 83      STA $83       ; save bits 0-3 of secondary address
+E8C5   A5 84      LDA $84       ; get full secondary address back
+E8C7   29 F0      AND #$F0      ; isolate bits 4-7
+E8C9   C9 E0      CMP #$E0      ; is it CLOSE ($Ex)?
+E8CB   D0 35      BNE $E902     ; jump if not (done, wait for ATN high)
+E8CD   58         CLI
+E8CE   20 C0 DA   JSR $DAC0     ; close the file/channel
+E8D1   78         SEI
+E8D2   2C 00 18   BIT $1800     ; check serial bus
+E8D5   30 AD      BMI $E884     ; repeat if ATN still low
+E8D7   A9 00      LDA #$00
+E8D9   85 7D      STA $7D
+E8DB   AD 00 18   LDA $1800
+E8DE   29 EF      AND #$EF      ; clear ?
+E8E0   8D 00 18   STA $1800
+E8E3   A5 79      LDA $79
+E8E5   F0 06      BEQ $E8ED
+E8E7   20 2E EA   JSR $EA2E
+E8EA   4C E7 EB   JMP $EBE7
+E8ED   A5 7A      LDA $7A
+E8EF   F0 09      BEQ $E8FA
+E8F1   20 9C E9   JSR $E99C
+E8F4   20 AE E9   JSR $E9AE
+E8F7   20 09 E9   JSR $E909
+E8FA   4C 4E EA   JMP $EA4E
+
+E8FD   A9 10      LDA #$10      ; set ?
+E8FF   8D 00 18   STA $1800
+E902   2C 00 18   BIT $1800     ; check serial bus
+E905   10 D0      BPL $E8D7     ; jump if ATN high
+E907   30 F9      BMI $E902     ; repeat
