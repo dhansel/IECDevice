@@ -706,7 +706,9 @@ bool IECFileDevice::isFastLoaderRequest(const char *cmd)
   static const struct MWSignature epyxV2V3sig[3] PROGMEM =
     { {0x0180, 0x19, 0x53}, {0x0199, 0x19, 0xA6}, {0x01B2, 0x19, 0x8F} };
 
-  if( checkMWcmds(epyxV1sig, 2, 10) || checkMWcmds(epyxV2V3sig, 3, 20) )
+  if( !isFastLoaderEnabled(IEC_FP_EPYX) )
+    { /* Epyx FastLoad is disabled */ }
+  else if( checkMWcmds(epyxV1sig, 2, 10) || checkMWcmds(epyxV2V3sig, 3, 20) )
     return true;
   else if( m_uploadCtr==12 && strncmp_P(cmd, PSTR("M-E\xa2\x01"), 5)==0 )
     m_uploadCtr = 99;
@@ -746,7 +748,9 @@ bool IECFileDevice::isFastLoaderRequest(const char *cmd)
   // The 1541 fastloader transfers the whole directory track (18) to the C64 and then
   // the C64 finds the file to load, i.e. it never actually transmits the name of the
   // file to load to the drive, which obviously can't work for us here.
-  if( strncmp_P(cmd, PSTR("M-R\xfe\xff\x01"), 6)==0 )
+  if( !isFastLoaderEnabled(IEC_FP_AR6) )
+    { /* Action Replay 6 is disabled */ }
+  else if( strncmp_P(cmd, PSTR("M-R\xfe\xff\x01"), 6)==0 )
     {
       // returning 0x03 when reading $FFFE identifies this as a 1581 drive
       char data = 0x03;
@@ -819,7 +823,9 @@ bool IECFileDevice::isFastLoaderRequest(const char *cmd)
       {0x600,0x20,0x27}, {0x620,0x20,0x09}, {0x640,0x20,0xfc}, {0x660,0x20,0x8e},
       {0x680,0x20,0xaf}, {0x6a0,0x20,0xe0}, {0x6c0,0x20,0xc9}, {0x6e0,0x20,0xa4} };
 
-  if( checkMWcmds(fc3LoadSig, 16, 120) )
+  if( !isFastLoaderEnabled(IEC_FP_FC3) )
+    { /* Final Cartridge 3 is disabled */ }
+  else if( checkMWcmds(fc3LoadSig, 16, 120) )
     return true;
   else if( checkMWcmds(fc3LoadImageSig, 16, 140) )
     return true;
@@ -871,7 +877,9 @@ bool IECFileDevice::isFastLoaderRequest(const char *cmd)
       {0x468,0x1e,0xd2}, {0x486,0x1e,0x1b}, {0x4a4,0x1e,0x5f}, {0x4c2,0x1e,0x96},
       {0x4e0,0x1e,0x53}, {0x4fe,0x1e,0x16} };
 
-  if( checkMWcmds(speedDosLoadSig, 18, 100) )
+  if( !isFastLoaderEnabled(IEC_FP_SPEEDDOS) )
+    { /* SpeedDos is disabled */ }
+  else if( checkMWcmds(speedDosLoadSig, 18, 100) )
     return true;
   else if( m_uploadCtr==118 && strncmp_P(cmd, PSTR("M-E\x03\x03"), 5)==0 )
     {
@@ -889,7 +897,9 @@ bool IECFileDevice::isFastLoaderRequest(const char *cmd)
   // --------------------------- Dolphin DOS ----------------------------
 
 #ifdef IEC_FP_DOLPHIN
-  if( m_writeBufferLen==2 && strncmp_P(cmd, PSTR("XQ"), 2)==0 )
+  if( !isFastLoaderEnabled(IEC_FP_DOLPHIN) )
+    { /* DolphinDos is disabled */ }
+  else if( m_writeBufferLen==2 && strncmp_P(cmd, PSTR("XQ"), 2)==0 )
     {
       fastLoadRequest(IEC_FP_DOLPHIN, IEC_FL_PROT_LOAD);
       m_channel = 0;
