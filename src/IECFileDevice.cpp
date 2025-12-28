@@ -212,7 +212,7 @@ void IECFileDevice::executeData(const uint8_t *data, uint8_t len)
     {
       // in most cases executeData() will be called because it was not overloaded, so data==m_writeBuffer
       // but we have to account for the case where this could be called with some different data
-      m_writeBufferLen = min(len, IECFILEDEVICE_WRITE_BUFFER_SIZE-1);
+      m_writeBufferLen = min(len, (uint8_t) (IECFILEDEVICE_WRITE_BUFFER_SIZE-1));
       memmove(m_writeBuffer, data, m_writeBufferLen);
     }
 
