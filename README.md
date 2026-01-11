@@ -53,7 +53,7 @@ Both cores can be installed in the Arduino IDE via "Tools->Boards Manager".
 
 ## Wiring
 
-Generally, devices connected to the IEC bus use line driver ICs (74LS06 or 74LS07) to drive the Clock 
+Generally, devices connected to the IEC bus use line driver ICs (7406 or 7407) to drive the Clock 
 and Data signals. While it is better to do so, it adds some hardware and complexity that 
 is not entirely necessary, at least as long as at most one other device (e.g. 1541 disk drive)
 is connected to the bus.
