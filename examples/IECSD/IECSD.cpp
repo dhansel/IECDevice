@@ -1009,6 +1009,8 @@ void IECSD::execute(const char *command)
         m_suppressMemExeError = command[1]=='0';
       else if( command[0]=='R' && isdigit(command[1]) )
         m_suppressReset = command[1]=='0';
+      else if( command[0]=='L' && isdigit(command[1]) )
+        IECFileDevice::setLogging(command[1]!='0');
 #ifdef IEC_SUPPORT_FASTLOAD
       else if( command[0]=='F' && isdigit(command[2]) )
         {

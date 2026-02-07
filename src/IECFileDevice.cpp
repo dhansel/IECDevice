@@ -25,6 +25,9 @@
 #include "IECespidf.h"
 #endif
 
+// DEBUG==0 => debug logging disabled
+// DEBUG==1 => debug logging enabled, default on, can be disabled by calling IECFileDevice::setLogging()
+// DEBUG==2 => debug logging enabled, default off, can be enabled by calling IECFileDevice::setLogging()
 #define DEBUG 0
 
 #if DEBUG>0
@@ -38,6 +41,7 @@ static void print_hex(uint8_t data)
 
 
 static uint8_t dbgbuf[16], dbgnum = 0;
+bool dbglogdata = (DEBUG==1);
 
 static void dbg_print_data()
 {
@@ -64,8 +68,11 @@ static void dbg_print_data()
 
 static void dbg_data(uint8_t data)
 {
-  dbgbuf[dbgnum++] = data;
-  if( dbgnum==16 ) dbg_print_data();
+  if( dbglogdata )
+    {
+      dbgbuf[dbgnum++] = data;
+      if( dbgnum==16 ) dbg_print_data();
+    }
 }
 
 static void logStatus(uint8_t devnr, const char *data, uint8_t dataLen)
@@ -106,6 +113,14 @@ IECFileDevice::IECFileDevice(uint8_t devnr) :
 {
   m_cmd = IFD_NONE;
   m_opening = false;
+}
+
+
+void IECFileDevice::setLogging(bool enable)
+{
+#if DEBUG>0
+  dbglogdata = enable;
+#endif
 }
 
 
