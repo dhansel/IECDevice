@@ -929,14 +929,15 @@ bool IECFileDevice::isFastLoaderRequest(const char *cmd)
       m_eoi = false;
       return true;
     }
-  else if( m_writeBufferLen==3 && strncmp_P(cmd, PSTR("XF+"), 2)==0 )
+  else if( m_writeBufferLen==3 && strncmp_P(cmd, PSTR("XF+"), 3)==0 )
     {
       enableDolphinBurstMode(true);
       setStatus(NULL, 0);
       return true;
     }
-  else if( m_writeBufferLen==3 && strncmp_P(cmd, PSTR("XF-"), 2)==0 )
+  else if( m_writeBufferLen==3 && strncmp_P(cmd, PSTR("XF-"), 3)==0 )
     {
+      Serial.println("XF-");
       enableDolphinBurstMode(false);
       setStatus(NULL, 0);
       return true;
