@@ -937,7 +937,6 @@ bool IECFileDevice::isFastLoaderRequest(const char *cmd)
     }
   else if( m_writeBufferLen==3 && strncmp_P(cmd, PSTR("XF-"), 3)==0 )
     {
-      Serial.println("XF-");
       enableDolphinBurstMode(false);
       setStatus(NULL, 0);
       return true;
