@@ -3430,13 +3430,15 @@ bool RAMFUNC(IECBusHandler::receiveIECByte)(bool canWriteOk)
       if( !waitPinCLK(LOW) ) { interrupts(); return false; }
     }
 
+  // if device can receive data, acknowledge receipt by pulling DATA low
+  // (do this before allowing interrupts to avoid long interrupts from
+  // exceeding the 1ms timeout we have to acknowledge the receipt)
+  if( canWriteOk ) writePinDATA(LOW);
+
   interrupts();
 
   if( canWriteOk )
     {
-      // acknowledge receipt by pulling DATA low
-      writePinDATA(LOW);
-
       // pass received data on to the device
       m_currentDevice->write(data, eoi);
       return true;
