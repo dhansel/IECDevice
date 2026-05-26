@@ -294,7 +294,7 @@ void loop()
 
   const char *command = device.getCommand();
   if( command!=NULL ) {
-    device.setResponse("RECEIVED: %s\r", command);
+    device.setResponse("RECEIVED %s\r", command);
   }
 }
 ```
@@ -302,7 +302,18 @@ void loop()
 Instead of just echoing the commands, a device can of course do any action based on the
 received command and then set a corresponding response once it is finished.
 
-Interacting with devices like this from a C64 can be very simple when using a DOS wedge
+To interact with this device in standard BASIC, just use ```PRINT#``` and ```INPUT#```
+commands:
+```
+10 OPEN 1,9
+20 INPUT C$
+30 PRINT#1,C$
+40 INPUT#1,R$
+50 PRINT R$
+60 GOTO 10
+```
+
+Interacting with devices like this can be very simple when using a DOS wedge
 (for example in JiffyDos): Simply set the current device number in JiffyDos to the number
 of your device and then use JiffyDos' "@" command to send a command to your device and/or
 receive the device's response. For example:
@@ -313,7 +324,7 @@ READY.
 
 READY.
 @
-RECEIVED: COMMANDTEST
+RECEIVED COMMANDTEST
 
 READY.
 ```
