@@ -66,7 +66,6 @@ class IECStringDevice : public IECDevice
   virtual uint8_t read();
   virtual int8_t  canWrite();
   virtual void    write(uint8_t data, bool eoi);
-  virtual void    unlisten();
   virtual void    task();
 
   uint8_t toPETSCII(uint8_t data) const;

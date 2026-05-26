@@ -62,16 +62,6 @@ void IECStringDevice::write(uint8_t data, bool eoi)
     { 
       m_command[m_commandLen] = 0;
       m_commandReceived = true;
-      }
-}
-
-
-void IECStringDevice::unlisten()
-{
-  if( !m_commandReceived )
-    {
-      m_command[m_commandLen] = 0;
-      m_commandReceived = true;
     }
 }
 
