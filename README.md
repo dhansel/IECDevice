@@ -10,7 +10,7 @@ The library provides four classes:
     [printers](examples/IECCentronics) or [modem-like](examples/IECBasicSerial) devices.<br>
     For an introduction to creating a device using this class, see the
     [Implementing a simple low-level device](#implementing-a-simple-low-level-device) section.
-  - [```IECStringDevice```](#iecstringdevice-class-reference) for creating devices that operate on a string command/response
+  - [```IECStringDevice```](#iecstringdevice-class-reference) for creating devices that operate on a command/response
     basis, where the computer sends a string command which the device processes and possibly responds to.
     For an introduction to creating a simple device using this class, see the
     [Implementing a simple command-based device](#implementing-a-simple-command-based-device) section.
@@ -25,7 +25,7 @@ The library provides four classes:
     - [DolphinDos](#dolphindos-support)
     - [SpeedDos](#speeddos-support)
       
-For an introduction to creating a device using this class, see the
+    For an introduction to creating a device using this class, see the
     [Implementing a simple file-based device](#implementing-a-simple-file-based-device) section.
   - [```IECBusHandler```](#iecbushandler-class-reference) facilitates the IEC bus communication itself. After creating an instance of the
     IECDevice or IECFileDevice classes it must be attached to the handler by calling ```IECBusHandler::attachDevice()```.<br>
