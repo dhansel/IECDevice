@@ -4,12 +4,16 @@ This library for the Arduino IDE provides a simple interface to connect a variet
 microcontrollers to the Commodre IEC bus used on the C64, C128 and VIC-20. This should
 make it easier for hobbyists to create new devices for those computers.
 
-The library provides three classes:
+The library provides four classes:
   - [```IECDevice```](#iecdevice-class-reference) for creating low-level bus devices that directly respond to the data 
     sent over the bus one byte at a time. This can be used to implement devices such as
     [printers](examples/IECCentronics) or [modem-like](examples/IECBasicSerial) devices.<br>
     For an introduction to creating a device using this class, see the
     [Implementing a simple low-level device](#implementing-a-simple-low-level-device) section.
+  - [```IECStringDevice```](#iecstringdevice-class-reference) for creating devices that operate on a string command/response
+    basis, where the computer sends a string command which the device processes and possibly responds to.
+    For an introduction to creating a simple device using this class, see the
+    [Implementing a simple command-based device](#implementing-a-simple-command-based-device) section.
   - [```IECFileDevice```](#iecfiledevice-class-reference) for creating higher-level devices that operate more like disk
     drives. The IECFileDevice interface is file-based, providing open/close/read/write functions.
     An example use for this class would be an [SD-card reader](examples/IECSD).
@@ -263,6 +267,62 @@ To interact with this device in BASIC, use the following program:
 Any characters typed on the computer's keyboard will be sent out on the microcontroller's serial
 connection (at 115200 baud) and incoming serial data will be shown on the computer's screen.
 
+## Implementing a simple command-based device
+
+The IECStringDevice class offers a simple way to make a device that receives command strings
+from the computer and (optionally) sends responses back to the computer.
+
+For IECStringDevice it is not necessary (but possible) to derive another class in order to use it.
+Here is an example that simply echoes any strings received from the computer back to the computer:
+
+```
+#include "IECStringDevice.h"
+#include "IECBusHandler.h"
+
+IECStringDevice device(9);
+IECBusHandler iecBus(3, 4, 5);
+
+void setup()
+{
+  iecBus.attachDevice(&device);
+  iecBus.begin();
+}
+
+void loop()
+{
+  iecBus.task();
+
+  const char *command = device.getCommand();
+  if( command!=NULL ) {
+    device.setResponse("RECEIVED: %s\r", command);
+  }
+}
+```
+
+Instead of just echoing the commands, a device can of course do any action based on the
+received command and then set a corresponding response once it is finished.
+
+Interacting with devices like this from a C64 can be very simple when using a DOS wedge
+(for example in JiffyDos): Simply set the current device number in JiffyDos to the number
+of your device and then use JiffyDos' "@" command to send a command to your device and/or
+receive the device's response. For example:
+
+```
+READY.
+@COMMANDTEST
+
+READY.
+@
+RECEIVED: COMMANDTEST
+
+READY.
+```
+
+Specifically for JiffyDos be careful though because some "@" commands are handled specially 
+within JiffyDos' C64 Kernal and never sent (or only partially sent) to the device. 
+Those commands are: ```@#```, ```@B```, ```@D```, ```@F```, ```@G```, ```@L```, ```@O```, ```@P```, ```@Q```, ```@T```, ```@X```
+
+
 ## Implementing a simple file-based device
 
 Implementing a file-based device using the IECFileDevice class requires three steps:
@@ -279,8 +339,6 @@ IECFileDevice class. A more feature-complete implementation of a SD card reader 
 the [IECSD example](examples/IECSD). 
 
 Note that any device derived from the IECFileDevice class automatically supports all supported fastload protocols.
-
-First, a new class is defined and derived from the IECFileDevice class. 
 
 ```
 #include <IECFileDevice.h>
@@ -548,6 +606,72 @@ which handles fast-load support internally and you do not have to implement thes
   If write() is **not** overloaded, fast-save performance will be several times slower than otherwise.
   write() is allowed to take an indefinite amount of time.
 
+
+## IECStringDevice class reference
+
+This is a convenience class that allows you to quickly implement devices that receive commands
+as a string from the computer and can also respond with a string. A device implemented using this
+class has a receive buffer where it will receive a command. Once a command has been received, no
+other commands can be received until the current command has been processed. The IEC bus will be
+blocked if the computer attempts to send another command. Once the command has been processed
+the bus will be released and the next command is received.
+The following functions may/must be called from your code:
+
+- ```IECStringDevice(uint8_t devnum, bool convertPETSCII)```  
+  Constructor for the IECDevice class, devnum is the IEC bus device number that the device should 
+  respond to. Valid device numbers on the IEC bus range from 4 to 30. If the convertPETSCII parameter
+  is "true" then strings received from the computer are converted from PETSCII to ASCII and strings
+  sent to the computer are converted from ASCII to PETSCII.
+
+- ```const char *getCommand()```
+  If a command was received from the computer then this function returns a non-null pointer to
+  the memory buffer containing the command. The buffer is temporary and will be overwritten when
+  the next command is received. A call to getCommand() marks the current command as processed.
+  It is recommended to either copy the command to a more permanent location or completely process
+  it before the next call to IECBus::task().
+
+- ```void setResponse(const char *format, ...)```
+  Sets a response to send to the computer the next time it requests data from the device.
+  Uses standard "printf" formatting rules. After the response is sent to the computer it will
+  be cleared. If a response was already set but not yet read then the previous response will
+  be replaced with the new response.
+
+- ```bool responseBufferEmpty()```
+  Returns true if either no response has been set yet or the computer has finished reading
+  the previous response, i.e. the device is ready to accept another call to setResponse().
+
+- ```void setDefaultResponse(const char *s)```
+  Sets a string that should be sent to the computer if data is requested but no call to 
+  setResponse() has been made since the last time the computer requested data.
+
+- ```void setDeviceNumber(uint8_t devnum)```
+  Changes the device's device number on the IEC bus. Valid device numbers on the IEC bus
+  range from 4 to 30. This function can be called at any time, the device will respond to
+  the new device number immediately at the next bus transmission.
+
+- ```void setActive(bool active)```
+  Allows to deactivate a device without detaching it from the bus entirely. An inactive
+  device will not respond to any bus requests.
+
+The following functions can be overloaded in the derived device class to implement the device functions.
+None of these function are *required*. For example, if your device only receives data then only the
+canWrite() and write() functions need to be overloaded.
+
+- ```void begin()```  
+  This function will automatically be called by IECBusHandler::begin(), if the IECDevice is
+  already attached to the IECBusHandler at that point. Otherwise it will be called when the
+  device gets attached by the IECBusHandler::attachDevice() call.
+  If you overload this function, make sure to call IECDevice::begin() from within your overloaded function.
+- ```void task()```
+  This function will automatically be called on every execution of IECBusHandler::task(), once for all attached devices. 
+  It can be used to handle device-specific periodic tasks. 
+  If you overload this function, make sure to call IECDevice::task() from within your overloaded function.
+- ```bool processCommand(const char *command)```
+  This function will automatically be called whenever data has been received from the computer.
+  If processesCommand() returns "true" then the current command is considered processed and processCommand()
+  will not be called again until a new command is received. If processCommand returns "false" then it will
+  be called again in the next task() cycle until it either returns "true" or the getCommand() function
+  has been called.
 
 ## IECFileDevice class reference
 
