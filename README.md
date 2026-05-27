@@ -331,8 +331,9 @@ READY.
 
 Specifically for JiffyDos be careful though because some "@" commands are handled specially 
 within JiffyDos' C64 Kernal and never sent (or only partially sent) to the device. 
-Those commands are: ```@#```, ```@B```, ```@D```, ```@F```, ```@G```, ```@L```, ```@O```, ```@P```, ```@Q```, ```@T```, ```@X```
-
+Those commands are: ```@#```, ```@B```, ```@D```, ```@F```, ```@G```, ```@L```, ```@O```, ```@P```, ```@Q```, ```@T```, ```@X```.
+However, placing a command in quotes will stop JiffyDos from processing it internally.
+For example, ```@X123``` will NOT be sent to the device but ```@"X123"``` will work.
 
 ## Implementing a simple file-based device
 
