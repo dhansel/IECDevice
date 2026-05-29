@@ -279,8 +279,8 @@ Here is an example that simply echoes any strings received from the computer bac
 #include "IECStringDevice.h"
 #include "IECBusHandler.h"
 
-IECStringDevice device(9);
-IECBusHandler iecBus(3, 4, 5);
+IECStringDevice device(9); // device number 9
+IECBusHandler iecBus(3, 4, 5); // ATN=GPIO3, CLK=GPIO4, DATA=GPIO5
 
 void setup()
 {
