@@ -3608,6 +3608,7 @@ void RAMFUNC(IECBusHandler::handleATNSequence)()
   uint8_t bytenum = 1;
 
   m_primary = 0;
+  m_secondary = 0;
   if( receiveIECByteATN(m_primary, bytenum) && ((m_primary == 0x3f) || (m_primary == 0x5f) || (findDevice((unsigned int) m_primary & 0x1f)!=NULL)) )
     {
       // this is either UNLISTEN or UNTALK or we were addressed
