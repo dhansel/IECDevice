@@ -784,7 +784,7 @@ IECDevice *IECBusHandler::findDevice(uint8_t devnr, bool includeInactive)
 
 void RAMFUNC(IECBusHandler::atnInterruptFcn)(INTERRUPT_FCN_ARG)
 { 
-  if( s_bushandler!=NULL && !s_bushandler->m_inTask & ((s_bushandler->m_flags & P_ATN)==0) )
+  if( s_bushandler!=NULL && !s_bushandler->m_inTask && ((s_bushandler->m_flags & P_ATN)==0) )
     s_bushandler->atnRequest();
 }
 
@@ -3742,12 +3742,25 @@ void RAMFUNC(IECBusHandler::handleATNSequence)()
       writePinCLK(HIGH);
       writePinDATA(HIGH);
       waitPinATN(HIGH);
+      m_flags &= ~P_ATN;
 
       // if someone else was told to start talking then we must stop
       if( (m_primary & 0xE0)==0x40 ) m_flags &= ~P_TALKING;
 
       // allow ATN to pull DATA low in hardware
       writePinCTRL(LOW);
+    }
+
+  if( !(m_flags & (P_LISTENING | P_TALKING)) )
+    {
+      // we're neither listening nor talking
+      // => allow the interrupt handler to call atnRequest() again, otherwise on
+      // some platforms a long low-priority interrupt (e.g. WiFi interrupt on ESP32)
+      // could cause us to fail to react in time to a subsequent ATN high->low edge
+      // Note that such interrupts are likely to occur right here after we allow
+      // interrupts again because they have been queued up during the time we were
+      // in this function.
+      m_inTask = false;
     }
 
   interrupts();
