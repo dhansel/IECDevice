@@ -903,7 +903,7 @@ You need to un-comment the ```#define IEC_FP_HYPRALOAD``` line at the top of fil
 After doing so, any  device derived from ```IECFileDevice``` will automatically support the Hypra Load
 fast-load protocol.
 
-Of course, in order to use these fast-load routines you must use the Hypra Load 
+Of course, in order to use these fast-load routines you must use the [Hypra Load software](https://csdb.dk/release/?id=127549) on your C64.
 
 ## DolphinDos support
 
