@@ -1605,11 +1605,15 @@ bool RAMFUNC(IECBusHandler::transmitJiffyByte)(uint8_t numData)
   // EOI/error status is read by receiver 59 cycles after DATA HIGH (FBEF)
   timer_wait_until(61);
 
+  JDEBUG1();
+  if( numData==1 )
+    {
+      writePinDATA(HIGH);   // make sure DATA is released after signaling EOI
+      timer_wait_until(65); // give it time to settle
+    }
+
   // receiver signals "done" by pulling DATA low (FBF2)
   // 63 cycles after initial DATA HIGH (FBF2)
-  JDEBUG1();
-  writePinDATA(HIGH);   // make sure DATA is released after signaling EOI
-  timer_wait_until(63); // give it time to settle
   if( !waitPinDATA(LOW) ) { interrupts(); return false; }
   JDEBUG0();
 
