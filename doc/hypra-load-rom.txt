@@ -1,0 +1,236 @@
+; set up for code transfer to 1541
+.C:f72c  A9 E2       LDA #$E2
+.C:f72e  A2 F8       LDX #$F8
+.C:f730  85 A7       STA $A7
+.C:f732  86 A8       STX $A8
+.C:f734  A9 00       LDA #$00
+.C:f736  A2 03       LDX #$03
+.C:f738  85 A9       STA $A9
+.C:f73a  86 AA       STX $AA
+
+; send "M-W" plus address and size ($1E)
+.C:f73c  A5 BA       LDA $BA
+.C:f73e  20 0C ED    JSR $ED0C
+.C:f741  A9 6F       LDA #$6F
+.C:f743  20 B9 ED    JSR $EDB9
+.C:f746  A9 4D       LDA #$4D
+.C:f748  20 DD ED    JSR $EDDD
+.C:f74b  A9 2D       LDA #$2D
+.C:f74d  20 DD ED    JSR $EDDD
+.C:f750  A9 57       LDA #$57
+.C:f752  20 DD ED    JSR $EDDD
+.C:f755  A0 00       LDY #$00
+.C:f757  A5 A9       LDA $A9
+.C:f759  20 DD ED    JSR $EDDD
+.C:f75c  A5 AA       LDA $AA
+.C:f75e  20 DD ED    JSR $EDDD
+.C:f761  A9 1E       LDA #$1E
+.C:f763  20 DD ED    JSR $EDDD
+
+; send data
+.C:f766  B1 A7       LDA ($A7),Y
+.C:f768  20 DD ED    JSR $EDDD
+.C:f76b  C8          INY
+.C:f76c  C0 1E       CPY #$1E
+.C:f76e  90 F6       BCC $F766
+.C:f770  20 FE ED    JSR $EDFE
+
+; next block of $1e bytes, continue until 512 bytes transferred
+.C:f773  18          CLC
+.C:f774  A5 A7       LDA $A7
+.C:f776  69 1E       ADC #$1E
+.C:f778  85 A7       STA $A7
+.C:f77a  90 03       BCC $F77F
+.C:f77c  E6 A8       INC $A8
+.C:f77e  18          CLC
+.C:f77f  A5 A9       LDA $A9
+.C:f781  A6 AA       LDX $AA
+.C:f783  69 1E       ADC #$1E
+.C:f785  85 A9       STA $A9
+.C:f787  90 02       BCC $F78B
+.C:f789  E6 AA       INC $AA
+.C:f78b  E0 05       CPX #$05
+.C:f78d  90 AD       BCC $F73C
+.C:f78f  C9 00       CMP #$00
+.C:f791  90 A9       BCC $F73C
+.C:f793  A5 BA       LDA $BA
+
+; send "M-E" $048B
+.C:f795  20 0C ED    JSR $ED0C
+.C:f798  A9 6F       LDA #$6F
+.C:f79a  20 B9 ED    JSR $EDB9
+.C:f79d  A9 4D       LDA #$4D
+.C:f79f  20 DD ED    JSR $EDDD
+.C:f7a2  A9 2D       LDA #$2D
+.C:f7a4  20 DD ED    JSR $EDDD
+.C:f7a7  A9 45       LDA #$45
+.C:f7a9  20 DD ED    JSR $EDDD
+.C:f7ac  A9 8B       LDA #$8B
+.C:f7ae  20 DD ED    JSR $EDDD
+.C:f7b1  A9 04       LDA #$04
+.C:f7b3  20 DD ED    JSR $EDDD
+
+; turn off screen
+.C:f7b6  A9 EF       LDA #$EF
+.C:f7b8  2D 11 D0    AND $D011
+.C:f7bb  20 5A FC    JSR $FC5A
+  .C:fc5a  8D 11 D0    STA $D011
+  .C:fc5d  4C FB ED    JMP $EDFB ; send UNTALK and return
+
+; ???
+.C:f7be  EA          NOP
+.C:f7bf  EA          NOP
+.C:f7c0  4C 15 FC    JMP $FC15
+
+; receive data byte
+.C:f7c3  A9 0B       LDA #$0B
+.C:f7c5  8D 00 DD    STA $DD00  ; pull ATN low, release CLK+DATA
+.C:f7c8  2C 00 DD    BIT $DD00  ; get serial bus
+.C:f7cb  10 FB       BPL $F7C8  ; wait until DATA high
+.C:f7cd  A9 03       LDA #$03   ;
+.C:f7cf  8D 00 DD    STA $DD00  ; release ATN
+.C:f7d2  A2 05       LDX #$05   ; short wait
+.C:f7d4  CA          DEX
+.C:f7d5  EA          NOP
+.C:f7d6  D0 FC       BNE $F7D4
+.C:f7d8  A2 04       LDX #$04   ; receive 4*2 bits
+.C:f7da  AD 00 DD    LDA $DD00  ; get CLK+DATA
+.C:f7dd  2A          ROL A
+.C:f7de  2A          ROL A
+.C:f7df  66 B0       ROR $B0
+.C:f7e1  6A          ROR A
+.C:f7e2  66 B0       ROR $B0
+.C:f7e4  EA          NOP
+.C:f7e5  CA          DEX
+.C:f7e6  D0 F2       BNE $F7DA
+.C:f7e8  A5 B0       LDA $B0    ; get data byte
+.C:f7ea  49 FF       EOR #$FF   ; invert
+.C:f7ec  60          RTS
+
+; receive 256 bytes of sector data, write to $0200
+; returns with Y=$FF if error, Y=0 if ok
+; sector data is stored in $0200-$02FF
+.C:f7ed  20 C3 F7    JSR $F7C3  ; receive data byte
+.C:f7f0  C9 FF       CMP #$FF   ; is it $FF?
+.C:f7f2  F0 F8       BEQ $F7EC  ; if so then error
+.C:f7f4  A0 00       LDY #$00
+.C:f7f6  A9 0B       LDA #$0B   ; pull ATN low, release CLK and DATA
+.C:f7f8  8D 00 DD    STA $DD00
+.C:f7fb  2C 00 DD    BIT $DD00
+.C:f7fe  10 FB       BPL $F7FB  ; wait until DATA high
+.C:f800  A9 03       LDA #$03
+.C:f802  8D 00 DD    STA $DD00  ; release ATN
+.C:f805  A2 07       LDX #$07   ; short wait
+.C:f807  CA          DEX
+.C:f808  D0 FD       BNE $F807
+.C:f80a  AD 00 DD    LDA $DD00  ; get bits (CLK=bit 0, DATA=bit 1)
+.C:f80d  2A          ROL A      ; get CLK into carry
+.C:f80e  2A          ROL A
+.C:f80f  66 B0       ROR $B0    ; rotate carry into result byte
+.C:f811  6A          ROR A      ; get DATA into carry
+.C:f812  66 B0       ROR $B0    ; rotate carry into result byte
+.C:f814  EA          NOP
+.C:f815  EA          NOP
+.C:f816  AD 00 DD    LDA $DD00  ; get bits (CLK=bit 2, DATA=bit 3)
+.C:f819  2A          ROL A
+.C:f81a  2A          ROL A
+.C:f81b  66 B0       ROR $B0
+.C:f81d  6A          ROR A
+.C:f81e  66 B0       ROR $B0
+.C:f820  EA          NOP
+.C:f821  EA          NOP
+.C:f822  AD 00 DD    LDA $DD00  ; get bits (CLK=bit 4, DATA=bit 5)
+.C:f825  2A          ROL A
+.C:f826  2A          ROL A
+.C:f827  66 B0       ROR $B0
+.C:f829  6A          ROR A
+.C:f82a  66 B0       ROR $B0
+.C:f82c  EA          NOP
+.C:f82d  EA          NOP
+.C:f82e  AD 00 DD    LDA $DD00  ; get bits (CLK=bit 6, DATA=bit 7)
+.C:f831  2A          ROL A
+.C:f832  2A          ROL A
+.C:f833  66 B0       ROR $B0
+.C:f835  6A          ROR A
+.C:f836  66 B0       ROR $B0
+.C:f838  A5 B0       LDA $B0
+.C:f83a  49 FF       EOR #$FF
+.C:f83c  99 00 02    STA $0200,Y
+.C:f83f  C8          INY
+.C:f840  D0 B4       BNE $F7F6
+.C:f842  60          RTS
+
+; receive data
+.C:f843  78          SEI
+.C:f844  A9 01       LDA #$01
+.C:f846  85 A7       STA $A7
+.C:f848  A0 FF       LDY #$FF
+.C:f84a  20 ED F7    JSR $F7ED  ; receive next sector
+.C:f84d  C0 FF       CPY #$FF   ; check if error
+.C:f84f  F0 40       BEQ $F891  ; jump if so
+.C:f851  A2 02       LDX #$02
+.C:f853  A5 A7       LDA $A7
+.C:f855  F0 02       BEQ $F859
+.C:f857  A2 04       LDX #$04
+.C:f859  AD 00 02    LDA $0200  ; next track >0 ?
+.C:f85c  D0 07       BNE $F865  ; jump if yes, we have a full sector
+.C:f85e  EE 01 02    INC $0201  ; 
+.C:f861  AD 01 02    LDA $0201  ; last sector => get number of bytes
+.C:f864  2C          .BYTE $2C  ; skip next instruction
+.C:f865  A9 00       LDA #$00
+.C:f867  85 A8       STA $A8
+.C:f869  BD 00 02    LDA $0200,X ; copy sector data
+.C:f86c  91 AE       STA ($AE),Y
+.C:f86e  E6 AE       INC $AE
+.C:f870  D0 02       BNE $F874
+.C:f872  E6 AF       INC $AF
+.C:f874  E8          INX
+.C:f875  E4 A8       CPX $A8
+.C:f877  D0 F0       BNE $F869
+.C:f879  A2 00       LDX #$00
+.C:f87b  86 A7       STX $A7
+.C:f87d  AD 00 02    LDA $0200  ; next track >0 ?
+.C:f880  D0 C6       BNE $F848  ; jump if yes, receive next sector
+.C:f882  A9 10       LDA #$10   ; turn screen back on
+.C:f884  0D 11 D0    ORA $D011
+.C:f887  EA          NOP
+.C:f888  8D 11 D0    STA $D011
+.C:f88b  A9 40       LDA #$40   ; set end-of-file bit in status
+.C:f88d  85 90       STA $90
+.C:f88f  18          CLC        ; no error
+.C:f890  60          RTS
+
+.C:f891  20 AF F5    JSR $F5AF  ; print "SEARCHING"
+.C:f894  A9 60       LDA #$60   ; secondary address is $60 ("reopen")
+.C:f896  85 B9       STA $B9
+.C:f898  20 D5 F3    JSR $F3D5  ; send LISTEN, secondary address and file name
+.C:f89b  A5 BA       LDA $BA    ; get device address
+.C:f89d  20 09 ED    JSR $ED09  ; send TALK
+.C:f8a0  A5 B9       LDA $B9    ; get secondary address
+.C:f8a2  20 C7 ED    JSR $EDC7  ; send secondary address after TALK
+.C:f8a5  20 13 EE    JSR $EE13  ; receive byte (low byte of load address)
+.C:f8a8  85 AE       STA $AE    ; store
+.C:f8aa  A5 90       LDA $90    ; check status
+.C:f8ac  4A          LSR A
+.C:f8ad  4A          LSR A
+.C:f8ae  90 03       BCC $F8B3  ; jump if NO error
+.C:f8b0  4C 30 F5    JMP $F530  ; "FILE NOT FOUND"
+.C:f8b3  20 13 EE    JSR $EE13  ; receive byte (high byte of load address)
+.C:f8b6  85 AF       STA $AF    ; store
+.C:f8b8  8A          TXA        ; secondary address to A
+.C:f8b9  D0 14       BNE $F8CF  ; if non-zero then we use the file's load address
+.C:f8bb  A5 C3       LDA $C3    ; set load address to BASIC start
+.C:f8bd  85 AE       STA $AE
+.C:f8bf  A5 C4       LDA $C4
+.C:f8c1  85 AF       STA $AF
+.C:f8c3  20 D2 F5    JSR $F5D2  ; print "LOADING"
+.C:f8c6  A9 FD       LDA #$FD   ; clear status
+.C:f8c8  25 90       AND $90
+.C:f8ca  85 90       STA $90
+.C:f8cc  4C A0 FB    JMP $FBA0  ; 
+
+.C:f8cf  A5 AF       LDA $AF
+.C:f8d1  C9 04       CMP #$04   ; is the load address < $0400?
+.C:f8d3  B0 EE       BCS $F8C3  ; jump if not
+.C:f8d5  4C F0 F4    JMP $F4F0  ; jump to regular load
+

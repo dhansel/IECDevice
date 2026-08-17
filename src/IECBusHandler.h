@@ -241,13 +241,18 @@ class IECBusHandler
   int8_t transmitAR6Block(bool ar6Protocol);
   int8_t receiveAR6Block();
 #endif
-  
+
+#ifdef IEC_FP_HYPRALOAD
+  bool transmitHypraLoadByte(uint8_t data);
+  bool transmitHypraLoadBlock();
+#endif
+
 #if defined(IEC_SUPPORT_FASTLOAD)
   uint8_t m_bufferSize;
 #if IEC_DEFAULT_FASTLOAD_BUFFER_SIZE>0
 #if defined(IEC_FP_FC3)
   uint8_t  m_buffer[260];
-#elif (defined(IEC_FP_EPYX) && defined(IEC_FP_EPYX_SECTOROPS)) || defined(IEC_FP_AR6)
+#elif (defined(IEC_FP_EPYX) && defined(IEC_FP_EPYX_SECTOROPS)) || defined(IEC_FP_AR6) || defined(IEC_FP_HYPRALOAD)
   uint8_t  m_buffer[256];
 #else
   uint8_t  m_buffer[IEC_DEFAULT_FASTLOAD_BUFFER_SIZE];

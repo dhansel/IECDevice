@@ -22,6 +22,7 @@ The library provides four classes:
     - [Epyx FastLoad](#epyx-fastload-support)
     - [Final Cartridge 3](#final-cartridge-3-support)
     - [Action Replay 6](#action-replay-6-support)
+    - [Hypra Load](#hypra-load-6-support)
     - [DolphinDos](#dolphindos-support)
     - [SpeedDos](#speeddos-support)
       
@@ -890,6 +891,19 @@ fast-load protocol.
 
 Of course, in order to use these fast-load routines you must plug a "Action Replay 6" cartridge into your
 C64's expansion port.
+
+## Hypra Load support
+
+This one is probably only known to people in Germany and supported mostly for (personal) nostalgic reasons.
+Hypra Load was an early fastloader [published](https://www.64er-magazin.de/8410/hypra-load.html) in German magazine "64er" in 1984.
+
+To save program space on smaller microcontrollers, support for the fast-load protocol provided by 
+[Hypra Load](https://rr.pokefinder.org/wiki/Action_Replay) is **NOT** enabled by default in ```IECConfig.h```. 
+You need to un-comment the ```#define IEC_FP_HYPRALOAD``` line at the top of file ```IECConfig.h``` to enable it. 
+After doing so, any  device derived from ```IECFileDevice``` will automatically support the Hypra Load
+fast-load protocol.
+
+Of course, in order to use these fast-load routines you must use the Hypra Load 
 
 ## DolphinDos support
 

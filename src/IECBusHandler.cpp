@@ -1299,6 +1299,9 @@ uint8_t IECBusHandler::getSupportedFastLoaders()
 #ifdef IEC_FP_AR6
   mask |= bit(IEC_FP_AR6);
 #endif
+#ifdef IEC_FP_HYPRALOAD
+  mask |= bit(IEC_FP_HYPRALOAD);
+#endif
 #ifdef IEC_FP_DOLPHIN
   mask |= bit(IEC_FP_DOLPHIN);
 #endif
@@ -1392,6 +1395,26 @@ void IECBusHandler::fastLoadRequest(IECDevice *dev, uint8_t protocol, uint8_t re
       // wait 500us to make sure sender has pulled DATA low and seen our CLK low
       m_timeoutStart = micros();
       m_timeoutDuration = 500;
+      break;
+#endif
+
+#ifdef IEC_FP_HYPRALOAD
+    case IEC_FP_HYPRALOAD:
+      // signal "not ready"
+      writePinDATA(LOW);
+
+      // cancel any ATN request that has already occurred
+      // (HypraLoad uses ATN for clocking the data)
+      m_flags &= ~P_ATN;
+
+      // signals that this is the first sector read
+      m_buffer[0] = 0x00;
+
+      // wait 15ms to make sure C64 screen is off (affects timing)
+      // on a real 1541 this would not be necessary since reading
+      // the first sector would take longer than 20ms.
+      m_timeoutStart = micros();
+      m_timeoutDuration = 15000;
       break;
 #endif
       
@@ -3242,6 +3265,125 @@ int8_t RAMFUNC(IECBusHandler::receiveAR6Block)()
 #endif
 
 
+#ifdef IEC_FP_HYPRALOAD
+
+bool RAMFUNC(IECBusHandler::transmitHypraLoadByte)(uint8_t data)
+{
+  // invert data byte
+  data = ~data;
+
+  // wait until computer pulls ATN low
+  JDEBUG1();
+  waitPinATN(LOW);
+
+  // signal "ready"
+  noInterrupts();
+  writePinDATA(HIGH);
+
+  // wait (indefinitely) for ATN high
+  while( !digitalReadFastExtIEC(m_pinATN, m_regATNread, m_bitATN) )
+#ifdef ESP_PLATFORM
+    if( !timer_less_than(IWDT_FEED_TIME) )
+      {
+        // briefly enable interrupts to "feed" the WDT, otherwise we'll get re-booted
+        interrupts(); noInterrupts();
+        timer_reset();
+      }
+#else
+    {}
+#endif
+  timer_init();
+  timer_reset();
+  timer_start();
+
+  JDEBUG0();
+  writePinCLK( data & bit(0));
+  writePinDATA(data & bit(1));
+  JDEBUG1();
+  // receiver reads bits 0(CLK) and 1(DATA) 40us after ATN high
+  timer_wait_until(45);
+  JDEBUG0();
+  writePinCLK( data & bit(2));
+  writePinDATA(data & bit(3));
+  JDEBUG1();
+  // receiver reads bits 2(CLK) and 3(DATA) 64us after ATN high
+  timer_wait_until(75);
+  JDEBUG0();
+  writePinCLK( data & bit(4));
+  writePinDATA(data & bit(5));
+  JDEBUG1();
+  // receiver reads bits 4(CLK) and 5(DATA) 89us after ATN high
+  timer_wait_until(100);
+  timer_reset();
+  JDEBUG0();
+  writePinCLK( data & bit(6));
+  writePinDATA(data & bit(7));
+  JDEBUG1();
+  // receiver reads bits 6(CLK) and 7(DATA) 113us after ATN high
+  timer_wait_until(30); // 130us since ATN
+  JDEBUG0();
+
+  // signal "not ready"
+  writePinDATA(LOW);
+  interrupts();
+
+  return true;
+}
+
+
+bool IECBusHandler::transmitHypraLoadBlock()
+{
+  // generally, 254 data bytes are read into m_buffer[1..254]
+  // buffer[0]=0 serves as a flag to signal whether we're reading the first sector
+  // we read one more byte than needed for the sector to see if we need to send
+  // another sector after this. The extra byte will be at m_buffer[255] and
+  // will not be sent until the next data block
+  uint8_t n;
+  if( m_buffer[0]==0 )
+    {
+      // reading first sector:
+      // the first two bytes of the file (load address) have already been sent using the
+      // regular IEC protocol but the fast loader expects a full 254-byte block. However,
+      // it discards the first two butes of data so we can just send any values
+      n = m_currentDevice->read(m_buffer+3, 253) + 2;
+      m_buffer[0] = 0xFF;
+    }
+  else
+    {
+      // get extra byte from previous block
+      m_buffer[1] = m_buffer[255];
+
+      // read the next 254 bytes (extra byte will end up in m_buffer[255])
+      n = m_currentDevice->read(m_buffer+2, 254) + 1;
+    }
+
+  // 0x00 signals success, 0xFF signals error condition
+  transmitHypraLoadByte(0x00);
+
+  // transmit first two sector bytes (in 1541 this is track/sector pointer to next data block)
+  if( n<255 )
+    {
+      // there are fewer than 254+1 bytes to send => this is the final sector
+      transmitHypraLoadByte(0);   // next track == 0: "final sector"
+      transmitHypraLoadByte(n+1); // next sector: position of final valid byte in sector
+    }
+  else
+    {
+      transmitHypraLoadByte(1); // next track != 0: "more sectors to follow"
+      transmitHypraLoadByte(1); // next sector: not used in receiver
+    }
+
+  // transmit sector data bytes (2-256)
+  for(uint8_t i=1; i<=254; i++)
+    transmitHypraLoadByte(m_buffer[i]);
+
+  // return true if there are more blocks to transmit
+  return n==255;
+}
+
+#endif
+
+
 // ------------------------------------  IEC protocol support routines  ------------------------------------  
 
 
@@ -3498,12 +3640,20 @@ bool RAMFUNC(IECBusHandler::transmitIECByte)(uint8_t numData)
 
   interrupts();
 
-  // get the data byte from the device
-#ifdef IEC_FP_AR6
-  // After opening a file to load, Action Replay 6 reads the first 2 bytes (load address)
-  // but then signals "ready" (DATA high) again before pulling ATN low which makes us
+  bool doPeek = false;
+#if defined(IEC_FP_AR6) || defined(IEC_FP_HYPRALOAD)
+  // After opening a file to load, Action Replay 6 and HypraLoad read the first 2 bytes (load address)
+  // but then signal "ready" (DATA high) again before pulling ATN low which makes us
   // read and discard the third byte if we don't use peek() here
-  uint8_t data = m_currentDevice->isFastLoaderEnabled(IEC_FP_AR6) ? m_currentDevice->peek() : m_currentDevice->read();
+#ifdef IEC_FP_AR6
+  doPeek |= m_currentDevice->isFastLoaderEnabled(IEC_FP_AR6);
+#endif
+#ifdef IEC_FP_HYPRALOAD
+  doPeek |= m_currentDevice->isFastLoaderEnabled(IEC_FP_HYPRALOAD);
+#endif
+
+  // get the data byte from the device
+  uint8_t data = doPeek ? m_currentDevice->peek() : m_currentDevice->read();
 #else
   uint8_t data = m_currentDevice->read();
 #endif
@@ -3537,10 +3687,8 @@ bool RAMFUNC(IECBusHandler::transmitIECByte)(uint8_t numData)
   // wait for receiver to signal "busy"
   if( !waitPinDATA(LOW) ) return false;
 
-#ifdef IEC_FP_AR6
   // discard previously read data byte
-  if( m_currentDevice->isFastLoaderEnabled(IEC_FP_AR6) ) m_currentDevice->read();
-#endif
+  if( doPeek ) m_currentDevice->read();
   
   return true;
 }
@@ -3552,6 +3700,14 @@ void RAMFUNC(IECBusHandler::atnRequest)()
 {
   // check if ATN is actually LOW, if not then just return (stray interrupt request)
   if( readPinATN() ) return;
+
+#ifdef IEC_FP_HYPRALOAD
+  // Hypra-Load uses ATN to clock bytes during fastload
+  if( m_currentDevice!=NULL && m_currentDevice->m_flProtocol == ((IEC_FP_HYPRALOAD<<3) | IEC_FL_PROT_LOAD) )
+    return;
+#endif
+
+  JDEBUG1();
 
   // falling edge on ATN detected (bus master addressing all devices)
   m_flags |= P_ATN;
@@ -3593,6 +3749,8 @@ void RAMFUNC(IECBusHandler::atnRequest)()
 
       m_devices[i]->m_flProtocol = IEC_FL_PROT_NONE;
     }
+
+  JDEBUG0();
 }
 
 
@@ -3657,6 +3815,9 @@ void RAMFUNC(IECBusHandler::handleATNSequence)()
       // allow ATN to pull DATA low in hardware
       writePinCTRL(LOW);
           
+      // see Hypra-Load comment below
+      bool dataIdleState = HIGH;
+
       if( m_primary == 0x3f )
         {
           // all devices were told to stop listening
@@ -3673,9 +3834,25 @@ void RAMFUNC(IECBusHandler::handleATNSequence)()
           if( m_flags & P_TALKING )
             {
               if( m_currentDevice!=NULL ) m_currentDevice->untalk();
+
               m_currentDevice = NULL;
               m_flags &= ~P_TALKING;
             }
+#ifdef IEC_FP_HYPRALOAD
+          else if( m_flags & P_LISTENING )
+            {
+              // Hypra-Load sends LISTEN->DATA->UNTALK when transmitting
+              // the final M-E command after uploading data. Also, it expects DATA=LOW
+              // within 3us after setting ATN low again following the M-E command.
+              // While the atnRequest() function does pull DATA low quickly, especially when
+              // run in an interrupt, it is not always guaranteed within 3us. To avoid problems,
+              // we just keep DATA low already after this UNTALK command
+              if( m_currentDevice!=NULL ) { m_currentDevice->unlisten(); dataIdleState = LOW; }
+
+              m_currentDevice = NULL;
+              m_flags &= ~P_LISTENING;
+            }
+#endif
         }
       else if( (m_primary & 0xE0)==0x20 )
         {
@@ -3736,7 +3913,7 @@ void RAMFUNC(IECBusHandler::handleATNSequence)()
         {
           // we're neither listening nor talking => release CLK/DATA
           writePinCLK(HIGH);
-          writePinDATA(HIGH);
+          writePinDATA(dataIdleState);
         }
     }
   else
@@ -3914,6 +4091,27 @@ void IECBusHandler::handleFastLoadProtocols()
                 }
             }
 #endif
+#endif
+
+#ifdef IEC_FP_HYPRALOAD
+          // ------------------ HypraLoad transfer handling -------------------
+
+          if( (loader==IEC_FP_HYPRALOAD) && (protocol==IEC_FL_PROT_LOAD) && (micros()-m_timeoutStart)>m_timeoutDuration && !readPinATN() )
+            {
+              if( !transmitHypraLoadBlock() )
+                {
+                  // either end-of-data or transmission error => we are done
+                  writePinCLK(HIGH);
+                  writePinDATA(HIGH);
+
+                  // close the file (HypraLoad does not send an explicit CLOSE after load finishes)
+                  m_currentDevice->listen(0xE0);
+                  m_currentDevice->unlisten();
+
+                  // no more data to send
+                  m_currentDevice->m_flProtocol = IEC_FL_PROT_NONE;
+                }
+            }
 #endif
 
 #ifdef IEC_FP_FC3

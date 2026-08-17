@@ -32,7 +32,7 @@
 // (only has an effect if IEC_USE_LINE_DRIVERS is also enabled)
 //#define IEC_USE_INVERTED_INPUTS
 
-// un-comment these #defines to completely disable support for the
+// comment out these #defines to completely disable support for the
 // corresponding fast-load protocols (saves program memory in small devices)
 #define IEC_FP_JIFFY     0 // JiffyDos
 #define IEC_FP_EPYX      1 // EPYX FastLoad
@@ -40,10 +40,11 @@
 //#define IEC_FP_AR6       3 // Action Replay 6
 //#define IEC_FP_DOLPHIN   4 // Dolphin Dos
 //#define IEC_FP_SPEEDDOS  5 // Speed Dos
+//#define IEC_FP_HYPRALOAD 6 // Hypra-Load (64er Magazin)
 
 // convenience macro, IEC_SUPPORT_FASTLOAD is defined if any fast-load protocols
 // are enabled
-#if defined(IEC_FP_JIFFY) || defined(IEC_FP_EPYX) || defined(IEC_FP_FC3) || defined(IEC_FP_AR6) || defined(IEC_FP_DOLPHIN) || defined(IEC_FP_SPEEDDOS)
+#if defined(IEC_FP_JIFFY) || defined(IEC_FP_EPYX) || defined(IEC_FP_FC3) || defined(IEC_FP_AR6) || defined(IEC_FP_DOLPHIN) || defined(IEC_FP_SPEEDDOS) || defined(IEC_FP_HYPRALOAD)
 #define IEC_SUPPORT_FASTLOAD
 #endif
 
