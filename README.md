@@ -854,6 +854,38 @@ fast-loader ids defined in ```IECConfig.h```.
 As mentioned in the timing consideration section, interrupts will be disabled during fast-load transfers 
 which may cause your program to not be able to respond to interrupts for up to 20ms at a time.
 
+### Fast-Loader performance
+
+The following table compares the performance of the various fast-load protocol implementations.
+Each entry is the number of seconds it took to load a 202 block (51200 byte) PRG file.
+As a reference, the first column shows the time for a C1541 disk drive.
+
+The bytes/second transfer speed is calculated based on the IECSD time since reading from SD
+card is almost instantaneous and therefore the speed reflects the pure transmission protocol
+speed without disk read overhead. 
+
+Load times for IECFDCMega are constrained by the disk rotation speed and the loader having 
+to wait for the next sector to read after finishing transmission of the previous sector.
+This can be improved by changing the disk interleave factor to best fit the transmission speed.
+
+Similarly the 1541 load times can vary depending on whether a file was saved using the fastloader
+or not (which can adjust the interleave factor). Shown here are the times for loading a file
+saved using the stock 1541 kernal.
+
+202 block load    |  1541   |   IECSD  | IECFDCMega | Bytes/second
+------------------|---------|----------|------------|-------------
+Regular           | 128.6   |   78.4   |  108.3     | 653
+Hypra Load        |  23.5   |   11.2   |  29.7      | 4571
+Epyx FastLoad     |  25.0   |   6.9    |   9.4      | 7429
+Action Replay 5   |   9.3   |   6.3    |  11.1      | 8127
+Final Cartridge 3 |  13.2   |   6.1    |  10.2      | 8393
+JiffyDos          |  21.4*  |   5.3    |   9.1      | 9660
+Speed Dos         |  23.1** |   2.2    |   9.1      | 23273
+Dolphin Dos       |   5.2   |   2.1    |   8.9      | 24380
+
+(*) 14.1 seconds if the file was also saved with JiffyDos<br>
+(**) SpeedDos load time for the 1541 measured in VICE emulator since I don't have a SpeedDos ROM for my 1541
+
 ## JiffyDos support
 
 [JiffyDos](https://www.go4retro.com/products/jiffydos/) support is enabled by default in ```IECConfig.h```. 
