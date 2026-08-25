@@ -63,6 +63,11 @@ class IECBusHandler
   // is the IEC bus device number that this device should react to
   void begin();
 
+  // releases the bus (CLK/DATA lines and ATN interrupt) and makes task()
+  // a no-op until begin() is called again. Attached devices are left in
+  // place; begin() re-initializes them the same way it did at startup.
+  void end();
+
   bool attachDevice(IECDevice *dev);
   bool detachDevice(IECDevice *dev);
 
@@ -100,7 +105,18 @@ class IECBusHandler
   IECDevice *findDevice(uint8_t devnr, bool includeInactive = false);
   bool canServeATN();
   bool inTransaction();
+
+  // True if the RESET pin currently reads idle (not asserted), or if this
+  // board has no RESET pin wired at all. NOT declared inline (unlike the
+  // private readPin* helpers) so it reliably links when called from other
+  // translation units, e.g. IECHost.
+  bool isResetPinIdle();
   void sendSRQ();
+  void setATNInterruptEnabled(bool enable);
+  bool isATNInterruptEnabled() const { return m_atnInterruptEnabled; }
+  void setHostMode(bool enable) { m_hostMode = enable; }
+  bool isHostMode() const { return m_hostMode; }
+  bool isEnabled() const { return m_enabled; }
 
   IECDevice *m_currentDevice;
   IECDevice *m_devices[IEC_MAX_DEVICES];
@@ -124,6 +140,7 @@ class IECBusHandler
   bool waitPinDATA(bool state, uint16_t timeout = 1000);
   bool waitPinCLK(bool state, uint16_t timeout = 1000);
   void waitPinATN(bool state);
+  void attachATNInterrupt();
   void atnRequest();
   bool receiveIECByteATN(uint8_t &data, uint8_t bytenum);
   bool receiveIECByte(bool canWriteOk);
@@ -131,11 +148,16 @@ class IECBusHandler
   void handleFastLoadProtocols();
   void handleATNSequence();
 
-  volatile uint16_t m_timeoutDuration; 
+  volatile uint16_t m_timeoutDuration;
   volatile uint32_t m_timeoutStart;
   volatile bool m_inTask;
+  bool m_atnInterruptEnabled;
   volatile uint8_t m_flags;
   uint8_t m_primary, m_secondary;
+
+  // Dedicated enable/disable latch for end()/begin(), checked by task() before
+  // touching anything else.
+  volatile bool m_enabled;
 
 #ifdef IOREG_TYPE
   volatile IOREG_TYPE *m_regCLKwrite, *m_regCLKmode, *m_regDATAwrite, *m_regDATAmode;
