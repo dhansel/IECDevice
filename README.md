@@ -872,7 +872,7 @@ Similarly the 1541 load times can vary depending on whether a file was saved usi
 or not (which can adjust the interleave factor). Shown here are the times for loading a file
 saved using the stock 1541 kernal.
 
-202 block load    |  1541   |   IECSD  | IECFDCMega | Bytes/second
+202 block load    |  1541   |  [IECSD](examples/IECSD) | [IECFDCMega](examples/IECFDCMega) | Bytes/second
 ------------------|---------|----------|------------|-------------
 Regular           | 128.6   |   78.4   |  108.3     | 653
 Hypra Load        |  23.5   |   11.2   |  29.7      | 4571
