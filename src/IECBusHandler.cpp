@@ -3280,6 +3280,10 @@ bool RAMFUNC(IECBusHandler::transmitHypraLoadByte)(uint8_t data)
   noInterrupts();
   writePinDATA(HIGH);
 
+  timer_init();
+  timer_reset();
+  timer_start();
+
   // wait (indefinitely) for ATN high
   while( !digitalReadFastExtIEC(m_pinATN, m_regATNread, m_bitATN) )
 #ifdef ESP_PLATFORM
@@ -3292,9 +3296,7 @@ bool RAMFUNC(IECBusHandler::transmitHypraLoadByte)(uint8_t data)
 #else
     {}
 #endif
-  timer_init();
   timer_reset();
-  timer_start();
 
   JDEBUG0();
   writePinCLK( data & bit(0));
@@ -3338,6 +3340,11 @@ bool IECBusHandler::transmitHypraLoadBlock()
   // we read one more byte than needed for the sector to see if we need to send
   // another sector after this. The extra byte will be at m_buffer[255] and
   // will not be sent until the next data block
+
+  // disable the hardware that allows ATN to pull DATA low
+  // (necessay since Hypra Load uses ATN for symchronization)
+  writePinCTRL(HIGH);
+
   uint8_t n;
   if( m_buffer[0]==0 )
     {
@@ -3376,6 +3383,9 @@ bool IECBusHandler::transmitHypraLoadBlock()
   // transmit sector data bytes (2-256)
   for(uint8_t i=1; i<=254; i++)
     transmitHypraLoadByte(m_buffer[i]);
+
+  // allow ATN to pull DATA low in hardware
+  writePinCTRL(LOW);
 
   // return true if there are more blocks to transmit
   return n==255;
